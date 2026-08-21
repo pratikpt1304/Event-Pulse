@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EventPulse — Executive Presentation Slide Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --bg-card: rgba(26, 34, 52, 0.75);
+      --bg-card-border: rgba(255, 255, 255, 0.1);
+      --primary: #8b5cf6;
+      --primary-glow: rgba(139, 92, 246, 0.4);
+      --secondary: #06b6d4;
+      --accent: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg);
+      color: var(--text-main);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(139, 92, 246, 0.18) 0%, transparent 45%),
+        radial-gradient(circle at 85% 85%, rgba(6, 182, 212, 0.15) 0%, transparent 45%),
+        radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.06) 0%, transparent 60%);
+    }
+
+    /* Presentation Header */
+    header {
+      padding: 1rem 2.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 100;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(9, 13, 22, 0.6);
+      backdrop-filter: blur(12px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 800;
+      font-size: 1.25rem;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-badge {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      padding: 0.35rem 0.65rem;
+      border-radius: 8px;
+      color: white;
+      font-size: 0.9rem;
+      box-shadow: 0 0 15px var(--primary-glow);
+    }
+
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .btn-ctrl {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--bg-card-border);
+      color: var(--text-main);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn-ctrl:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), #7c3aed);
+      border: none;
+      box-shadow: 0 4px 14px var(--primary-glow);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #9333ea, #6d28d9);
+      box-shadow: 0 6px 20px var(--primary-glow);
+    }
+
+    /* Slides Container */
+    #deck-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .slide {
+      position: absolute;
+      width: 92%;
+      max-width: 1200px;
+      height: 82vh;
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 24px;
+      padding: 3.5rem 4rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7);
+      opacity: 0;
+      visibility: hidden;
+      transform: scale(0.95) translateY(20px);
+      transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: scale(1) translateY(0);
+      z-index: 10;
+    }
+
+    /* Slide Header */
+    .slide-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--secondary);
+      margin-bottom: 0.5rem;
+    }
+
+    .slide-title {
+      font-size: 2.5rem;
+      font-weight: 900;
+      letter-spacing: -1px;
+      line-height: 1.15;
+      background: linear-gradient(135deg, #ffffff 40%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.75rem;
+    }
+
+    .slide-subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      max-width: 900px;
+    }
+
+    .slide-body {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      margin: 1.5rem 0;
+    }
+
+    /* Grid Layouts */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.75rem;
+      width: 100%;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      width: 100%;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.25rem;
+      width: 100%;
+    }
+
+    .feature-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 1.5rem;
+      transition: all 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .feature-card:hover {
+      background: rgba(255, 255, 255, 0.07);
+      border-color: rgba(139, 92, 246, 0.4);
+      transform: translateY(-3px);
+    }
+
+    .feature-icon {
+      font-size: 2rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .feature-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #ffffff;
+    }
+
+    .feature-desc {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    .stat-box {
+      background: rgba(139, 92, 246, 0.08);
+      border: 1px solid rgba(139, 92, 246, 0.25);
+      border-radius: 16px;
+      padding: 1.5rem;
+      text-align: center;
+    }
+
+    .stat-number {
+      font-size: 2.75rem;
+      font-weight: 900;
+      font-family: var(--font-mono);
+      background: linear-gradient(135deg, var(--secondary), var(--primary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+
+    /* Footer & Progress */
+    footer {
+      padding: 1rem 2.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 100;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(9, 13, 22, 0.6);
+      backdrop-filter: blur(12px);
+    }
+
+    .progress-bar-container {
+      flex: 1;
+      max-width: 500px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 0 1.5rem;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 10%;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      transition: width 0.3s ease;
+      border-radius: 999px;
+    }
+
+    .slide-counter {
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    /* Title Slide Custom Hero */
+    .hero-slide {
+      text-align: center;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.35);
+      color: #c4b5fd;
+      padding: 0.4rem 1rem;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      font-weight: 800;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero-title {
+      font-size: 4.2rem;
+      font-weight: 900;
+      letter-spacing: -2px;
+      line-height: 1.05;
+      margin-bottom: 1.25rem;
+      background: linear-gradient(135deg, #ffffff 30%, #a78bfa 70%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-desc {
+      font-size: 1.35rem;
+      color: var(--text-muted);
+      max-width: 750px;
+      margin: 0 auto 2.5rem auto;
+      line-height: 1.5;
+    }
+
+    .presenter-card {
+      display: inline-flex;
+      align-items: center;
+      gap: 1.25rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 0.85rem 1.75rem;
+      border-radius: 999px;
+      text-align: left;
+    }
+
+    .presenter-avatar {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      font-weight: 900;
+    }
+
+    /* Print View for PDF generation */
+    @media print {
+      body {
+        overflow: visible;
+        background: #ffffff !important;
+        color: #0f172a !important;
+      }
+      header, footer, .nav-controls {
+        display: none !important;
+      }
+      #deck-container {
+        padding: 0;
+        display: block;
+      }
+      .slide {
+        position: relative !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        transform: none !important;
+        page-break-after: always;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100vh !important;
+        box-shadow: none !important;
+        border: none !important;
+        border-bottom: 2px solid #e2e8f0 !important;
+        background: #ffffff !important;
+        color: #0f172a !important;
+        border-radius: 0 !important;
+        padding: 2.5rem !important;
+      }
+      .slide-title, .hero-title {
+        background: none !important;
+        -webkit-text-fill-color: #0f172a !important;
+        color: #0f172a !important;
+      }
+      .feature-card {
+        background: #f8fafc !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #0f172a !important;
+      }
+      .feature-title {
+        color: #0f172a !important;
+      }
+      .feature-desc, .slide-subtitle, .hero-desc {
+        color: #475569 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header Controls -->
+  <header>
+    <div class="brand">
+      <span class="brand-badge">EP</span>
+      <span>EventPulse Pitch Deck</span>
+    </div>
+
+    <div class="nav-controls">
+      <button class="btn-ctrl" id="btn-prev" title="Previous Slide (Left Arrow)">◀ Prev</button>
+      <button class="btn-ctrl" id="btn-next" title="Next Slide (Right Arrow)">Next ▶</button>
+      <button class="btn-ctrl" id="btn-fullscreen" title="Toggle Fullscreen (F)">⛶ Fullscreen</button>
+      <button class="btn-ctrl btn-primary" id="btn-print" title="Save / Export as PDF">🖨️ Export PDF</button>
+      <a class="btn-ctrl" href="/" target="_blank" style="text-decoration: none;">🚀 Open Live App</a>
+    </div>
+  </header>
+
+  <!-- Deck Slides -->
+  <div id="deck-container">
+
+    <!-- SLIDE 1: Title & Hero -->
+    <div class="slide active hero-slide">
+      <div>
+        <div class="hero-badge">⚡ SANJIVANI UNIVERSITY SMART CAMPUS INITIATIVE</div>
+        <h1 class="hero-title">EventPulse</h1>
+        <p class="hero-desc">
+          The Next-Gen University Event & Student Life Operating System. Empowering students, streamlining faculty organizers, and automating institutional certification.
+        </p>
+        <div class="presenter-card">
+          <div class="presenter-avatar">PT</div>
+          <div>
+            <div style="font-weight: 800; font-size: 1rem; color: #ffffff;">Pratik Thorat</div>
+            <div style="font-size: 0.85rem; color: #a78bfa;">Lead Architect & Developer | Integrated M.Tech (CSE)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 2: Executive Vision -->
+    <div class="slide">
+      <div>
+        <div class="slide-tag">Executive Summary</div>
+        <h2 class="slide-title">Transforming University Campus Life</h2>
+        <p class="slide-subtitle">EventPulse replaces fragmented WhatsApp announcements and manual paperwork with a centralized, real-time cloud platform.</p>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-4">
+          <div class="stat-box">
+            <div class="stat-number">100%</div>
+            <div class="stat-label">Paperless Pass Generation</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-number">0s</div>
+            <div class="stat-label">Public Certificate Verification</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-number">10x</div>
+            <div class="stat-label">Faster Hackathon Teaming</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-number">24/7</div>
+            <div class="stat-label">Grievance & Support Desk</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size: 0.85rem; color: var(--text-muted); border-top: 1px solid rgba(255,255,255,0.08); padding-top: 0.75rem;">
+        Deployed Live at Sanjivani University: <strong>eventpulse-su-34a42.web.app</strong>
+      </div>
+    </div>
+
+    <!-- SLIDE 3: Problem Statement -->
+    <div class="slide">
+      <div>
+        <div class="slide-tag" style="color: var(--danger);">The Challenge</div>
+        <h2 class="slide-title">Campus Communication & Event Bottlenecks</h2>
+        <p class="slide-subtitle">Traditional campus activities suffer from four critical operational hurdles that degrade student participation.</p>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-2">
+          <div class="feature-card" style="border-left: 4px solid var(--danger);">
+            <div class="feature-icon">📢</div>
+            <div class="feature-title">Fragmented Communication</div>
+            <div class="feature-desc">Events, hackathons, and sports trials get lost in unorganized WhatsApp groups and physical notice boards with zero reach tracking.</div>
+          </div>
+          <div class="feature-card" style="border-left: 4px solid var(--warning);">
+            <div class="feature-icon">📝</div>
+            <div class="feature-title">Manual Attendance & Proxy Fraud</div>
+            <div class="feature-desc">Paper sign-up sheets lead to long queues at auditorium gates, illegible handwriting, and unauthorized proxy attendance.</div>
+          </div>
+          <div class="feature-card" style="border-left: 4px solid var(--primary);">
+            <div class="feature-icon">👥</div>
+            <div class="feature-title">Hackathon Teammate Isolation</div>
+            <div class="feature-desc">Students struggle to find complementary skill partners (e.g., frontend devs finding AI/ML or UI/UX designers) across departments.</div>
+          </div>
+          <div class="feature-card" style="border-left: 4px solid var(--secondary);">
+            <div class="feature-icon">📜</div>
+            <div class="feature-title">Unverifiable Paper Certificates</div>
+            <div class="feature-desc">Weeks of delay in distributing paper certificates, which are easily forged and impossible for recruiters or NAAC audits to verify.</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size: 0.85rem; color: var(--text-muted);">
+        Result: Administrative burnout, low student turnout, and accreditation data gaps.
+      </div>
+    </div>
+
+    <!-- SLIDE 4: The 5 Pillars of EventPulse -->
+    <div class="slide">
+      <div>
+        <div class="slide-tag">The Architecture</div>
+        <h2 class="slide-title">The 5 Unified Solution Pillars</h2>
+        <p class="slide-subtitle">A synchronized, high-performance ecosystem addressing every phase of the event lifecycle.</p>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="feature-card">
+            <div class="feature-icon">🎪</div>
+            <div class="feature-title">1. Smart Event Explorer</div>
+            <div class="feature-desc">Category-based discovery (Technical, Cultural, Sports) with 1-click registration and deterministic security passes.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📷</div>
+            <div class="feature-title">2. Live QR Gate Scanner</div>
+            <div class="feature-desc">On-device camera scanner allowing organizers to verify passes and log attendance in under 500 milliseconds.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📜</div>
+            <div class="feature-title">3. Instant Verified Certs</div>
+            <div class="feature-desc">Automated cryptographic certificate generation with public URL verification for LinkedIn and recruiters.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🤝</div>
+            <div class="feature-title">4. Squad & Teammate Hub</div>
+            <div class="feature-desc">Inter-departmental recruitment board with direct LinkedIn, GitHub, and phone contact integration.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🚨</div>
+            <div class="feature-title">5. Support & Grievance Desk</div>
+            <div class="feature-desc">Trackable incident ticketing with official administration resolution notes and community idea voting.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <div class="feature-title">6. NEX AI Assistant</div>
+            <div class="feature-desc">Integrated generative AI that auto-drafts complete event agendas, rules, and promotional copy in 1 click.</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size: 0.85rem; color: var(--secondary);">
+        100% Mobile Responsive Progressive Web App (PWA) with Offline Zero-Delay Caching.
+      </div>
+    </div>
+
+    <!-- SLIDE 5: Student Experience -->
+    <div class="slide">
+      <div>
+        <div class="slide-tag">Student Centric</div>
+        <h2 class="slide-title">Empowering Students at Every Step</h2>
+        <p class="slide-subtitle">Frictionless digital experience from discovery to career-ready verified credentials.</p>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="feature-card">
+            <div class="feature-icon">🎟️</div>
+            <div class="feature-title">Dynamic Digital Passes</div>
+            <div class="feature-desc">Interactive pass modal featuring student PRN, seat capacity, QR code, and instant 1-click withdrawal option.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">⭐</div>
+            <div class="feature-title">Student Reviews & Ratings</div>
+            <div class="feature-desc">Transparent 5-star student review system with full author moderation and real-time average score recalculation.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📂</div>
+            <div class="feature-title">Centralized Student Dossier</div>
+            <div class="feature-desc">Single dashboard (`#my-passes`) organizing Passes, Earned Certificates, Volunteer Applications, and Support Tickets.</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); padding: 0.75rem 1.25rem; border-radius: 12px; font-size: 0.85rem; color: #6ee7b7;">
+        ✨ Designed with high accessibility: 0-second loading, zero confusing menus, and instant touch feedback.
+      </div>
+    </div>
+
+    <!-- SLIDE 6: Organizer Command Center -->
+    <div class="slide">
+      <div>
+        <div class="slide-tag">Faculty & Organizers</div>
+        <h2 class="slide-title">Command Center for Seamless Execution</h2>
+        <p class="slide-subtitle">Comprehensive tools for event organizers, faculty coordinators, and club leaders.</p>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-2">
+          <div class="feature-card">
+            <div class="feature-icon">👥</div>
+            <div class="feature-title">Volunteer Crew Approval Hub</div>
+            <div class="feature-desc">Screen applicant department, year, contact phone, and pitch notes. Approve or reject crew members with real-time status sync.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <div class="feature-title">Smart Accreditation CSV Exports</div>
+            <div class="feature-desc">3 dedicated 1-click export buttons for <strong>Present Students</strong>, <strong>Absent Rosters</strong>, and <strong>Master Reports</strong> formatted for HOD audits.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🏁</div>
+            <div class="feature-title">Event Conclude & History Archives</div>
+            <div class="feature-desc">Lock registrations and preserve all attendance stats in university historical archive with full reopen capabilities.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <div class="feature-title">Live Database Sync Button</div>
+            <div class="feature-desc">Instant cloud sync button ensuring organizers never miss real-time student registrations or cancellations.</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size: 0.85rem; color: var(--text-muted);">
+        Full Role-Based Access: Super Admin, Faculty Coordinator, Club Lead, and Volunteer.
+      </div>
+    </div>
+
+    <!-- SLIDE 7: Tamper-Proof Certificates -->
+    <div class="slide">
+      <div>
+        <div class="slide-tag">Accreditation & Trust</div>
+        <h2 class="slide-title">Cryptographically Verified Certificates</h2>
+        <p class="slide-subtitle">Bridging campus achievements with industry standards and verifiable credentials.</p>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <div class="feature-title">Instant 1-Click Auto-Issuance</div>
+            <div class="feature-desc">When an organizer scans a student QR or marks attendance, the certificate is automatically generated and bound to student PRN.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🔗</div>
+            <div class="feature-title">Public Web Verification URL</div>
+            <div class="feature-desc">Anyone (recruiter, company, NAAC audit committee) can verify authenticity online via direct link: <code>#verify/CERT-SU-...</code>.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📄</div>
+            <div class="feature-title">High-Resolution PDF Export</div>
+            <div class="feature-desc">Students can download official high-definition PDF certificates complete with Sanjivani University branding and verified signatures.</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.25); padding: 0.75rem 1.25rem; border-radius: 12px; font-size: 0.85rem; color: #c4b5fd;">
+        🔒 Zero manual typing errors • Zero paper wastage • 100% Tamper-proof validation.
+      </div>
+    </div>
+
+    <!-- SLIDE 8: Tech Stack -->
+    <div class="slide">
+      <div>
+        <div class="slide-tag">Engineering Excellence</div>
+        <h2 class="slide-title">Built on a Modern, Resilient Stack</h2>
+        <p class="slide-subtitle">Engineered for extreme performance, security, and instantaneous mobile responsiveness.</p>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-4">
+          <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <div class="feature-title">Frontend</div>
+            <div class="feature-desc">High-speed Vanilla JS & CSS design tokens. Zero bulky framework lag, instant sub-50ms render.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🔥</div>
+            <div class="feature-title">Cloud Database</div>
+            <div class="feature-desc">Google Firebase Firestore with real-time listeners and multi-region cloud resilience.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🛡️</div>
+            <div class="feature-title">Security Rules</div>
+            <div class="feature-desc">Granular authorization protecting registrations, attendance, and student privacy.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🌐</div>
+            <div class="feature-title">Global CDN</div>
+            <div class="feature-desc">Firebase Hosting with aggressive HTTP caching and mobile auto-purge protocols.</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size: 0.85rem; color: var(--text-muted); font-family: var(--font-mono);">
+        Production Endpoint: https://eventpulse-su-34a42.web.app
+      </div>
+    </div>
+
+    <!-- SLIDE 9: University Benefits & ROI -->
+    <div class="slide">
+      <div>
+        <div class="slide-tag">Institutional Value</div>
+        <h2 class="slide-title">Value Proposition for Sanjivani University</h2>
+        <p class="slide-subtitle">Measurable administrative, academic, and student engagement advantages.</p>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="feature-card">
+            <div class="feature-icon">🏛️</div>
+            <div class="feature-title">NAAC / NBA Accreditation</div>
+            <div class="feature-desc">One-click departmental participation reports with verified attendance timestamps and student demographic logs.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🌱</div>
+            <div class="feature-title">100% Eco-Friendly Campus</div>
+            <div class="feature-desc">Eliminating thousands of printed registration forms, paper tickets, and disposable certificates every academic year.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🚀</div>
+            <div class="feature-title">Student Skill Synergy</div>
+            <div class="feature-desc">Fostering cross-departmental innovation by pairing engineering, data science, and design students for national hackathons.</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.25); padding: 0.75rem 1.25rem; border-radius: 12px; font-size: 0.85rem; color: #67e8f9;">
+        💡 High Institutional Prestige: Demonstrating in-house engineering capabilities created by Sanjivani University students.
+      </div>
+    </div>
+
+    <!-- SLIDE 10: Conclusion & Live Demo -->
+    <div class="slide hero-slide">
+      <div>
+        <div class="hero-badge" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.35); color: #6ee7b7;">
+          🎉 LIVE PRODUCTION READY
+        </div>
+        <h2 style="font-size: 3.5rem; font-weight: 900; margin-bottom: 1rem; color: #ffffff;">
+          Thank You & Live Demo
+        </h2>
+        <p class="hero-desc" style="margin-bottom: 2rem;">
+          EventPulse is fully built, live, and ready to power all upcoming technical, cultural, and sports events across Sanjivani University!
+        </p>
+
+        <div style="display: flex; justify-content: center; align-items: center; gap: 2rem; flex-wrap: wrap; margin-bottom: 2rem;">
+          <div style="background: white; padding: 0.75rem; border-radius: 16px; display: inline-block;">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=https%3A%2F%2Feventpulse-su-34a42.web.app&format=png&margin=5" alt="EventPulse QR" width="140" height="140" style="display: block;">
+          </div>
+          <div style="text-align: left;">
+            <div style="font-size: 0.85rem; font-weight: 800; color: var(--secondary); text-transform: uppercase; letter-spacing: 1px;">Scan or Visit:</div>
+            <div style="font-size: 1.4rem; font-weight: 900; color: #ffffff; margin: 0.25rem 0;">eventpulse-su-34a42.web.app</div>
+            <div style="font-size: 0.9rem; color: var(--text-muted);">Lead Architect: <strong>Pratik Thorat</strong> (Integrated M.Tech / CSE)</div>
+            <div style="font-size: 0.85rem; color: #a78bfa; margin-top: 0.25rem;">Sanjivani University, Kopargaon</div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 1rem; justify-content: center;">
+          <a class="btn-ctrl btn-primary" href="/" target="_blank" style="text-decoration: none; padding: 0.75rem 1.75rem; font-size: 1rem;">
+            🚀 Launch Live Platform
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer Controls & Progress -->
+  <footer>
+    <div style="font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.5rem;">
+      <span>Use <strong>← / →</strong> keys to navigate</span>
+    </div>
+
+    <div class="progress-bar-container">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+
+    <div class="slide-counter" id="slide-counter">
+      01 / 10
+    </div>
+  </footer>
+
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const prevBtn = document.getElementById('btn-prev');
+    const nextBtn = document.getElementById('btn-next');
+    const progressBar = document.getElementById('progress-bar');
+    const slideCounter = document.getElementById('slide-counter');
+    const fullscreenBtn = document.getElementById('btn-fullscreen');
+    const printBtn = document.getElementById('btn-print');
+
+    let currentSlide = 0;
+    const totalSlides = slides.length;
+
+    function updateSlide(index) {
+      if (index < 0) index = 0;
+      if (index >= totalSlides) index = totalSlides - 1;
+
+      slides.forEach((slide, i) => {
+        slide.classList.toggle('active', i === index);
+      });
+
+      currentSlide = index;
+      const pct = ((index + 1) / totalSlides) * 100;
+      progressBar.style.width = `${pct}%`;
+      slideCounter.textContent = `${String(index + 1).padStart(2, '0')} / ${String(totalSlides).padStart(2, '0')}`;
+
+      prevBtn.disabled = index === 0;
+      nextBtn.disabled = index === totalSlides - 1;
+    }
+
+    prevBtn.addEventListener('click', () => updateSlide(currentSlide - 1));
+    nextBtn.addEventListener('click', () => updateSlide(currentSlide + 1));
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') {
+        updateSlide(currentSlide + 1);
+      } else if (e.key === 'ArrowLeft') {
+        updateSlide(currentSlide - 1);
+      } else if (e.key.toLowerCase() === 'f') {
+        toggleFullscreen();
+      }
+    });
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {});
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    }
+
+    fullscreenBtn.addEventListener('click', toggleFullscreen);
+    printBtn.addEventListener('click', () => window.print());
+
+    updateSlide(0);
+  </script>
+</body>
+</html>
