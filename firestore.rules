@@ -1,0 +1,117 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(role) {
+      return isAuthenticated() && (
+        request.auth.token.role == role || 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData().role == role)
+      );
+    }
+
+    function isOrganizer() {
+      return hasRole('organizer') || hasRole('admin');
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email == 'eventpulsesupport@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData().email == 'eventpulsesupport@gmail.com')
+      );
+    }
+
+    // 1. User Profiles (Public read allowed for PRN uniqueness check during signup)
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if isUser(userId);
+      allow delete: if isAdmin();
+    }
+
+    // 2. Events
+    match /events/{eventId} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 3. Registrations (Deterministic ID: {eventId}_{userId})
+    match /registrations/{registrationId} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 4. Attendance
+    match /attendance/{attendanceId} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 5. Certificates (Public read for verification)
+    match /certificates/{certificateId} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 6. Audit Logs
+    match /auditLogs/{logId} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 7. Teammate & Squad Hub
+    match /teams/{teamId} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 8. Volunteer Applications
+    match /volunteers/{volunteerId} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 9. Confidential Grievances & Incident Reports
+    match /complaints/{complaintId} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 10. Event Reviews & Ratings
+    match /reviews/{reviewId} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 11. Campus Ideas & Event Wishlist
+    match /ideas/{ideaId} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 11b. Idea Comments (subcollection)
+    match /ideas/{ideaId}/comments/{commentId} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 12. Campus Announcements & Notices
+    match /announcements/{noticeId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 13. FCM Push Notification Tokens (authenticated users can save their own token)
+    match /fcm_tokens/{tokenId} {
+      allow read: if isAdmin();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    // 14. Notification Send Logs (admin only)
+    match /notification_logs/{logId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+  }
+}

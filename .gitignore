@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+functions/node_modules/
+
+# Production builds
+dist/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+functions/serviceAccountKey.json
+serviceAccountKey.json
+*.json.bak
+
+# Firebase logs and cache
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
