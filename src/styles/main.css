@@ -253,6 +253,25 @@ h3 { font-size: 1.25rem; line-height: 1.4; }
 }
 
 /* Layout Containers */
+body.login-page-body {
+  background: #060b17 !important;
+  min-height: 100vh;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow-x: hidden;
+}
+
+.auth-view-mount {
+  width: 100vw;
+  max-width: 100vw !important;
+  min-height: 100vh;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: #060b17;
+  display: flex;
+  flex-direction: column;
+}
+
 .main-content {
   max-width: 1240px;
   margin: 0 auto;

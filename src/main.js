@@ -55,6 +55,13 @@ async function renderApp() {
 
   // 2. Render Target View
   const viewMount = document.getElementById('view-mount');
+  if (routeName === 'login') {
+    viewMount.className = 'auth-view-mount';
+    document.body.classList.add('login-page-body');
+  } else {
+    viewMount.className = 'main-content container';
+    document.body.classList.remove('login-page-body');
+  }
 
   if (routeName === 'verify') {
     await renderVerifyCertView(viewMount, routeParam);

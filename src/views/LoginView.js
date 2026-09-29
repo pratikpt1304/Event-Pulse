@@ -1,11 +1,8 @@
 import { 
   loginUser, 
   registerStudent, 
-  loginWithGoogle, 
   sendPasswordReset,
-  isDemoModeEnabled, 
-  DEMO_ACCOUNTS, 
-  isUserAdmin 
+  isDemoModeEnabled 
 } from '../services/auth';
 import { getRoleDefaultRoute } from '../router';
 
@@ -39,7 +36,7 @@ export function renderLoginView(container, navigateTo) {
 
   // Password strength calculator
   function computePasswordStrength(pwd) {
-    if (!pwd) return { score: 0, label: 'Empty', color: '#64748b', percent: 0, checks: { length: false, upper: false, number: false, symbol: false } };
+    if (!pwd) return { score: 0, label: 'Empty', color: '#64748b', percent: 0 };
     
     const checks = {
       length: pwd.length >= 8,
@@ -72,7 +69,7 @@ export function renderLoginView(container, navigateTo) {
       percent = 100;
     }
 
-    return { score, label, color, percent, checks };
+    return { score, label, color, percent };
   }
 
   const render = () => {
@@ -80,769 +77,580 @@ export function renderLoginView(container, navigateTo) {
 
     container.innerHTML = `
       <style>
-        /* =====================================================================
-           EVENTPULSE — PREMIUM LOGIN PAGE
-           Split-screen: Branded Left Panel + Clean Right Form Panel
-        ====================================================================== */
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap');
 
-        * { box-sizing: border-box; }
-
-        .ep-auth-root {
+        /* ── ROOT CONTAINER (Full bleed, viewport-centered) ── */
+        .ep-auth-page {
           min-height: 100vh;
           width: 100%;
           display: flex;
-          font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          background: #060b17;
+          align-items: center;
+          justify-content: center;
+          padding: 1.25rem 1rem;
+          background: 
+            radial-gradient(circle at 10% 15%, rgba(99, 102, 241, 0.15) 0%, transparent 45%),
+            radial-gradient(circle at 90% 85%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
+            radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0.6) 0%, transparent 100%),
+            #060b17;
+          font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+          color: #f1f5f9;
+          box-sizing: border-box;
+          overflow-x: hidden;
         }
 
-        /* ── LEFT BRAND PANEL ─────────────────────────────────────────── */
-        .ep-brand-panel {
-          flex: 0 0 48%;
+        /* ── COMPACT MAIN CARD FRAME ── */
+        .ep-card-frame {
+          width: 100%;
+          max-width: 980px;
+          min-height: 560px;
+          background: rgba(11, 19, 38, 0.82);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 
+            0 20px 50px -10px rgba(0, 0, 0, 0.75),
+            0 0 0 1px rgba(99, 102, 241, 0.15) inset;
+          border-radius: 22px;
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          display: flex;
+          overflow: hidden;
           position: relative;
+          z-index: 10;
+        }
+
+        /* ── LEFT BRAND PANEL ── */
+        .ep-brand-col {
+          flex: 0 0 42%;
+          background: linear-gradient(160deg, rgba(20, 32, 65, 0.7) 0%, rgba(10, 16, 32, 0.95) 100%);
+          border-right: 1px solid rgba(255, 255, 255, 0.06);
+          padding: 2.25rem 2rem;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
+          position: relative;
           overflow: hidden;
-          padding: 3rem 3.5rem;
-          background: linear-gradient(145deg, #0d1b3e 0%, #0a0f1e 40%, #0c1a38 100%);
         }
 
-        /* Animated orbs */
-        .ep-brand-panel::before {
+        .ep-brand-col::before {
           content: '';
           position: absolute;
-          top: -120px;
-          left: -80px;
-          width: 420px;
-          height: 420px;
-          background: radial-gradient(circle, rgba(99,102,241,0.28) 0%, transparent 70%);
-          animation: ep-orb-float 8s ease-in-out infinite;
-          pointer-events: none;
-        }
-        .ep-brand-panel::after {
-          content: '';
-          position: absolute;
-          bottom: -100px;
-          right: -60px;
-          width: 380px;
-          height: 380px;
-          background: radial-gradient(circle, rgba(139,92,246,0.22) 0%, transparent 70%);
-          animation: ep-orb-float 10s ease-in-out infinite reverse;
+          top: -60px;
+          left: -40px;
+          width: 240px;
+          height: 240px;
+          background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, transparent 70%);
           pointer-events: none;
         }
 
-        @keyframes ep-orb-float {
-          0%, 100% { transform: translateY(0px) scale(1); }
-          50% { transform: translateY(-30px) scale(1.05); }
-        }
-
-        /* Decorative grid lines */
-        .ep-grid-overlay {
-          position: absolute;
-          inset: 0;
-          background-image:
-            linear-gradient(rgba(99,102,241,0.06) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(99,102,241,0.06) 1px, transparent 1px);
-          background-size: 48px 48px;
-          pointer-events: none;
-        }
-
-        /* Top vignette on grid */
-        .ep-grid-overlay::after {
+        .ep-brand-col::after {
           content: '';
           position: absolute;
           inset: 0;
-          background: linear-gradient(to bottom right, rgba(13,27,62,0.6), transparent 60%, rgba(10,15,30,0.8));
+          background-image: 
+            linear-gradient(rgba(99, 102, 241, 0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(99, 102, 241, 0.05) 1px, transparent 1px);
+          background-size: 32px 32px;
           pointer-events: none;
         }
 
-        .ep-brand-top {
+        .ep-brand-content {
           position: relative;
           z-index: 2;
         }
 
-        .ep-logo-row {
+        .ep-brand-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 4px 10px;
+          background: rgba(99, 102, 241, 0.12);
+          border: 1px solid rgba(99, 102, 241, 0.28);
+          border-radius: 999px;
+          font-size: 0.72rem;
+          font-weight: 700;
+          color: #a5b4fc;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          margin-bottom: 1.5rem;
+        }
+
+        .ep-badge-pulse {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: #10b981;
+          box-shadow: 0 0 8px #10b981;
+          display: inline-block;
+        }
+
+        .ep-logo-header {
           display: flex;
           align-items: center;
           gap: 0.75rem;
-          margin-bottom: 3rem;
+          margin-bottom: 1.5rem;
         }
 
         .ep-logo-icon {
-          width: 44px;
-          height: 44px;
+          width: 40px;
+          height: 40px;
           background: linear-gradient(135deg, #6366f1, #8b5cf6);
-          border-radius: 12px;
+          border-radius: 11px;
           display: flex;
           align-items: center;
           justify-content: center;
           font-size: 1.25rem;
-          box-shadow: 0 0 20px rgba(99,102,241,0.5);
+          box-shadow: 0 0 16px rgba(99, 102, 241, 0.5);
           flex-shrink: 0;
         }
 
-        .ep-logo-wordmark {
+        .ep-logo-title {
+          font-family: 'Space Grotesk', sans-serif;
           font-size: 1.5rem;
-          font-weight: 800;
+          font-weight: 700;
+          letter-spacing: -0.02em;
           color: #ffffff;
-          letter-spacing: -0.03em;
-        }
-
-        .ep-logo-wordmark span {
-          color: #818cf8;
-        }
-
-        .ep-hero-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.45rem;
-          background: rgba(99,102,241,0.15);
-          border: 1px solid rgba(99,102,241,0.35);
-          border-radius: 100px;
-          padding: 5px 14px;
-          font-size: 0.72rem;
-          font-weight: 700;
-          color: #a5b4fc;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-          margin-bottom: 1.25rem;
-        }
-
-        .ep-hero-badge::before {
-          content: '';
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          background: #818cf8;
-          box-shadow: 0 0 6px #818cf8;
-          animation: ep-pulse 2s ease-in-out infinite;
-        }
-
-        @keyframes ep-pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.5; transform: scale(0.85); }
-        }
-
-        .ep-hero-title {
-          font-size: 2.75rem;
-          font-weight: 800;
-          color: #ffffff;
-          line-height: 1.15;
-          letter-spacing: -0.035em;
-          margin: 0 0 1rem 0;
-        }
-
-        .ep-hero-title .ep-gradient-text {
-          background: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-        }
-
-        .ep-hero-desc {
-          font-size: 1rem;
-          color: #94a3b8;
-          line-height: 1.65;
-          margin: 0 0 2.5rem 0;
-          max-width: 340px;
-        }
-
-        /* Feature pillars */
-        .ep-features {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-        }
-
-        .ep-feature-item {
-          display: flex;
-          align-items: flex-start;
-          gap: 0.85rem;
-        }
-
-        .ep-feature-icon {
-          width: 36px;
-          height: 36px;
-          border-radius: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 0.95rem;
-          flex-shrink: 0;
-          margin-top: 1px;
-        }
-
-        .ep-feature-icon.indigo { background: rgba(99,102,241,0.18); }
-        .ep-feature-icon.violet { background: rgba(139,92,246,0.18); }
-        .ep-feature-icon.cyan   { background: rgba(34,211,238,0.18); }
-
-        .ep-feature-text strong {
-          display: block;
-          font-size: 0.85rem;
-          font-weight: 700;
-          color: #e2e8f0;
-          margin-bottom: 2px;
-        }
-
-        .ep-feature-text span {
-          font-size: 0.775rem;
-          color: #64748b;
-          line-height: 1.4;
-        }
-
-        /* Bottom university strip */
-        .ep-brand-footer {
-          position: relative;
-          z-index: 2;
-          padding-top: 2rem;
-          border-top: 1px solid rgba(255,255,255,0.07);
-        }
-
-        .ep-univ-name {
-          font-size: 0.72rem;
-          font-weight: 700;
-          color: #475569;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          margin-bottom: 0.3rem;
-        }
-
-        .ep-univ-tagline {
-          font-size: 0.78rem;
-          color: #334155;
-        }
-
-        /* Stats row */
-        .ep-stats-row {
-          display: flex;
-          gap: 1.75rem;
-          margin-top: 1.5rem;
-        }
-
-        .ep-stat {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .ep-stat-num {
-          font-size: 1.35rem;
-          font-weight: 800;
-          color: #6366f1;
           line-height: 1;
         }
 
-        .ep-stat-label {
-          font-size: 0.7rem;
-          color: #475569;
-          margin-top: 2px;
+        .ep-logo-title span {
+          color: #818cf8;
         }
 
-        /* ── RIGHT FORM PANEL ─────────────────────────────────────────── */
-        .ep-form-panel {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 2.5rem 2rem;
-          background: #070c18;
-          overflow-y: auto;
-          position: relative;
-        }
-
-        /* Subtle noise texture */
-        .ep-form-panel::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-          pointer-events: none;
-          opacity: 0.4;
-        }
-
-        .ep-form-inner {
-          width: 100%;
-          max-width: ${activeTab === 'signup' ? '520px' : '440px'};
-          position: relative;
-          z-index: 1;
-          transition: max-width 0.3s cubic-bezier(0.16,1,0.3,1);
-        }
-
-        /* Form header */
-        .ep-form-header {
-          margin-bottom: 2rem;
-        }
-
-        .ep-form-eyebrow {
-          font-size: 0.72rem;
-          font-weight: 700;
-          color: #6366f1;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          margin-bottom: 0.5rem;
-        }
-
-        .ep-form-title {
-          font-size: 1.75rem;
+        .ep-brand-heading {
+          font-size: 1.65rem;
           font-weight: 800;
-          color: #f8fafc;
-          letter-spacing: -0.025em;
-          margin: 0 0 0.4rem 0;
           line-height: 1.2;
-        }
-
-        .ep-form-subtitle {
-          font-size: 0.875rem;
-          color: #64748b;
-          margin: 0;
-          line-height: 1.5;
-        }
-
-        /* Tabs */
-        .ep-tabs-nav {
-          display: flex;
-          background: #0e1525;
-          border: 1px solid #1e293b;
-          border-radius: 14px;
-          padding: 5px;
-          margin-bottom: 1.75rem;
-          gap: 4px;
-        }
-
-        .ep-tab-btn {
-          flex: 1;
-          background: transparent;
-          border: none;
-          color: #475569;
-          padding: 10px 14px;
-          font-size: 0.85rem;
-          font-weight: 700;
-          font-family: inherit;
-          border-radius: 10px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.45rem;
-          letter-spacing: -0.01em;
-        }
-
-        .ep-tab-btn.active {
-          background: linear-gradient(135deg, #1e2a45, #1a2340);
-          color: #f8fafc;
-          box-shadow: 0 2px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
-        }
-
-        .ep-tab-btn .tab-dot {
-          width: 7px;
-          height: 7px;
-          border-radius: 50%;
-          background: #6366f1;
-          box-shadow: 0 0 6px rgba(99,102,241,0.7);
-          display: none;
-        }
-
-        .ep-tab-btn.active .tab-dot {
-          display: block;
-        }
-
-        /* Form groups */
-        .ep-form-group {
-          margin-bottom: 1.1rem;
-        }
-
-        .ep-label {
-          display: block;
-          font-size: 0.75rem;
-          font-weight: 700;
-          color: #94a3b8;
-          margin-bottom: 0.45rem;
-          letter-spacing: 0.03em;
-        }
-
-        .ep-input-wrap {
-          position: relative;
-          display: flex;
-          align-items: center;
-        }
-
-        .ep-input {
-          width: 100%;
-          background: #0e1525;
-          border: 1.5px solid #1e293b;
-          color: #f1f5f9;
-          border-radius: 12px;
-          padding: 12px 16px;
-          font-size: 0.9rem;
-          font-family: inherit;
-          outline: none;
-          transition: all 0.18s ease;
-        }
-
-        .ep-input::placeholder {
-          color: #334155;
-        }
-
-        .ep-input:focus {
-          border-color: #6366f1;
-          background: #0f1a2e;
-          box-shadow: 0 0 0 3px rgba(99,102,241,0.18), 0 0 12px rgba(99,102,241,0.08);
-        }
-
-        .ep-input:hover:not(:focus) {
-          border-color: #2d3f5c;
-        }
-
-        .ep-input-toggle-btn {
-          position: absolute;
-          right: 12px;
-          background: transparent;
-          border: none;
-          color: #475569;
-          cursor: pointer;
-          font-size: 0.85rem;
-          padding: 4px 6px;
-          border-radius: 6px;
-          transition: color 0.15s;
-          line-height: 1;
-        }
-
-        .ep-input-toggle-btn:hover { color: #94a3b8; }
-
-        /* Inline row for forgot pwd */
-        .ep-label-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 0.45rem;
-        }
-
-        .ep-forgot-link {
-          background: none;
-          border: none;
-          color: #6366f1;
-          font-size: 0.75rem;
-          font-weight: 600;
-          font-family: inherit;
-          cursor: pointer;
-          padding: 0;
-          transition: color 0.15s;
-        }
-
-        .ep-forgot-link:hover { color: #818cf8; }
-
-        /* Primary CTA */
-        .ep-btn-primary {
-          width: 100%;
-          background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
+          letter-spacing: -0.025em;
           color: #ffffff;
-          border: none;
-          border-radius: 12px;
-          padding: 13px 18px;
-          font-size: 0.925rem;
-          font-weight: 700;
-          font-family: inherit;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.5rem;
-          box-shadow: 0 4px 20px rgba(99,102,241,0.4), 0 1px 0 rgba(255,255,255,0.1) inset;
-          letter-spacing: -0.01em;
-          position: relative;
-          overflow: hidden;
-        }
-
-        .ep-btn-primary::before {
-          content: '';
-          position: absolute;
-          top: 0; left: -100%;
-          width: 100%; height: 100%;
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-          transition: left 0.4s ease;
-        }
-
-        .ep-btn-primary:hover:not(:disabled)::before { left: 100%; }
-
-        .ep-btn-primary:hover:not(:disabled) {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 28px rgba(99,102,241,0.55), 0 1px 0 rgba(255,255,255,0.15) inset;
-        }
-
-        .ep-btn-primary:active:not(:disabled) {
-          transform: translateY(0);
-        }
-
-        .ep-btn-primary:disabled {
-          opacity: 0.55;
-          cursor: not-allowed;
-        }
-
-        /* Divider */
-        .ep-divider {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          margin: 1.1rem 0;
-          color: #1e293b;
-          font-size: 0.75rem;
-          font-weight: 600;
-        }
-
-        .ep-divider::before, .ep-divider::after {
-          content: '';
-          flex: 1;
-          height: 1px;
-          background: #1e293b;
-        }
-
-        .ep-divider span { color: #334155; }
-
-        /* Google button */
-        .ep-btn-google {
-          width: 100%;
-          background: #0e1525;
-          border: 1.5px solid #1e293b;
-          color: #cbd5e1;
-          border-radius: 12px;
-          padding: 12px 16px;
-          font-size: 0.875rem;
-          font-weight: 600;
-          font-family: inherit;
-          cursor: pointer;
-          transition: all 0.18s ease;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.65rem;
-        }
-
-        .ep-btn-google:hover:not(:disabled) {
-          background: #131e34;
-          border-color: #2d3f5c;
-          color: #f1f5f9;
-          transform: translateY(-1px);
-        }
-
-        /* Password strength */
-        .ep-strength-meter { margin-top: 0.5rem; }
-        .ep-strength-bar {
-          height: 3px;
-          width: 100%;
-          background: #1e293b;
-          border-radius: 4px;
-          overflow: hidden;
-          margin-bottom: 0.35rem;
-        }
-        .ep-strength-fill {
-          height: 100%;
-          border-radius: 4px;
-          transition: width 0.3s ease, background 0.3s ease;
-        }
-        .ep-strength-row {
-          display: flex;
-          justify-content: space-between;
-          font-size: 0.7rem;
-          color: #475569;
-        }
-
-        /* Alert banners */
-        .ep-alert-error {
-          background: rgba(239,68,68,0.1);
-          border: 1px solid rgba(239,68,68,0.3);
-          color: #fca5a5;
-          padding: 0.75rem 1rem;
-          border-radius: 10px;
-          font-size: 0.83rem;
-          margin-bottom: 1.25rem;
-          display: flex;
-          align-items: flex-start;
-          gap: 0.5rem;
-        }
-
-        .ep-alert-success {
-          background: rgba(16,185,129,0.1);
-          border: 1px solid rgba(16,185,129,0.3);
-          color: #6ee7b7;
-          padding: 0.75rem 1rem;
-          border-radius: 10px;
-          font-size: 0.83rem;
-          margin-bottom: 1.25rem;
-          display: flex;
-          align-items: flex-start;
-          gap: 0.5rem;
-        }
-
-        .ep-alert-dismiss {
-          background: none;
-          border: none;
-          cursor: pointer;
-          font-size: 1.1rem;
-          line-height: 1;
-          padding: 0;
-          margin-left: auto;
-          flex-shrink: 0;
-        }
-
-        .ep-alert-error .ep-alert-dismiss { color: #fca5a5; }
-        .ep-alert-success .ep-alert-dismiss { color: #6ee7b7; }
-
-        /* Demo box */
-        .ep-demo-box {
-          margin-top: 1.25rem;
-          background: #0a1120;
-          border: 1px solid rgba(99,102,241,0.22);
-          border-radius: 14px;
-          padding: 1rem 1rem 0.85rem;
-        }
-
-        .ep-demo-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 0.75rem;
-        }
-
-        .ep-demo-title {
-          font-size: 0.72rem;
-          font-weight: 700;
-          color: #818cf8;
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
-          display: flex;
-          align-items: center;
-          gap: 0.35rem;
-        }
-
-        .ep-demo-badge {
-          font-size: 0.6rem;
-          background: rgba(55,48,163,0.6);
-          color: #c7d2fe;
-          padding: 2px 7px;
-          border-radius: 4px;
-          font-weight: 600;
-          letter-spacing: 0.03em;
-        }
-
-        .ep-demo-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 0.5rem;
           margin-bottom: 0.65rem;
         }
 
-        .ep-demo-btn {
-          background: rgba(15,26,46,0.8);
-          border: 1px solid #1e293b;
-          color: #e2e8f0;
-          border-radius: 9px;
-          padding: 8px 8px 6px;
-          font-size: 0.75rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.15s ease;
-          text-align: center;
+        .ep-gradient-text {
+          background: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+
+        .ep-brand-desc {
+          font-size: 0.85rem;
+          color: #94a3b8;
+          line-height: 1.55;
+          margin-bottom: 1.5rem;
+        }
+
+        /* Feature Pills */
+        .ep-feature-stack {
           display: flex;
           flex-direction: column;
+          gap: 0.65rem;
+        }
+
+        .ep-feature-row {
+          display: flex;
           align-items: center;
-          gap: 2px;
-          font-family: inherit;
+          gap: 0.75rem;
+          padding: 8px 12px;
+          background: rgba(15, 23, 42, 0.55);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-radius: 10px;
         }
 
-        .ep-demo-btn:hover {
-          border-color: #6366f1;
-          background: #131e34;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(99,102,241,0.2);
-        }
-
-        .ep-demo-btn .ep-demo-role {
-          font-size: 0.95rem;
-          line-height: 1;
-          margin-bottom: 1px;
-        }
-
-        .ep-demo-btn small {
-          font-size: 0.6rem;
-          color: #475569;
-          font-weight: 500;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          max-width: 100%;
-        }
-
-        .ep-demo-hint {
-          font-size: 0.68rem;
-          color: #334155;
+        .ep-feat-icon {
+          font-size: 1.05rem;
+          width: 28px;
           text-align: center;
         }
 
-        /* 2 column grid */
-        .ep-grid-2 {
+        .ep-feat-text {
+          font-size: 0.78rem;
+          font-weight: 600;
+          color: #e2e8f0;
+          line-height: 1.25;
+        }
+
+        .ep-feat-text small {
+          display: block;
+          font-size: 0.7rem;
+          font-weight: 400;
+          color: #64748b;
+        }
+
+        .ep-brand-footer {
+          position: relative;
+          z-index: 2;
+          padding-top: 1rem;
+          border-top: 1px solid rgba(255, 255, 255, 0.06);
+          font-size: 0.72rem;
+          color: #475569;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        /* ── RIGHT FORM PANEL ── */
+        .ep-form-col {
+          flex: 1;
+          padding: 2rem 2.25rem;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          background: #090f1d;
+          overflow-y: auto;
+          max-height: 90vh;
+        }
+
+        /* Top Segmented Tab Switch */
+        .ep-tab-switch {
+          display: flex;
+          background: #0d1527;
+          border: 1px solid #1a253d;
+          border-radius: 12px;
+          padding: 4px;
+          margin-bottom: 1.25rem;
+          gap: 4px;
+        }
+
+        .ep-tab-item {
+          flex: 1;
+          background: transparent;
+          border: none;
+          color: #64748b;
+          padding: 8px 12px;
+          font-size: 0.82rem;
+          font-weight: 700;
+          font-family: inherit;
+          border-radius: 9px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.45rem;
+        }
+
+        .ep-tab-item.active {
+          background: linear-gradient(135deg, #1f2b48 0%, #151d32 100%);
+          color: #ffffff;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(99, 102, 241, 0.3) inset;
+        }
+
+        /* Form Title / Subtitle */
+        .ep-form-heading {
+          margin-bottom: 1.15rem;
+        }
+
+        .ep-form-title {
+          font-size: 1.35rem;
+          font-weight: 800;
+          color: #ffffff;
+          letter-spacing: -0.02em;
+          margin: 0 0 3px 0;
+        }
+
+        .ep-form-sub {
+          font-size: 0.8rem;
+          color: #64748b;
+          margin: 0;
+        }
+
+        /* Input Controls */
+        .ep-field {
+          margin-bottom: 0.85rem;
+        }
+
+        .ep-field-label-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 4px;
+        }
+
+        .ep-label {
+          font-size: 0.74rem;
+          font-weight: 600;
+          color: #94a3b8;
+          display: block;
+        }
+
+        .ep-link-btn {
+          background: none;
+          border: none;
+          color: #818cf8;
+          font-size: 0.73rem;
+          font-weight: 600;
+          cursor: pointer;
+          padding: 0;
+          font-family: inherit;
+          transition: color 0.15s;
+        }
+
+        .ep-link-btn:hover {
+          color: #a5b4fc;
+          text-decoration: underline;
+        }
+
+        .ep-input-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+
+        .ep-input-field {
+          width: 100%;
+          background: #0d1527;
+          border: 1px solid #1e293b;
+          border-radius: 10px;
+          padding: 8px 12px;
+          height: 38px;
+          color: #ffffff;
+          font-size: 0.85rem;
+          font-family: inherit;
+          outline: none;
+          transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        .ep-input-field:focus {
+          border-color: #6366f1;
+          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+          background: #0f1930;
+        }
+
+        .ep-input-field::placeholder {
+          color: #475569;
+          font-size: 0.82rem;
+        }
+
+        .ep-eye-btn {
+          position: absolute;
+          right: 8px;
+          background: transparent;
+          border: none;
+          color: #64748b;
+          cursor: pointer;
+          font-size: 0.95rem;
+          padding: 4px 6px;
+          border-radius: 6px;
+          line-height: 1;
+        }
+
+        .ep-eye-btn:hover {
+          color: #cbd5e1;
+        }
+
+        /* 2-column Compact Grid for Sign Up */
+        .ep-grid-2col {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 0.85rem;
+          gap: 0.75rem;
         }
 
-        @media (max-width: 520px) {
-          .ep-grid-2 {
-            grid-template-columns: 1fr;
-            gap: 0;
-          }
-        }
-
-        .ep-select {
+        .ep-select-field {
           appearance: none;
           background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
           background-repeat: no-repeat;
-          background-position: right 12px center;
+          background-position: right 10px center;
           background-size: 14px;
-          padding-right: 34px;
+          padding-right: 30px;
           cursor: pointer;
         }
 
-        /* Spinner */
-        .ep-spinner {
-          width: 16px;
-          height: 16px;
-          border: 2px solid rgba(255,255,255,0.3);
-          border-top-color: #ffffff;
-          border-radius: 50%;
-          animation: ep-spin 0.6s linear infinite;
+        /* Primary Submit Button */
+        .ep-submit-btn {
+          width: 100%;
+          height: 40px;
+          background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
+          color: #ffffff;
+          border: none;
+          border-radius: 10px;
+          font-size: 0.88rem;
+          font-weight: 700;
+          font-family: inherit;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          margin-top: 0.35rem;
+          box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+          transition: transform 0.15s, box-shadow 0.15s;
+        }
+
+        .ep-submit-btn:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 6px 20px rgba(99, 102, 241, 0.55);
+        }
+
+        .ep-submit-btn:active:not(:disabled) {
+          transform: translateY(0);
+        }
+
+        .ep-submit-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        /* Password Strength Bar */
+        .ep-strength-track {
+          height: 3px;
+          width: 100%;
+          background: #1e293b;
+          border-radius: 3px;
+          overflow: hidden;
+          margin-top: 4px;
+        }
+
+        .ep-strength-fill {
+          height: 100%;
+          transition: width 0.25s, background 0.25s;
+        }
+
+        .ep-strength-label {
+          display: flex;
+          justify-content: space-between;
+          font-size: 0.68rem;
+          color: #64748b;
+          margin-top: 3px;
+        }
+
+        /* Alert Notifications */
+        .ep-banner-alert {
+          padding: 8px 12px;
+          border-radius: 8px;
+          font-size: 0.8rem;
+          margin-bottom: 0.85rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          line-height: 1.4;
+        }
+
+        .ep-banner-alert.error {
+          background: rgba(239, 68, 68, 0.12);
+          border: 1px solid rgba(239, 68, 68, 0.3);
+          color: #fca5a5;
+        }
+
+        .ep-banner-alert.success {
+          background: rgba(16, 185, 129, 0.12);
+          border: 1px solid rgba(16, 185, 129, 0.3);
+          color: #6ee7b7;
+        }
+
+        .ep-banner-close {
+          background: none;
+          border: none;
+          color: inherit;
+          font-size: 1.1rem;
+          cursor: pointer;
+          margin-left: auto;
+          line-height: 1;
+        }
+
+        /* ── ULTRA-COMPACT 1-CLICK DEMO SECTION ── */
+        .ep-demo-container {
+          margin-top: 1rem;
+          background: rgba(13, 21, 39, 0.95);
+          border: 1px solid rgba(99, 102, 241, 0.2);
+          border-radius: 12px;
+          padding: 10px 12px;
+        }
+
+        .ep-demo-top-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 8px;
+        }
+
+        .ep-demo-legend {
+          font-size: 0.72rem;
+          font-weight: 700;
+          color: #818cf8;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .ep-demo-chip {
+          font-size: 0.6rem;
+          font-weight: 700;
+          background: rgba(99, 102, 241, 0.2);
+          color: #c7d2fe;
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+
+        .ep-demo-grid-compact {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 6px;
+        }
+
+        .ep-demo-chip-btn {
+          background: #111a2f;
+          border: 1px solid #1f2b45;
+          color: #e2e8f0;
+          border-radius: 8px;
+          padding: 6px 8px;
+          font-size: 0.74rem;
+          font-family: inherit;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: flex-start;
+          gap: 6px;
+          transition: all 0.15s ease;
+          text-align: left;
+        }
+
+        .ep-demo-chip-btn:hover {
+          background: #182542;
+          border-color: #6366f1;
+          transform: translateY(-1px);
+          box-shadow: 0 3px 10px rgba(99, 102, 241, 0.25);
+        }
+
+        .ep-demo-chip-btn .role-icon {
+          font-size: 0.95rem;
           flex-shrink: 0;
         }
 
-        @keyframes ep-spin {
-          to { transform: rotate(360deg); }
+        .ep-demo-chip-btn .role-meta {
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          line-height: 1.15;
         }
 
-        /* Staff note */
-        .ep-staff-note {
-          margin-top: 1.25rem;
-          padding: 0.75rem 1rem;
-          background: #080f1e;
-          border: 1px solid #141f33;
-          border-radius: 10px;
-          font-size: 0.77rem;
+        .ep-demo-chip-btn .role-title {
+          font-weight: 700;
+          color: #f1f5f9;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .ep-demo-chip-btn .role-sub {
+          font-size: 0.62rem;
+          color: #64748b;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .ep-demo-footer-note {
+          font-size: 0.67rem;
           color: #475569;
           text-align: center;
-          line-height: 1.5;
+          margin-top: 6px;
         }
 
-        .ep-staff-note a {
-          color: #6366f1;
-          text-decoration: none;
-          font-weight: 600;
-        }
-
-        /* Forgot password modal */
-        .ep-modal-backdrop {
+        /* ── MODAL (Forgot Password) ── */
+        .ep-modal-mask {
           position: fixed;
           inset: 0;
-          background: rgba(0,0,0,0.8);
+          background: rgba(0, 0, 0, 0.8);
           backdrop-filter: blur(6px);
           display: flex;
           align-items: center;
@@ -851,322 +659,355 @@ export function renderLoginView(container, navigateTo) {
           z-index: 9999;
         }
 
-        .ep-modal-card {
+        .ep-modal-box {
           width: 100%;
-          max-width: 400px;
-          background: #0e1525;
+          max-width: 390px;
+          background: #0e1526;
           border: 1px solid #1e293b;
-          border-radius: 18px;
-          padding: 1.75rem;
-          box-shadow: 0 40px 80px rgba(0,0,0,0.7);
-        }
-
-        .ep-modal-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 0.75rem;
+          border-radius: 16px;
+          padding: 1.5rem;
+          box-shadow: 0 25px 50px rgba(0,0,0,0.8);
         }
 
         .ep-modal-title {
-          font-size: 1.15rem;
-          font-weight: 800;
-          color: #f8fafc;
-          margin: 0;
+          font-size: 1.1rem;
+          font-weight: 700;
+          color: #ffffff;
+          margin: 0 0 6px 0;
         }
 
-        .ep-modal-close {
-          background: none;
-          border: none;
-          color: #475569;
-          font-size: 1.35rem;
-          cursor: pointer;
-          padding: 0 4px;
-          line-height: 1;
-          border-radius: 6px;
-          transition: color 0.15s;
+        .ep-modal-p {
+          font-size: 0.8rem;
+          color: #64748b;
+          line-height: 1.45;
+          margin: 0 0 1rem 0;
         }
 
-        .ep-modal-close:hover { color: #94a3b8; }
-
-        .ep-modal-desc {
-          font-size: 0.83rem;
-          color: #475569;
-          margin: 0 0 1.25rem 0;
-          line-height: 1.55;
-        }
-
-        .ep-modal-actions {
+        .ep-modal-btns {
           display: flex;
-          gap: 0.75rem;
           justify-content: flex-end;
-          margin-top: 1.5rem;
+          gap: 8px;
+          margin-top: 1.25rem;
         }
 
-        .ep-btn-ghost {
+        .ep-btn-subtle {
           background: #1e293b;
           border: none;
           color: #94a3b8;
-          border-radius: 10px;
-          padding: 10px 18px;
-          font-size: 0.85rem;
+          border-radius: 8px;
+          padding: 8px 14px;
+          font-size: 0.82rem;
           font-weight: 600;
-          font-family: inherit;
           cursor: pointer;
-          transition: all 0.15s;
         }
 
-        .ep-btn-ghost:hover { background: #253347; color: #f1f5f9; }
-
-        /* ── RESPONSIVE: hide left panel on mobile ─────────────────────── */
-        @media (max-width: 900px) {
-          .ep-brand-panel { display: none; }
-          .ep-form-panel { background: #060b17; }
+        /* Spinner */
+        .ep-loader {
+          width: 14px;
+          height: 14px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-top-color: #ffffff;
+          border-radius: 50%;
+          animation: ep-spin 0.6s linear infinite;
         }
 
-        @media (max-width: 500px) {
-          .ep-form-panel { padding: 1.5rem 1rem; }
-          .ep-form-title { font-size: 1.5rem; }
+        @keyframes ep-spin {
+          to { transform: rotate(360deg); }
+        }
+
+        /* ── RESPONSIVE DESIGN (< 880px) ── */
+        @media (max-width: 880px) {
+          .ep-card-frame {
+            flex-direction: column;
+            max-width: 480px;
+            min-height: auto;
+          }
+
+          .ep-brand-col {
+            flex: none;
+            padding: 1.5rem 1.5rem 1.25rem;
+            border-right: none;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+          }
+
+          .ep-brand-heading,
+          .ep-feature-stack,
+          .ep-brand-desc,
+          .ep-brand-footer {
+            display: none;
+          }
+
+          .ep-logo-header {
+            margin-bottom: 0;
+          }
+
+          .ep-form-col {
+            padding: 1.5rem;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .ep-auth-page {
+            padding: 0.5rem;
+          }
+
+          .ep-demo-grid-compact {
+            grid-template-columns: repeat(2, 1fr);
+          }
+
+          .ep-grid-2col {
+            grid-template-columns: 1fr;
+            gap: 0;
+          }
         }
       </style>
 
-      <div class="ep-auth-root">
+      <div class="ep-auth-page">
+        <div class="ep-card-frame">
 
-        <!-- ═══════════════════ LEFT BRAND PANEL ═══════════════════ -->
-        <div class="ep-brand-panel">
-          <div class="ep-grid-overlay"></div>
+          <!-- ════════ LEFT BRAND PANEL ════════ -->
+          <div class="ep-brand-col">
+            <div class="ep-brand-content">
+              <div class="ep-brand-badge">
+                <span class="ep-badge-pulse"></span>
+                Sanjivani University Portal
+              </div>
 
-          <div class="ep-brand-top">
-            <!-- Logo row -->
-            <div class="ep-logo-row">
-              <div class="ep-logo-icon">⚡</div>
-              <div class="ep-logo-wordmark">Event<span>Pulse</span></div>
+              <div class="ep-logo-header">
+                <div class="ep-logo-icon">⚡</div>
+                <div class="ep-logo-title">Event<span>Pulse</span></div>
+              </div>
+
+              <h1 class="ep-brand-heading">
+                Campus Events &amp;<br>
+                <span class="ep-gradient-text">Leadership Hub</span>
+              </h1>
+
+              <p class="ep-brand-desc">
+                Discover technical fests, download digital QR passes, and provide administrative oversight in one unified ecosystem.
+              </p>
+
+              <div class="ep-feature-stack">
+                <div class="ep-feature-row">
+                  <div class="ep-feat-icon">🎪</div>
+                  <div class="ep-feat-text">
+                    Smart Event Passes
+                    <small>Real-time booking &amp; verified QR check-ins</small>
+                  </div>
+                </div>
+
+                <div class="ep-feature-row">
+                  <div class="ep-feat-icon">🏛️</div>
+                  <div class="ep-feat-text">
+                    Executive Oversight
+                    <small>HOD, Dean &amp; VC Sir analytical dashboards</small>
+                  </div>
+                </div>
+
+                <div class="ep-feature-row">
+                  <div class="ep-feat-icon">🚨</div>
+                  <div class="ep-feat-text">
+                    DGRC Grievance Portal
+                    <small>Transparent campus issue tracking &amp; resolution</small>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <!-- Hero text -->
-            <div class="ep-hero-badge">Sanjivani University Platform</div>
-            <h1 class="ep-hero-title">
-              Your Campus.<br>
-              <span class="ep-gradient-text">One Platform.</span>
-            </h1>
-            <p class="ep-hero-desc">
-              Manage, discover, and participate in every academic event — from technical fests to grievance redressal — all in one unified portal.
-            </p>
-
-            <!-- Feature list -->
-            <div class="ep-features">
-              <div class="ep-feature-item">
-                <div class="ep-feature-icon indigo">🎪</div>
-                <div class="ep-feature-text">
-                  <strong>Smart Event Discovery</strong>
-                  <span>Browse, register & get digital passes for campus events instantly.</span>
-                </div>
-              </div>
-              <div class="ep-feature-item">
-                <div class="ep-feature-icon violet">🏛️</div>
-                <div class="ep-feature-text">
-                  <strong>Executive Academic Hub</strong>
-                  <span>HOD, Dean & VC dashboards with NAAC-ready reporting.</span>
-                </div>
-              </div>
-              <div class="ep-feature-item">
-                <div class="ep-feature-icon cyan">🚨</div>
-                <div class="ep-feature-text">
-                  <strong>DGRC Grievance Redressal</strong>
-                  <span>Anonymous and tracked complaint resolution for every student.</span>
-                </div>
-              </div>
+            <div class="ep-brand-footer">
+              <span>Faculty of Engg &amp; Technology</span>
+              <span>• NAAC Aligned</span>
             </div>
           </div>
 
-          <div class="ep-brand-footer">
-            <div class="ep-univ-name">Sanjivani University — Faculty of Engineering & Technology</div>
-            <div class="ep-univ-tagline">Empowering students and faculty through connected campus experiences.</div>
+          <!-- ════════ RIGHT FORM PANEL ════════ -->
+          <div class="ep-form-col">
+            
+            <!-- Segmented Switch Tab -->
+            <div class="ep-tab-switch">
+              <button type="button" class="ep-tab-item ${activeTab === 'signin' ? 'active' : ''}" id="tab-btn-signin">
+                🔐 Sign In
+              </button>
+              <button type="button" class="ep-tab-item ${activeTab === 'signup' ? 'active' : ''}" id="tab-btn-signup">
+                👨‍🎓 Student Sign Up
+              </button>
+            </div>
 
-          </div>
-        </div>
-
-        <!-- ═══════════════════ RIGHT FORM PANEL ═══════════════════ -->
-        <div class="ep-form-panel">
-          <div class="ep-form-inner">
-
-            <!-- Form header -->
-            <div class="ep-form-header">
-              <div class="ep-form-eyebrow">
-                ${activeTab === 'signin' ? '🔐 Secure Sign In' : '👨‍🎓 Student Registration'}
-              </div>
+            <!-- Header -->
+            <div class="ep-form-heading">
               <h2 class="ep-form-title">
-                ${activeTab === 'signin' ? 'Welcome back' : 'Create your account'}
+                ${activeTab === 'signin' ? 'Welcome Back' : 'Student Registration'}
               </h2>
-              <p class="ep-form-subtitle">
-                ${activeTab === 'signin'
-                  ? 'Sign in to access your EventPulse dashboard.'
-                  : 'Register with your university PRN and institutional email.'}
+              <p class="ep-form-sub">
+                ${activeTab === 'signin' 
+                  ? 'Sign in to access your campus dashboard.' 
+                  : 'Enter your PRN and institutional email to register.'}
               </p>
             </div>
 
-            <!-- Tabs Navigation -->
-            <div class="ep-tabs-nav">
-              <button type="button" class="ep-tab-btn ${activeTab === 'signin' ? 'active' : ''}" id="tab-btn-signin">
-                <span class="tab-dot"></span>🔐 Sign In
-              </button>
-              <button type="button" class="ep-tab-btn ${activeTab === 'signup' ? 'active' : ''}" id="tab-btn-signup">
-                <span class="tab-dot"></span>👨‍🎓 Student Sign Up
-              </button>
-            </div>
-
-            <!-- Alert Banners -->
+            <!-- Banner Alerts -->
             ${errorMessage ? `
-              <div class="ep-alert-error">
+              <div class="ep-banner-alert error">
                 <span>⚠️</span>
-                <div style="flex: 1; line-height: 1.45;">${errorMessage}</div>
-                <button class="ep-alert-dismiss" id="ep-dismiss-error">×</button>
+                <span>${errorMessage}</span>
+                <button class="ep-banner-close" id="ep-dismiss-error">×</button>
               </div>
             ` : ''}
 
             ${successMessage ? `
-              <div class="ep-alert-success">
+              <div class="ep-banner-alert success">
                 <span>✅</span>
-                <div style="flex: 1; line-height: 1.45;">${successMessage}</div>
-                <button class="ep-alert-dismiss" id="ep-dismiss-success">×</button>
+                <span>${successMessage}</span>
+                <button class="ep-banner-close" id="ep-dismiss-success">×</button>
               </div>
             ` : ''}
 
+            <!-- ── SIGN IN TAB ── -->
             ${activeTab === 'signin' ? `
-              <!-- ── SIGN IN TAB ── -->
               <form id="ep-login-form">
-                <div class="ep-form-group">
-                  <label class="ep-label">Email Address</label>
-                  <input
-                    type="email"
-                    id="ep-login-email"
-                    class="ep-input"
-                    placeholder="name@college.edu"
-                    value="${loginEmail}"
-                    required
-                    autocomplete="username"
-                  />
+                <div class="ep-field">
+                  <label class="ep-label">University Email</label>
+                  <div class="ep-input-wrapper">
+                    <input
+                      type="email"
+                      id="ep-login-email"
+                      class="ep-input-field"
+                      placeholder="name@college.edu"
+                      value="${loginEmail}"
+                      required
+                      autocomplete="username"
+                    />
+                  </div>
                 </div>
 
-                <div class="ep-form-group">
-                  <div class="ep-label-row">
-                    <label class="ep-label" style="margin-bottom: 0;">Password</label>
-                    <button type="button" class="ep-forgot-link" id="ep-btn-forgot">Forgot password?</button>
+                <div class="ep-field">
+                  <div class="ep-field-label-row">
+                    <label class="ep-label">Password</label>
+                    <button type="button" class="ep-link-btn" id="ep-btn-forgot">Forgot?</button>
                   </div>
-                  <div class="ep-input-wrap">
+                  <div class="ep-input-wrapper">
                     <input
                       type="${showLoginPassword ? 'text' : 'password'}"
                       id="ep-login-password"
-                      class="ep-input"
-                      placeholder="Enter your password"
+                      class="ep-input-field"
+                      placeholder="••••••••"
                       value="${loginPassword}"
                       required
                       autocomplete="current-password"
                     />
-                    <button type="button" class="ep-input-toggle-btn" id="ep-btn-toggle-login-pwd" title="Toggle visibility">
+                    <button type="button" class="ep-eye-btn" id="ep-btn-toggle-login-pwd" title="Toggle visibility">
                       ${showLoginPassword ? '👁️' : '🙈'}
                     </button>
                   </div>
                 </div>
 
-                <button type="submit" class="ep-btn-primary" id="ep-btn-submit" ${isLoading ? 'disabled' : ''}>
-                  ${isLoading ? '<div class="ep-spinner"></div> Signing in…' : '→ Sign In to EventPulse'}
+                <button type="submit" class="ep-submit-btn" id="ep-btn-submit" ${isLoading ? 'disabled' : ''}>
+                  ${isLoading ? '<div class="ep-loader"></div> Signing in…' : 'Sign In to EventPulse →'}
                 </button>
               </form>
 
-
-
-              <!-- DEMO MODE -->
+              <!-- ── COMPACT 1-CLICK DEMO ACCOUNTS ── -->
               ${demoModeActive ? `
-                <div class="ep-demo-box">
-                  <div class="ep-demo-header">
-                    <div class="ep-demo-title">⚡ Try Demo Accounts</div>
-                    <span class="ep-demo-badge">DEMO MODE ON</span>
+                <div class="ep-demo-container">
+                  <div class="ep-demo-top-row">
+                    <div class="ep-demo-legend">⚡ Quick Demo Logins</div>
+                    <span class="ep-demo-chip">1-CLICK</span>
                   </div>
-                  <div class="ep-demo-grid">
-                    <button type="button" class="ep-demo-btn" data-email="student@college.edu">
-                      <span class="ep-demo-role">👨‍🎓</span>
-                      <strong>Student</strong>
-                      <small>student@college.edu</small>
+
+                  <div class="ep-demo-grid-compact">
+                    <!-- 1. Student -->
+                    <button type="button" class="ep-demo-chip-btn" data-email="student@college.edu" title="Sign in as Student">
+                      <span class="role-icon">👨‍🎓</span>
+                      <div class="role-meta">
+                        <span class="role-title">Student</span>
+                        <span class="role-sub">Rahul S.</span>
+                      </div>
                     </button>
-                    <button type="button" class="ep-demo-btn" data-email="organizer@college.edu">
-                      <span class="ep-demo-role">⚡</span>
-                      <strong>Organizer</strong>
-                      <small>organizer@college.edu</small>
+
+                    <!-- 2. Organizer -->
+                    <button type="button" class="ep-demo-chip-btn" data-email="organizer@college.edu" title="Sign in as Organizer">
+                      <span class="role-icon">⚡</span>
+                      <div class="role-meta">
+                        <span class="role-title">Organizer</span>
+                        <span class="role-sub">Pratik T.</span>
+                      </div>
                     </button>
-                    <button type="button" class="ep-demo-btn" data-email="hod@college.edu">
-                      <span class="ep-demo-role">📚</span>
-                      <strong>HOD</strong>
-                      <small>hod@college.edu</small>
+
+                    <!-- 3. HOD -->
+                    <button type="button" class="ep-demo-chip-btn" data-email="hod@college.edu" title="Sign in as HOD">
+                      <span class="role-icon">📚</span>
+                      <div class="role-meta">
+                        <span class="role-title">HOD</span>
+                        <span class="role-sub">IMTech Dept</span>
+                      </div>
                     </button>
-                    <button type="button" class="ep-demo-btn" data-email="dean@college.edu">
-                      <span class="ep-demo-role">🎓</span>
-                      <strong>Dean</strong>
-                      <small>dean@college.edu</small>
+
+                    <!-- 4. Dean -->
+                    <button type="button" class="ep-demo-chip-btn" data-email="dean@college.edu" title="Sign in as Dean">
+                      <span class="role-icon">🎓</span>
+                      <div class="role-meta">
+                        <span class="role-title">Dean</span>
+                        <span class="role-sub">Faculty Engg</span>
+                      </div>
                     </button>
-                    <button type="button" class="ep-demo-btn" data-email="vc@college.edu">
-                      <span class="ep-demo-role">👑</span>
-                      <strong>VC</strong>
-                      <small>vc@college.edu</small>
+
+                    <!-- 5. VC Sir -->
+                    <button type="button" class="ep-demo-chip-btn" data-email="vc@college.edu" title="Sign in as VC Sir">
+                      <span class="role-icon">👑</span>
+                      <div class="role-meta">
+                        <span class="role-title">VC Sir</span>
+                        <span class="role-sub">Vice Chancellor</span>
+                      </div>
                     </button>
-                    <button type="button" class="ep-demo-btn" data-email="admin@college.edu">
-                      <span class="ep-demo-role">🛡️</span>
-                      <strong>Admin</strong>
-                      <small>admin@college.edu</small>
+
+                    <!-- 6. Central Admin -->
+                    <button type="button" class="ep-demo-chip-btn" data-email="admin@college.edu" title="Sign in as Central Admin">
+                      <span class="role-icon">🛡️</span>
+                      <div class="role-meta">
+                        <span class="role-title">Admin</span>
+                        <span class="role-sub">Superuser</span>
+                      </div>
                     </button>
                   </div>
-                  <div class="ep-demo-hint">Tap any card — 1-click authentication, no password needed</div>
+                  <div class="ep-demo-footer-note">Tap any role for instant access without password</div>
                 </div>
               ` : ''}
 
-
-
             ` : `
-              <!-- ── SIGN UP TAB ── -->
+              <!-- ── SIGN UP TAB (Compact 2-Column Grid) ── -->
               <form id="ep-signup-form">
-                <div class="ep-form-group">
-                  <label class="ep-label">Student Full Name</label>
-                  <input
-                    type="text"
-                    id="ep-signup-name"
-                    class="ep-input"
-                    placeholder="e.g. Rahul Sharma"
-                    value="${signupData.name}"
-                    required
-                  />
-                </div>
+                <div class="ep-grid-2col">
+                  <div class="ep-field">
+                    <label class="ep-label">Student Name</label>
+                    <input
+                      type="text"
+                      id="ep-signup-name"
+                      class="ep-input-field"
+                      placeholder="Rahul Sharma"
+                      value="${signupData.name}"
+                      required
+                    />
+                  </div>
 
-                <div class="ep-grid-2">
-                  <div class="ep-form-group">
-                    <label class="ep-label">College PRN / Roll No.</label>
+                  <div class="ep-field">
+                    <label class="ep-label">College PRN</label>
                     <input
                       type="text"
                       id="ep-signup-prn"
-                      class="ep-input"
-                      placeholder="e.g. SU2026CS0417"
+                      class="ep-input-field"
+                      placeholder="SU2026CS0417"
                       maxlength="16"
                       value="${signupData.prn}"
-                      style="text-transform: uppercase; font-family: monospace; font-size: 0.85rem;"
-                      required
-                    />
-                  </div>
-                  <div class="ep-form-group">
-                    <label class="ep-label">Division / Class</label>
-                    <input
-                      type="text"
-                      id="ep-signup-division"
-                      class="ep-input"
-                      placeholder="e.g. A, B, C"
-                      value="${signupData.division}"
+                      style="text-transform: uppercase; font-family: monospace;"
                       required
                     />
                   </div>
                 </div>
 
-                <div class="ep-grid-2">
-                  <div class="ep-form-group">
+                <div class="ep-grid-2col">
+                  <div class="ep-field">
                     <label class="ep-label">Department</label>
-                    <select id="ep-signup-department" class="ep-input ep-select" required>
+                    <select id="ep-signup-department" class="ep-input-field ep-select-field" required>
                       <option value="Computer Science &amp; Engineering" ${signupData.department === 'Computer Science & Engineering' ? 'selected' : ''}>CSE</option>
                       <option value="Information Technology" ${signupData.department === 'Information Technology' ? 'selected' : ''}>Information Technology</option>
                       <option value="AI &amp; Data Science" ${signupData.department === 'AI & Data Science' ? 'selected' : ''}>AI &amp; Data Science</option>
@@ -1177,9 +1018,10 @@ export function renderLoginView(container, navigateTo) {
                       <option value="MBA / MCA" ${signupData.department === 'MBA / MCA' ? 'selected' : ''}>MBA / MCA</option>
                     </select>
                   </div>
-                  <div class="ep-form-group">
+
+                  <div class="ep-field">
                     <label class="ep-label">Year of Study</label>
-                    <select id="ep-signup-year" class="ep-input ep-select" required>
+                    <select id="ep-signup-year" class="ep-input-field ep-select-field" required>
                       <option value="1st Year" ${signupData.year === '1st Year' ? 'selected' : ''}>1st Year</option>
                       <option value="2nd Year" ${signupData.year === '2nd Year' ? 'selected' : ''}>2nd Year</option>
                       <option value="3rd Year" ${signupData.year === '3rd Year' ? 'selected' : ''}>3rd Year</option>
@@ -1189,59 +1031,66 @@ export function renderLoginView(container, navigateTo) {
                   </div>
                 </div>
 
-                <div class="ep-form-group">
-                  <label class="ep-label">
-                    University Email
-                    ${allowedDomain ? `<span style="color: #6366f1; font-weight: 500; text-transform: none; margin-left: 4px;">(@${allowedDomain})</span>` : ''}
-                  </label>
-                  <input
-                    type="email"
-                    id="ep-signup-email"
-                    class="ep-input"
-                    placeholder="${allowedDomain ? `student@${allowedDomain}` : 'student@college.edu'}"
-                    value="${signupData.email}"
-                    required
-                    autocomplete="username"
-                  />
+                <div class="ep-grid-2col">
+                  <div class="ep-field">
+                    <label class="ep-label">Division / Class</label>
+                    <input
+                      type="text"
+                      id="ep-signup-division"
+                      class="ep-input-field"
+                      placeholder="e.g. A, B, C"
+                      value="${signupData.division}"
+                      required
+                    />
+                  </div>
+
+                  <div class="ep-field">
+                    <label class="ep-label">
+                      Email ${allowedDomain ? `<span style="color: #818cf8; font-size: 0.68rem;">(@${allowedDomain})</span>` : ''}
+                    </label>
+                    <input
+                      type="email"
+                      id="ep-signup-email"
+                      class="ep-input-field"
+                      placeholder="${allowedDomain ? `student@${allowedDomain}` : 'student@college.edu'}"
+                      value="${signupData.email}"
+                      required
+                      autocomplete="username"
+                    />
+                  </div>
                 </div>
 
-                <div class="ep-form-group">
+                <div class="ep-field">
                   <label class="ep-label">Create Password</label>
-                  <div class="ep-input-wrap">
+                  <div class="ep-input-wrapper">
                     <input
                       type="${showSignupPassword ? 'text' : 'password'}"
                       id="ep-signup-password"
-                      class="ep-input"
+                      class="ep-input-field"
                       placeholder="Minimum 8 characters"
                       minlength="6"
                       value="${signupData.password}"
                       required
                       autocomplete="new-password"
                     />
-                    <button type="button" class="ep-input-toggle-btn" id="ep-btn-toggle-signup-pwd">
+                    <button type="button" class="ep-eye-btn" id="ep-btn-toggle-signup-pwd">
                       ${showSignupPassword ? '👁️' : '🙈'}
                     </button>
                   </div>
                   ${signupData.password ? `
-                    <div class="ep-strength-meter">
-                      <div class="ep-strength-bar">
-                        <div class="ep-strength-fill" style="width: ${strength.percent}%; background: ${strength.color};"></div>
-                      </div>
-                      <div class="ep-strength-row">
-                        <span>Strength: <strong style="color: ${strength.color};">${strength.label}</strong></span>
-                        <span>${strength.score}/4 criteria met</span>
-                      </div>
+                    <div class="ep-strength-track">
+                      <div class="ep-strength-fill" style="width: ${strength.percent}%; background: ${strength.color};"></div>
+                    </div>
+                    <div class="ep-strength-label">
+                      <span>Strength: <strong style="color: ${strength.color};">${strength.label}</strong></span>
+                      <span>${strength.score}/4 criteria</span>
                     </div>
                   ` : ''}
                 </div>
 
-                <button type="submit" class="ep-btn-primary" id="ep-btn-submit-signup" ${isLoading ? 'disabled' : ''} style="margin-top: 0.25rem;">
-                  ${isLoading ? '<div class="ep-spinner"></div> Creating Account…' : '→ Complete Student Registration'}
+                <button type="submit" class="ep-submit-btn" id="ep-btn-submit-signup" ${isLoading ? 'disabled' : ''}>
+                  ${isLoading ? '<div class="ep-loader"></div> Creating Account…' : 'Complete Registration →'}
                 </button>
-
-                <div style="margin-top: 0.9rem; text-align: center; font-size: 0.75rem; color: #334155; line-height: 1.5;">
-                  ✉️ A verification email will be sent to confirm your university address.
-                </div>
               </form>
             `}
 
@@ -1250,22 +1099,19 @@ export function renderLoginView(container, navigateTo) {
 
         <!-- ═══ Forgot Password Modal ═══ -->
         ${showForgotModal ? `
-          <div class="ep-modal-backdrop" id="forgot-modal-backdrop">
-            <div class="ep-modal-card">
-              <div class="ep-modal-header">
-                <h3 class="ep-modal-title">🔑 Reset Password</h3>
-                <button type="button" class="ep-modal-close" id="btn-close-forgot">×</button>
-              </div>
-              <p class="ep-modal-desc">
-                Enter your registered university email. We'll send a secure password reset link straight to your inbox.
+          <div class="ep-modal-mask" id="forgot-modal-backdrop">
+            <div class="ep-modal-box">
+              <h3 class="ep-modal-title">🔑 Reset Password</h3>
+              <p class="ep-modal-p">
+                Enter your registered university email to receive a password reset link.
               </p>
-              <div class="ep-form-group">
+              <div class="ep-field">
                 <label class="ep-label">Registered Email</label>
-                <input type="email" id="input-forgot-email" class="ep-input" placeholder="name@college.edu" value="${forgotEmail}" required />
+                <input type="email" id="input-forgot-email" class="ep-input-field" placeholder="name@college.edu" value="${forgotEmail}" required />
               </div>
-              <div class="ep-modal-actions">
-                <button type="button" class="ep-btn-ghost" id="btn-cancel-forgot">Cancel</button>
-                <button type="button" class="ep-btn-primary" id="btn-submit-forgot" style="width: auto; padding: 10px 22px;">Send Reset Link</button>
+              <div class="ep-modal-btns">
+                <button type="button" class="ep-btn-subtle" id="btn-cancel-forgot">Cancel</button>
+                <button type="button" class="ep-submit-btn" id="btn-submit-forgot" style="width: auto; height: 36px; padding: 0 16px; margin: 0;">Send Link</button>
               </div>
             </div>
           </div>
@@ -1316,14 +1162,17 @@ export function renderLoginView(container, navigateTo) {
       showForgotModal = true;
       render();
     });
-    container.querySelector('#btn-close-forgot')?.addEventListener('click', () => {
-      showForgotModal = false;
-      render();
-    });
     container.querySelector('#btn-cancel-forgot')?.addEventListener('click', () => {
       showForgotModal = false;
       render();
     });
+    container.querySelector('#forgot-modal-backdrop')?.addEventListener('click', (e) => {
+      if (e.target.id === 'forgot-modal-backdrop') {
+        showForgotModal = false;
+        render();
+      }
+    });
+
     container.querySelector('#btn-submit-forgot')?.addEventListener('click', async () => {
       const email = container.querySelector('#input-forgot-email')?.value.trim();
       if (!email) {
@@ -1341,8 +1190,8 @@ export function renderLoginView(container, navigateTo) {
     });
 
     if (activeTab === 'signin') {
-      // Demo buttons
-      container.querySelectorAll('.ep-demo-btn').forEach(btn => {
+      // Demo buttons 1-click login
+      container.querySelectorAll('.ep-demo-chip-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           const email = btn.getAttribute('data-email');
           isLoading = true;
@@ -1359,7 +1208,6 @@ export function renderLoginView(container, navigateTo) {
           }
         });
       });
-
 
       // Sign In Submit
       container.querySelector('#ep-login-form')?.addEventListener('submit', async (e) => {
