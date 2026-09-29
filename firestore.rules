@@ -173,19 +173,19 @@ service cloud.firestore {
     }
 
     // 5. Confidential Grievances & Incident Reports
-    // Read: allow if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid)
+    // Read: allow if isAdmin() || academic leaders (hod, dean, vc) || owner (userId or ownerUid)
     // Create: allow if isAuthenticated()
-    // Update: allow if isAdmin()
+    // Update: allow if isAdmin() || academic leaders (hod, dean, vc)
     // Delete: allow if isAdmin()
     match /complaints/{complaintId} {
-      allow read: if isAdmin() || (
+      allow read: if isAdmin() || (isAuthenticated() && getUserRole() in ['hod', 'dean', 'vc']) || (
         isAuthenticated() && (
           resource.data.userId == request.auth.uid || 
           (('ownerUid' in resource.data) && resource.data.ownerUid == request.auth.uid)
         )
       );
       allow create: if isAuthenticated();
-      allow update: if isAdmin();
+      allow update: if isAdmin() || (isAuthenticated() && getUserRole() in ['hod', 'dean', 'vc']);
       allow delete: if isAdmin();
     }
 
