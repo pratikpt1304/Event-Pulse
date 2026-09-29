@@ -1,8 +1,9 @@
 import { getCurrentUser, isUserAdmin } from '../services/auth';
 import { getEvents } from '../services/events';
 import { getAllComplaints, updateComplaintStatus } from '../services/complaints';
+import { getAllUsers } from '../services/users';
 import { db } from '../firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, getDocs } from 'firebase/firestore';
 
 export async function renderExecutiveDashboardView(container, navigateTo) {
   const user = getCurrentUser();
@@ -23,7 +24,19 @@ export async function renderExecutiveDashboardView(container, navigateTo) {
   }
 
   // ─────────────────────────────────────────────────────────────────
-  //  DEAN / VC / ADMIN PORTAL
+  //  VC PORTAL — University-wide, admin-level visibility
+  // ─────────────────────────────────────────────────────────────────
+  if (role === 'vc') {
+    const allUsers = await getAllUsers();
+    let regSnap;
+    try { regSnap = await getDocs(collection(db, 'registrations')); } catch(e) { regSnap = { docs: [] }; }
+    const allRegistrations = regSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    await renderVCPortal({ container, navigateTo, user, allEvents, allComplaints, allUsers, allRegistrations });
+    return;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  DEAN / ADMIN PORTAL
   // ─────────────────────────────────────────────────────────────────
   await renderDeanPortal({ container, navigateTo, user, role, isAdmin, allEvents, allComplaints });
 }
@@ -1124,4 +1137,355 @@ function downloadCSV(csv, filename) {
   const link = document.createElement('a');
   link.href = url; link.download = filename; link.click();
   URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  VC PORTAL — University-wide, admin-level visibility
+//  "Like admin but for VC" — can see everything
+// ═══════════════════════════════════════════════════════════════════
+async function renderVCPortal({ container, navigateTo, user, allEvents, allComplaints, allUsers, allRegistrations }) {
+  let activeTab = sessionStorage.getItem('ep_exec_tab') || 'overview';
+
+  // Extract ALL departments dynamically
+  const deptSet = new Set();
+  allEvents.forEach(e => { if (e.department) deptSet.add(e.department); });
+  allUsers.forEach(u => { if (u.department) deptSet.add(u.department); });
+  allComplaints.forEach(c => { if (c.reporterDept && c.reporterDept !== 'general') deptSet.add(c.reporterDept); });
+  const DEPTS = [...deptSet].sort();
+
+  // Compute stats
+  const totalStudents = allUsers.filter(u => u.role === 'student').length;
+  const totalOrganizers = allUsers.filter(u => u.role === 'organizer').length;
+  const totalStaff = allUsers.filter(u => ['hod', 'dean', 'vc', 'admin'].includes(u.role)).length;
+  const pendingGrievances = allComplaints.filter(c => c.status !== 'resolved').length;
+  const upcomingEvents = allEvents.filter(e => new Date(e.date || e.startDate) >= new Date()).length;
+  const totalRegs = allRegistrations.length;
+
+  // Per-dept breakdown
+  const deptBreakdown = DEPTS.map(dept => {
+    const events = allEvents.filter(e => (e.department || '') === dept);
+    const users = allUsers.filter(u => (u.department || '') === dept && u.role === 'student');
+    const complaints = allComplaints.filter(c => (c.reporterDept || '') === dept);
+    const regs = events.reduce((a, e) => a + (e.registeredCount || e.attendeesCount || 0), 0);
+    const resolved = complaints.filter(c => c.status === 'resolved').length;
+    return { dept, events: events.length, students: users.length, regs, complaints: complaints.length, resolved };
+  });
+
+  const render = () => {
+    container.innerHTML = `
+      <style>
+        .vc-wrap { padding: 1.25rem 0 4rem; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+
+        .vc-header {
+          background: linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(52,211,153,0.06) 100%);
+          border: 1px solid rgba(16,185,129,0.22);
+          border-radius: 14px;
+          padding: 1.1rem 1.4rem;
+          display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;
+        }
+        .vc-avatar {
+          width: 52px; height: 52px; border-radius: 14px;
+          background: linear-gradient(135deg, #10b981, #059669);
+          display: flex; align-items: center; justify-content: center;
+          font-size: 1.5rem; flex-shrink: 0; box-shadow: 0 4px 12px rgba(16,185,129,0.3);
+        }
+        .vc-title { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); }
+        .vc-scope-tag {
+          display: inline-flex; align-items: center; gap: 0.3rem;
+          background: rgba(16,185,129,0.15); color: #34d399;
+          border: 1px solid rgba(16,185,129,0.25); border-radius: 20px;
+          padding: 3px 12px; font-size: 0.72rem; font-weight: 700; margin-top: 3px;
+        }
+        .vc-header-right { margin-left: auto; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .vc-export-btn {
+          background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.22);
+          color: #34d399; border-radius: 9px; padding: 7px 14px;
+          font-size: 0.78rem; font-weight: 700; font-family: inherit;
+          cursor: pointer; transition: all 0.15s; white-space: nowrap;
+        }
+        .vc-export-btn:hover { background: rgba(16,185,129,0.18); }
+
+        .vc-metrics { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.75rem; margin-bottom: 1.5rem; }
+        .vc-metric {
+          background: var(--bg-surface); border: 1px solid var(--border-subtle);
+          border-radius: 12px; padding: 0.85rem 0.9rem; text-align: center;
+        }
+        .vc-metric-icon { font-size: 1.2rem; margin-bottom: 0.3rem; }
+        .vc-metric-val { font-size: 1.4rem; font-weight: 800; color: var(--text-primary); line-height: 1; }
+        .vc-metric-label { font-size: 0.68rem; color: var(--text-secondary); font-weight: 500; margin-top: 3px; }
+
+        .vc-tabs {
+          display: flex; gap: 3px; background: var(--bg-surface);
+          border: 1px solid var(--border-subtle); border-radius: 12px;
+          padding: 4px; margin-bottom: 1.25rem; overflow-x: auto;
+        }
+        .vc-tab {
+          background: transparent; border: none; color: var(--text-secondary);
+          padding: 8px 16px; font-size: 0.82rem; font-weight: 700;
+          font-family: inherit; border-radius: 9px; cursor: pointer;
+          transition: all 0.15s; display: flex; align-items: center;
+          gap: 0.35rem; white-space: nowrap;
+        }
+        .vc-tab.active { background: rgba(16,185,129,0.12); color: #10b981; box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
+        .vc-tab-count { background: #ef4444; color: #fff; font-size: 0.6rem; font-weight: 800; padding: 1px 5px; border-radius: 999px; }
+
+        .vc-card { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 14px; overflow: hidden; }
+        .vc-card-header { padding: 0.9rem 1.25rem; border-bottom: 1px solid var(--border-subtle); }
+        .vc-card-title { font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin: 0; }
+        .vc-card-sub { font-size: 0.75rem; color: var(--text-secondary); margin: 2px 0 0 0; }
+
+        .vc-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .vc-table th {
+          padding: 0.65rem 1.1rem; font-size: 0.68rem; font-weight: 700;
+          text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);
+          background: var(--bg-surface-elevated); border-bottom: 1px solid var(--border-subtle);
+          text-align: left; white-space: nowrap;
+        }
+        .vc-table td { padding: 0.8rem 1.1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-primary); vertical-align: middle; }
+        .vc-table tr:last-child td { border-bottom: none; }
+        .vc-table tr:hover td { background: var(--bg-surface-elevated); }
+
+        .vp { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; }
+        .vp-green  { background: rgba(16,185,129,0.12); color: #10b981; }
+        .vp-amber  { background: rgba(245,158,11,0.12); color: #f59e0b; }
+        .vp-gray   { background: rgba(100,116,139,0.12); color: #64748b; }
+        .vp-red    { background: rgba(239,68,68,0.12); color: #ef4444; }
+        .vp-blue   { background: rgba(59,130,246,0.12); color: #3b82f6; }
+        .vp-violet { background: rgba(139,92,246,0.12); color: #8b5cf6; }
+
+        .bench-bar-bg { height: 6px; background: var(--border-subtle); border-radius: 4px; overflow: hidden; flex: 1; }
+        .bench-bar-fill { height: 100%; border-radius: 4px; }
+        .vc-empty { text-align: center; padding: 2.5rem 1rem; color: var(--text-secondary); font-size: 0.88rem; }
+
+        .vc-resolve-btn {
+          padding: 5px 12px; border-radius: 7px; font-size: 0.73rem; font-weight: 700;
+          font-family: inherit; cursor: pointer;
+          background: rgba(16,185,129,0.12); color: #10b981;
+          border: 1px solid rgba(16,185,129,0.25); transition: all 0.15s; white-space: nowrap;
+        }
+        .vc-resolve-btn:hover { background: rgba(16,185,129,0.22); }
+
+        @media (max-width: 800px) { .vc-metrics { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 500px) { .vc-metrics { grid-template-columns: repeat(2, 1fr); } .vc-tab { font-size: 0.75rem; padding: 7px 10px; } }
+      </style>
+
+      <div class="vc-wrap">
+        <div class="vc-header">
+          <div class="vc-avatar">👑</div>
+          <div>
+            <div class="vc-title">${user.name || 'Vice Chancellor'}</div>
+            <div class="vc-scope-tag">🏫 Sanjivani University — Complete Institutional Oversight</div>
+          </div>
+          <div class="vc-header-right">
+            <button class="vc-export-btn" id="btn-export-naac">📥 NAAC Report</button>
+            <button class="vc-export-btn" id="btn-export-dgrc">🛡️ Grievance Log</button>
+          </div>
+        </div>
+
+        <div class="vc-metrics">
+          <div class="vc-metric">
+            <div class="vc-metric-icon">📅</div>
+            <div class="vc-metric-val" style="color: #10b981;">${allEvents.length}</div>
+            <div class="vc-metric-label">Total Events</div>
+          </div>
+          <div class="vc-metric">
+            <div class="vc-metric-icon">⏳</div>
+            <div class="vc-metric-val" style="color: #3b82f6;">${upcomingEvents}</div>
+            <div class="vc-metric-label">Upcoming</div>
+          </div>
+          <div class="vc-metric">
+            <div class="vc-metric-icon">👨‍🎓</div>
+            <div class="vc-metric-val" style="color: #6366f1;">${totalStudents}</div>
+            <div class="vc-metric-label">Students</div>
+          </div>
+          <div class="vc-metric">
+            <div class="vc-metric-icon">📝</div>
+            <div class="vc-metric-val" style="color: #8b5cf6;">${totalRegs}</div>
+            <div class="vc-metric-label">Registrations</div>
+          </div>
+          <div class="vc-metric">
+            <div class="vc-metric-icon">🏛️</div>
+            <div class="vc-metric-val" style="color: #f59e0b;">${DEPTS.length}</div>
+            <div class="vc-metric-label">Departments</div>
+          </div>
+          <div class="vc-metric" style="border-left: 3px solid ${pendingGrievances > 0 ? '#ef4444' : '#10b981'};">
+            <div class="vc-metric-icon">${pendingGrievances > 0 ? '🚨' : '✅'}</div>
+            <div class="vc-metric-val" style="color: ${pendingGrievances > 0 ? '#ef4444' : '#10b981'};">${pendingGrievances}</div>
+            <div class="vc-metric-label">Grievances</div>
+          </div>
+        </div>
+
+        <div class="vc-tabs">
+          <button class="vc-tab ${activeTab === 'overview' ? 'active' : ''}" id="vc-tab-overview">📊 Overview</button>
+          <button class="vc-tab ${activeTab === 'events' ? 'active' : ''}" id="vc-tab-events">🎪 Events (${allEvents.length})</button>
+          <button class="vc-tab ${activeTab === 'grievances' ? 'active' : ''}" id="vc-tab-grievances">
+            🚨 Grievances ${pendingGrievances > 0 ? `<span class="vc-tab-count">${pendingGrievances}</span>` : ''}
+          </button>
+          <button class="vc-tab ${activeTab === 'users' ? 'active' : ''}" id="vc-tab-users">👥 Users (${allUsers.length})</button>
+          <button class="vc-tab ${activeTab === 'registrations' ? 'active' : ''}" id="vc-tab-registrations">📝 Registrations (${totalRegs})</button>
+        </div>
+
+        ${activeTab === 'overview' ? `
+          <div class="vc-card">
+            <div class="vc-card-header">
+              <p class="vc-card-title">University Department Benchmarking</p>
+              <p class="vc-card-sub">All departments — events, students, participations, grievances</p>
+            </div>
+            <div style="overflow-x: auto;">
+              <table class="vc-table">
+                <thead><tr><th>Department</th><th>Students</th><th>Events</th><th>Participations</th><th>Complaints</th><th>Resolution</th><th>Activity</th></tr></thead>
+                <tbody>
+                  ${deptBreakdown.map(b => {
+                    const maxRegs = Math.max(...deptBreakdown.map(x => x.regs), 1);
+                    const rate = b.complaints > 0 ? Math.round((b.resolved / b.complaints) * 100) : 100;
+                    const barW = Math.round((b.regs / maxRegs) * 100);
+                    return `<tr>
+                      <td style="font-weight: 700; font-size: 0.83rem;">${b.dept}</td>
+                      <td style="font-weight: 700; color: #6366f1;">${b.students}</td>
+                      <td style="font-weight: 700; color: #10b981;">${b.events}</td>
+                      <td style="font-weight: 700; color: #8b5cf6;">${b.regs}</td>
+                      <td>${b.complaints > 0 ? `<span class="vp vp-red">${b.complaints}</span>` : `<span class="vp vp-green">0</span>`}</td>
+                      <td><span class="vp ${rate === 100 ? 'vp-green' : rate >= 50 ? 'vp-amber' : 'vp-red'}">${rate}%</span></td>
+                      <td style="min-width: 100px;"><div style="display:flex;align-items:center;gap:6px;"><div class="bench-bar-bg"><div class="bench-bar-fill" style="width:${barW}%;background:#10b981;"></div></div><span style="font-size:0.68rem;color:var(--text-secondary);">${barW}%</span></div></td>
+                    </tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        ` : activeTab === 'events' ? `
+          <div class="vc-card">
+            <div class="vc-card-header">
+              <p class="vc-card-title">All University Events</p>
+              <p class="vc-card-sub">Every event created on EventPulse — all departments</p>
+            </div>
+            <div style="overflow-x: auto;">
+              <table class="vc-table">
+                <thead><tr><th>Event</th><th>Department</th><th>Date</th><th>Venue</th><th>Attendance</th><th>Status</th></tr></thead>
+                <tbody>
+                  ${allEvents.length === 0 ? `<tr><td colspan="6" class="vc-empty">📭 No events.</td></tr>` : allEvents.map(evt => {
+                    const isUp = new Date(evt.date || evt.startDate) >= new Date();
+                    return `<tr>
+                      <td><div style="font-weight:700;">${evt.title || 'Untitled'}</div><div style="font-size:0.7rem;color:var(--text-secondary);">${evt.category || 'Academic'}</div></td>
+                      <td style="font-size:0.82rem;">${evt.department || '—'}</td>
+                      <td style="font-size:0.82rem;white-space:nowrap;">${evt.date || 'TBD'}</td>
+                      <td style="font-size:0.82rem;color:var(--text-secondary);">${evt.venue || '—'}</td>
+                      <td style="font-weight:700;color:#10b981;">${evt.registeredCount || evt.attendeesCount || 0}</td>
+                      <td><span class="vp ${isUp ? 'vp-blue' : 'vp-gray'}">${isUp ? 'Upcoming' : 'Done'}</span></td>
+                    </tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        ` : activeTab === 'grievances' ? `
+          <div class="vc-card">
+            <div class="vc-card-header">
+              <p class="vc-card-title">University-wide Grievances</p>
+              <p class="vc-card-sub">${allComplaints.length} total, ${pendingGrievances} pending</p>
+            </div>
+            <div style="overflow-x: auto;">
+              <table class="vc-table">
+                <thead><tr><th>Ticket</th><th>Dept</th><th>Category</th><th>Student</th><th>Issue</th><th>Status</th><th>Action</th></tr></thead>
+                <tbody>
+                  ${allComplaints.length === 0 ? `<tr><td colspan="7" class="vc-empty">🎉 No grievances.</td></tr>` : allComplaints.map(c => {
+                    const done = c.status === 'resolved';
+                    return `<tr>
+                      <td><span style="font-family:monospace;font-size:0.76rem;color:#10b981;font-weight:700;">${c.ticketId || c.id}</span><div style="font-size:0.66rem;color:var(--text-secondary);">${c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '—'}</div></td>
+                      <td style="font-size:0.8rem;">${c.reporterDept || '—'}</td>
+                      <td><span class="vp vp-red" style="font-size:0.66rem;">${c.category || 'General'}</span></td>
+                      <td style="font-size:0.82rem;font-weight:600;">${c.isAnonymous ? '🔒 Anon' : (c.authorName || 'Student')}</td>
+                      <td style="max-width:200px;font-size:0.8rem;line-height:1.4;">${c.description || '—'}${c.resolutionNote ? `<div style="font-size:0.68rem;color:#10b981;margin-top:3px;font-weight:600;">✓ ${c.resolutionNote}</div>` : ''}</td>
+                      <td><span class="vp ${done ? 'vp-green' : 'vp-amber'}">${done ? 'Resolved' : 'Pending'}</span></td>
+                      <td>${!done ? `<button class="vc-resolve-btn btn-resolve-grievance" data-id="${c.id || c.ticketId}">✅ Resolve</button>` : `<span style="font-size:0.72rem;color:#10b981;font-weight:700;">Closed</span>`}</td>
+                    </tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        ` : activeTab === 'users' ? `
+          <div class="vc-card">
+            <div class="vc-card-header">
+              <p class="vc-card-title">University User Directory</p>
+              <p class="vc-card-sub">${allUsers.length} users — ${totalStudents} students, ${totalOrganizers} organizers, ${totalStaff} staff</p>
+            </div>
+            <div style="overflow-x: auto;">
+              <table class="vc-table">
+                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Department</th><th>PRN</th><th>Year</th></tr></thead>
+                <tbody>
+                  ${allUsers.length === 0 ? `<tr><td colspan="6" class="vc-empty">No users.</td></tr>` : allUsers.slice(0, 100).map(u => {
+                    const rc = u.role === 'student' ? 'vp-blue' : u.role === 'organizer' ? 'vp-violet' : u.role === 'hod' ? 'vp-amber' : u.role === 'dean' ? 'vp-violet' : u.role === 'admin' ? 'vp-red' : 'vp-green';
+                    return `<tr>
+                      <td style="font-weight:700;font-size:0.83rem;">${u.name || u.displayName || '—'}</td>
+                      <td style="font-size:0.8rem;color:var(--text-secondary);">${u.email || '—'}</td>
+                      <td><span class="vp ${rc}" style="font-size:0.66rem;">${(u.role || 'student').toUpperCase()}</span></td>
+                      <td style="font-size:0.82rem;">${u.department || '—'}</td>
+                      <td style="font-family:monospace;font-size:0.78rem;color:var(--text-secondary);">${u.prn || '—'}</td>
+                      <td style="font-size:0.82rem;">${u.year || '—'}</td>
+                    </tr>`;
+                  }).join('')}
+                  ${allUsers.length > 100 ? `<tr><td colspan="6" class="vc-empty">Showing 100 of ${allUsers.length}</td></tr>` : ''}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        ` : `
+          <div class="vc-card">
+            <div class="vc-card-header">
+              <p class="vc-card-title">Event Registrations</p>
+              <p class="vc-card-sub">${totalRegs} total registrations across all events</p>
+            </div>
+            <div style="overflow-x: auto;">
+              <table class="vc-table">
+                <thead><tr><th>Student</th><th>Event</th><th>Status</th><th>Attendance</th><th>Date</th></tr></thead>
+                <tbody>
+                  ${allRegistrations.length === 0 ? `<tr><td colspan="5" class="vc-empty">No registrations.</td></tr>` : allRegistrations.slice(0, 100).map(r => {
+                    const sc = r.status === 'approved' ? 'vp-green' : r.status === 'rejected' ? 'vp-red' : 'vp-amber';
+                    return `<tr>
+                      <td><div style="font-weight:700;font-size:0.83rem;">${r.studentName || r.userName || '—'}</div><div style="font-size:0.68rem;font-family:monospace;color:var(--text-secondary);">${r.studentPrn || r.prn || ''}</div></td>
+                      <td style="font-size:0.82rem;">${r.eventTitle || r.eventId || '—'}</td>
+                      <td><span class="vp ${sc}" style="font-size:0.66rem;">${(r.status || 'pending').toUpperCase()}</span></td>
+                      <td><span class="vp ${r.attended ? 'vp-green' : 'vp-gray'}" style="font-size:0.66rem;">${r.attended ? '✓ PRESENT' : 'ABSENT'}</span></td>
+                      <td style="font-size:0.78rem;color:var(--text-secondary);">${r.registeredAt ? new Date(r.registeredAt).toLocaleDateString() : r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}</td>
+                    </tr>`;
+                  }).join('')}
+                  ${allRegistrations.length > 100 ? `<tr><td colspan="5" class="vc-empty">Showing 100 of ${totalRegs}</td></tr>` : ''}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `}
+      </div>
+    `;
+    bindVCEvents();
+  };
+
+  const bindVCEvents = () => {
+    ['overview','events','grievances','users','registrations'].forEach(tab => {
+      container.querySelector(`#vc-tab-${tab}`)?.addEventListener('click', () => {
+        activeTab = tab; sessionStorage.setItem('ep_exec_tab', tab); render();
+      });
+    });
+    container.querySelector('#btn-export-naac')?.addEventListener('click', () => exportNAAC(allEvents, 'University', 'Vice Chancellor'));
+    container.querySelector('#btn-export-dgrc')?.addEventListener('click', () => exportDGRC(allComplaints, 'University'));
+    container.querySelectorAll('.btn-resolve-grievance').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const tid = e.currentTarget.getAttribute('data-id');
+        if (!tid) return;
+        const note = prompt(`VC Action note for ${tid}:`, `Reviewed by Vice Chancellor's Office. Resolved.`);
+        if (note === null) return;
+        e.currentTarget.disabled = true; e.currentTarget.innerText = '…';
+        const res = await updateComplaintStatus(tid, 'resolved', note.trim());
+        if (res.success) { alert(`✅ Ticket ${tid} resolved by VC.`); renderExecutiveDashboardView(container, navigateTo); }
+        else { alert('Error: ' + (res.error || 'Failed')); e.currentTarget.disabled = false; e.currentTarget.innerText = '✅ Resolve'; }
+      });
+    });
+  };
+
+  render();
 }
