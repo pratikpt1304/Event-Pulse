@@ -5,15 +5,15 @@ import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 import { getStorage } from 'firebase/storage';
 import { getMessaging, isSupported } from 'firebase/messaging';
 
-// Authentic Firebase Client Config for Project: eventpulse-su-34a42
+// Firebase Client Configuration (Environment variables with production fallback)
 export const firebaseConfig = {
-  apiKey: "AIzaSyCOCFGsYq_-sBMij5tS3P4qFal-NxmClFM",
-  authDomain: "eventpulse-su-34a42.firebaseapp.com",
-  projectId: "eventpulse-su-34a42",
-  storageBucket: "eventpulse-su-34a42.firebasestorage.app",
-  messagingSenderId: "190541768232",
-  appId: "1:190541768232:web:08e403f458f7bbc91cf71d",
-  measurementId: "G-NJW2ENJCV3"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCOCFGsYq_-sBMij5tS3P4qFal-NxmClFM",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "eventpulse-su-34a42.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "eventpulse-su-34a42",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "eventpulse-su-34a42.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "190541768232",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:190541768232:web:08e403f458f7bbc91cf71d",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-NJW2ENJCV3"
 };
 
 export const app = initializeApp(firebaseConfig);

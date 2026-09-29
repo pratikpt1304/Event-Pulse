@@ -5,13 +5,21 @@ functions/node_modules/
 # Production builds
 dist/
 
-# Environment and secrets
+# Environment variables & credentials
 .env
 .env.local
 .env.*.local
+*.env
 functions/serviceAccountKey.json
 serviceAccountKey.json
 *.json.bak
+
+# Sensitive data exports & temporary maintenance scripts
+*export*.json
+users_*.json
+verify_*.js
+*.bat
+*.ps1
 
 # Firebase logs and cache
 .firebase/
@@ -20,7 +28,7 @@ firebase-debug.*.log
 firestore-debug.log
 ui-debug.log
 
-# IDE & OS
+# IDE & Operating System
 .vscode/
 .idea/
 .DS_Store
