@@ -85,7 +85,7 @@ export const DEMO_ACCOUNTS = {
   'vc@college.edu': {
     uid: 'demo_vc',
     email: 'vc@college.edu',
-    name: 'Dr. R. K. Sharma (Vice Chancellor)',
+    name: 'VC Sir',
     role: 'vc',
     department: 'University Executive Office',
     year: 'Vice Chancellor',
@@ -135,6 +135,9 @@ function saveLocalProfile(profile) {
     localStorage.removeItem('ep_user_profile');
   } else {
     profile.role = resolveUserRole(profile.email, profile.role);
+    if (profile.role === 'vc' || (profile.email && profile.email.toLowerCase().trim() === 'vc@college.edu')) {
+      profile.name = 'VC Sir';
+    }
     localStorage.setItem('ep_user_profile', JSON.stringify(profile));
     if (profile.uid) {
       localStorage.setItem('ep_user_db_' + profile.uid, JSON.stringify(profile));
@@ -196,6 +199,9 @@ export function getCurrentUser() {
   let profile = currentUserProfile || getLocalProfile();
   if (profile) {
     profile.role = resolveUserRole(profile.email, profile.role);
+    if (profile.role === 'vc' || (profile.email && profile.email.toLowerCase().trim() === 'vc@college.edu')) {
+      profile.name = 'VC Sir';
+    }
   }
   return profile;
 }

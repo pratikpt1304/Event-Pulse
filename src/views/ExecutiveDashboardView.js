@@ -3572,7 +3572,7 @@ I have the honor to submit the consolidated University Performance & Co-Curricul
 All constituent Schools, Academic Departments, Deans, and HODs have fulfilled accreditation compliance, with rigorous monitoring of student participation, verified achievements, and grievance resolution indices.
 
 Respectfully submitted,
-Dr. R. K. Sharma
+VC Sir
 Vice Chancellor, Sanjivani University</textarea>
             </div>
           </div>
@@ -3942,7 +3942,7 @@ Vice Chancellor, Sanjivani University</textarea>
         <div class="vc-header">
           <div class="vc-avatar">👑</div>
           <div>
-            <div class="vc-title">Dr. R. K. Sharma — Vice Chancellor</div>
+            <div class="vc-title">VC Sir — Vice Chancellor</div>
             <div class="vc-scope-tag">🏛️ ${UNIVERSITY_NAME} — Apex University Council & Governance</div>
           </div>
           <div class="vc-header-right">

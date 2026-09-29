@@ -98,14 +98,20 @@ export async function renderAdminView(container, navigateTo) {
           <div style="position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.25rem;">
             <div>
               <div style="display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.2); padding: 0.2rem 0.65rem; border-radius: var(--radius-full); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;">
-                ${user?.role === 'vc' ? '👑 Vice Chancellor Executive Console' : '🛡️ University Administration & Governance'}
+                ${user?.role === 'vc' ? '👑 VC Sir Executive Console' : '🛡️ University Administration & Governance'}
               </div>
               <h1 style="font-size: 2.1rem; font-weight: 900; margin-top: 0.5rem; margin-bottom: 0.4rem; color: #ffffff; line-height: 1.2;">
-                ${user?.role === 'vc' ? "Vice Chancellor's Command Center" : 'Admin Command Center'}
+                ${user?.role === 'vc' ? "VC Sir's Command Center" : 'Admin Command Center'}
               </h1>
-              <p style="font-size: 0.95rem; color: #94a3b8; line-height: 1.5; margin: 0;">
-                Logged in as <strong>${user?.name || (user?.role === 'vc' ? 'Vice Chancellor' : 'Administrator')}</strong> (${user?.department || (user?.role === 'vc' ? 'University Executive Office' : 'Central Administration')} • ${user?.role === 'vc' ? 'Vice Chancellor' : 'Administrator'})
-              </p>
+              ${user?.role === 'vc' ? `
+                <p style="font-size: 0.95rem; color: #cbd5e1; line-height: 1.5; margin: 0;">
+                  👑 <strong>VC Sir</strong> • University Executive Office
+                </p>
+              ` : `
+                <p style="font-size: 0.95rem; color: #94a3b8; line-height: 1.5; margin: 0;">
+                  Logged in as <strong>${user?.name || 'Administrator'}</strong> (${user?.department || 'Central Administration'})
+                </p>
+              `}
             </div>
 
             <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;">

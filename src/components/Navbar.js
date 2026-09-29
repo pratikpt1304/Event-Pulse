@@ -157,11 +157,11 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
             <div style="position: relative;" id="profile-dropdown-container">
               <button id="profile-menu-btn" style="background: var(--bg-surface-elevated); border: 1px solid var(--border-strong); padding: 0.25rem 0.65rem; border-radius: var(--radius-full); display: flex; align-items: center; gap: 0.5rem; cursor: pointer; color: var(--text-primary); outline: none; transition: all 0.2s;">
                 <div style="width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), #8b5cf6); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800; color: #fff; flex-shrink: 0; box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);">
-                  ${getInitials(user.name)}
+                  ${user.role === 'vc' ? '👑' : getInitials(user.name)}
                 </div>
                 <div class="user-profile-meta" style="text-align: left; line-height: 1.2;">
-                  <div class="user-profile-name" style="font-size: 0.825rem; font-weight: 700; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${user.name}</div>
-                  <span class="role-tag ${user.role}" style="font-size: 0.625rem; padding: 0.05rem 0.35rem;">${user.role}</span>
+                  <div class="user-profile-name" style="font-size: 0.825rem; font-weight: 700; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${user.role === 'vc' ? 'VC Sir' : user.name}</div>
+                  <span class="role-tag ${user.role}" style="font-size: 0.625rem; padding: 0.05rem 0.35rem;">${user.role === 'vc' ? 'Vice Chancellor' : user.role}</span>
                 </div>
                 <span style="font-size: 0.65rem; color: var(--text-tertiary);">▼</span>
               </button>
@@ -169,10 +169,10 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
               <!-- Profile Dropdown Menu -->
               <div id="profile-dropdown-menu" style="display: none; position: absolute; right: 0; top: 120%; background: var(--bg-surface); border: 1px solid var(--border-strong); border-radius: var(--radius-md); box-shadow: var(--shadow-modal); min-width: 220px; padding: 0.5rem; z-index: 200;">
                 <div style="padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border-subtle); margin-bottom: 0.35rem;">
-                  <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary);">${user.name}</div>
+                  <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary);">${user.role === 'vc' ? '👑 VC Sir' : user.name}</div>
                   <div style="font-size: 0.75rem; color: var(--text-tertiary); word-break: break-all;">${user.email}</div>
                   <div style="font-size: 0.75rem; color: var(--primary); font-family: monospace; margin-top: 0.2rem;">
-                    ${['hod', 'dean', 'vc'].includes(user.role) ? `Scope: ${user.department || 'Executive'}` : `PRN: ${user.prn || 'Not Set'}`}
+                    ${user.role === 'vc' ? 'Office of the Vice Chancellor' : ['hod', 'dean'].includes(user.role) ? `Scope: ${user.department || 'Executive'}` : `PRN: ${user.prn || 'Not Set'}`}
                   </div>
                 </div>
 

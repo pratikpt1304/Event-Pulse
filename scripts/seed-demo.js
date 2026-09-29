@@ -100,7 +100,7 @@ export const DEMO_USERS = [
     uid: 'demo_vc',
     email: 'vc@college.edu',
     password: 'Password@123',
-    name: 'Dr. R. K. Sharma (Vice Chancellor)',
+    name: 'VC Sir',
     role: 'vc',
     prn: 'VC-EXEC-01',
     department: 'University Executive Office',
