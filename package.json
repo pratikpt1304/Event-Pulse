@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "seed": "node scripts/seed.js",
     "seed:demo": "node scripts/seed-demo.js",
-    "test:closed-events": "node scripts/test-closed-events.js"
+    "test:closed-events": "node scripts/test-closed-events.js",
+    "deploy:hosting": "vite build && node scripts/deploy-hosting.js"
   },
   "dependencies": {
     "firebase": "^11.3.0",
