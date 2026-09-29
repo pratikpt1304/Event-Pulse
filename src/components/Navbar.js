@@ -172,12 +172,9 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
                 </div>
 
                 ${['hod', 'dean', 'vc'].includes(user.role) ? `
-                  <!-- EXECUTIVE SPECIFIC MENU -->
+                  <!-- EXECUTIVE SPECIFIC MENU: Clean & Faculty-Only -->
                   <button class="nav-dropdown-item" id="btn-menu-executive" style="color: #3b82f6; font-weight: 700; background: rgba(59, 130, 246, 0.08); margin-bottom: 0.25rem;">
                     🏛️ Executive Academic Hub
-                  </button>
-                  <button class="nav-dropdown-item" id="btn-menu-ideas">
-                    💡 Campus Ideas & Proposals
                   </button>
                 ` : user.role === 'organizer' ? `
                   <!-- ORGANIZER SPECIFIC MENU -->
@@ -189,6 +186,9 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
                   </button>
                   <button class="nav-dropdown-item" id="btn-menu-ideas">
                     💡 Campus Wishlist & Ideas
+                  </button>
+                  <button class="nav-dropdown-item" id="btn-menu-help">
+                    🎧 Helpdesk & Support
                   </button>
                 ` : isUserAdmin(user) ? `
                   <!-- ADMIN SPECIFIC MENU -->
@@ -204,6 +204,9 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
                   <button class="nav-dropdown-item" id="btn-menu-events">
                     🎉 Campus Events Feed
                   </button>
+                  <button class="nav-dropdown-item" id="btn-menu-help">
+                    🎧 Helpdesk & Support
+                  </button>
                 ` : `
                   <!-- STUDENT SPECIFIC MENU -->
                   <button class="nav-dropdown-item" id="btn-menu-events">
@@ -218,19 +221,16 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
                   <button class="nav-dropdown-item" id="btn-menu-ideas">
                     💡 Campus Wishlist & Ideas
                   </button>
+                  <button class="nav-dropdown-item" id="btn-menu-profile">
+                    ✏️ Edit Profile
+                  </button>
+                  <button class="nav-dropdown-item" id="btn-menu-help">
+                    🎧 Helpdesk & Support
+                  </button>
+                  <button class="nav-dropdown-item" id="btn-menu-report-grievance" style="color: #dc2626; font-weight: 600;">
+                    🚨 Report Grievance / Incident
+                  </button>
                 `}
-
-                <button class="nav-dropdown-item" id="btn-menu-profile">
-                  ✏️ Edit Profile
-                </button>
-                
-                <button class="nav-dropdown-item" id="btn-menu-help">
-                  🎧 Helpdesk & Support
-                </button>
-
-                <button class="nav-dropdown-item" id="btn-menu-report-grievance" style="color: #dc2626; font-weight: 600;">
-                  🚨 Report Grievance / Incident
-                </button>
 
                 <div style="border-top: 1px solid var(--border-subtle); margin-top: 0.35rem; padding-top: 0.35rem;">
                   <button class="nav-dropdown-item danger" id="btn-menu-logout">
