@@ -19,6 +19,19 @@ import { generateEventDescriptionAI } from '../services/ai';
 import { openCompletedEventModal } from '../components/CompletedEventModal';
 import { openDocumentPreviewModal } from '../components/DocumentPreviewModal';
 
+function linkifyText(text) {
+  if (!text) return '';
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  return escaped.replace(
+    /(https?:\/\/[^\s<>"']+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline; word-break: break-all;" onclick="event.stopPropagation()">$1</a>'
+  );
+}
+
 export async function renderAdminView(container, navigateTo) {
   const user = getCurrentUser();
   const isAdmin = isUserAdmin(user) || user?.role === 'vc';

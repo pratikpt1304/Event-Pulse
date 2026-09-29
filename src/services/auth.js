@@ -651,11 +651,11 @@ export async function createStaffInvite({ email, role, department }, adminUser) 
  * Admin: Fetch all staff invites
  */
 export async function getStaffInvites() {
+  if (!auth.currentUser) return [];
   try {
     const snap = await getDocs(collection(db, 'staffInvites'));
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   } catch (err) {
-    console.warn('Get staff invites notice:', err.message);
     return [];
   }
 }

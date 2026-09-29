@@ -1,4 +1,4 @@
-import { messaging, messagingReady, db } from '../firebase';
+import { messaging, messagingReady, db, auth } from '../firebase';
 import { getToken, onMessage, isSupported } from 'firebase/messaging';
 import { doc, updateDoc, arrayUnion, setDoc } from 'firebase/firestore';
 
@@ -59,7 +59,7 @@ export async function requestPushNotificationPermission(user) {
       localStorage.setItem('ep_fcm_token', currentToken);
 
       // Save token to Firestore if user is authenticated
-      if (user && user.uid) {
+      if (user && user.uid && auth.currentUser) {
         try {
           // Add token to user doc
           const userRef = doc(db, 'users', user.uid);

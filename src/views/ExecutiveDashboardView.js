@@ -1,6 +1,7 @@
 import { getCurrentUser, isUserAdmin } from '../services/auth';
 import { getEvents } from '../services/events';
 import { getAllComplaints, updateComplaintStatus } from '../services/complaints';
+import { renderAdminView } from './AdminView';
 import { db } from '../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 
@@ -26,7 +27,6 @@ export async function renderExecutiveDashboardView(container, navigateTo) {
   //  VC PORTAL — Exact Same as Admin Portal (Full Institutional Oversight)
   // ─────────────────────────────────────────────────────────────────
   if (role === 'vc') {
-    const { renderAdminView } = await import('./AdminView');
     await renderAdminView(container, navigateTo);
     return;
   }

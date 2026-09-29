@@ -30,7 +30,7 @@ async function renderApp() {
   // Route Guard Enforcement
   const guard = checkRouteGuard(routeName, user);
   if (!guard.allowed) {
-    if (guard.reason && routeName !== 'login') {
+    if (guard.reason && routeName !== 'login' && user) {
       alert(`🔒 ${guard.reason}`);
     }
     navigateTo(guard.redirect || 'login');
