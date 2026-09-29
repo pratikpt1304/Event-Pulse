@@ -67,10 +67,10 @@ export const DEMO_ACCOUNTS = {
     email: 'hod@college.edu',
     name: 'Prof. Anwar Sheikh (HOD)',
     role: 'hod',
-    department: 'Computer Science & Engineering',
+    department: 'Integrated M.Tech',
     year: 'HOD',
-    division: 'CS',
-    prn: 'HOD-CE-101'
+    division: 'IMtech',
+    prn: 'HOD-IMTECH-01'
   },
   'dean@college.edu': {
     uid: 'demo_dean',

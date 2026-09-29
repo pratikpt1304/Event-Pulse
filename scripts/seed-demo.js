@@ -80,10 +80,10 @@ export const DEMO_USERS = [
     password: 'Password@123',
     name: 'Prof. Anwar Sheikh (HOD)',
     role: 'hod',
-    prn: 'HOD-CE-101',
-    department: 'Computer Science & Engineering',
+    prn: 'HOD-IMTECH-01',
+    department: 'Integrated M.Tech',
     year: 'HOD',
-    division: 'CS'
+    division: 'IMtech'
   },
   {
     uid: 'demo_dean',
