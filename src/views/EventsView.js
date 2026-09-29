@@ -246,6 +246,74 @@ export async function renderEventsView(container, navigateTo) {
   // 1. Render Outer Static Shell ONCE
   container.innerHTML = `
     <div>
+      ${user && ['hod', 'dean', 'vc'].includes(user.role) ? `
+        <div style="background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 60%, #1e293b 100%); border: 1.5px solid #3b82f6; border-radius: 16px; padding: 1.1rem 1.4rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; color: #ffffff; box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.25);">
+          <div style="display: flex; align-items: center; gap: 0.85rem;">
+            <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.4); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0;">
+              🏛️
+            </div>
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span style="background: #2563eb; color: #fff; font-size: 0.72rem; font-weight: 800; padding: 0.15rem 0.6rem; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em;">
+                  ${user.role.toUpperCase()} Academic Oversight
+                </span>
+                <span style="font-size: 0.8rem; color: #94a3b8; font-weight: 600;">
+                  Dept: ${user.department || 'Academic Affairs'}
+                </span>
+              </div>
+              <div style="font-size: 0.85rem; color: #e2e8f0; margin-top: 0.25rem; font-weight: 500;">
+                You are currently in student event preview mode. Switch to your Executive Academic Portal to endorse proposals, audit attendance, and export NAAC reports:
+              </div>
+            </div>
+          </div>
+          <button id="btn-quick-to-executive" style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; border: none; padding: 0.65rem 1.3rem; border-radius: 10px; font-weight: 700; font-size: 0.875rem; cursor: pointer; display: flex; align-items: center; gap: 0.45rem; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4); transition: transform 0.15s; white-space: nowrap;">
+            <span>Open Executive Hub</span> <span>→</span>
+          </button>
+        </div>
+      ` : user && user.role === 'organizer' ? `
+        <div style="background: linear-gradient(135deg, #2e1065 0%, #0f172a 60%, #1e1b4b 100%); border: 1.5px solid #8b5cf6; border-radius: 16px; padding: 1.1rem 1.4rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; color: #ffffff; box-shadow: 0 10px 25px -5px rgba(139, 92, 246, 0.25);">
+          <div style="display: flex; align-items: center; gap: 0.85rem;">
+            <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(139, 92, 246, 0.2); border: 1px solid rgba(139, 92, 246, 0.4); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0;">
+              ⚡
+            </div>
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span style="background: #7c3aed; color: #fff; font-size: 0.72rem; font-weight: 800; padding: 0.15rem 0.6rem; border-radius: 999px; text-transform: uppercase;">
+                  Organizer Workspace
+                </span>
+              </div>
+              <div style="font-size: 0.85rem; color: #e2e8f0; margin-top: 0.25rem;">
+                Manage event creation, closed participant rosters, and live QR gate check-ins:
+              </div>
+            </div>
+          </div>
+          <button id="btn-quick-to-organizer" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: #fff; border: none; padding: 0.65rem 1.3rem; border-radius: 10px; font-weight: 700; font-size: 0.875rem; cursor: pointer; display: flex; align-items: center; gap: 0.45rem; box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4); transition: transform 0.15s; white-space: nowrap;">
+            <span>Open Organizer Hub</span> <span>→</span>
+          </button>
+        </div>
+      ` : user && user.role === 'admin' ? `
+        <div style="background: linear-gradient(135deg, #450a0a 0%, #0f172a 60%, #1e1b4b 100%); border: 1.5px solid #ef4444; border-radius: 16px; padding: 1.1rem 1.4rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; color: #ffffff; box-shadow: 0 10px 25px -5px rgba(239, 68, 68, 0.25);">
+          <div style="display: flex; align-items: center; gap: 0.85rem;">
+            <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0;">
+              🛡️
+            </div>
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span style="background: #dc2626; color: #fff; font-size: 0.72rem; font-weight: 800; padding: 0.15rem 0.6rem; border-radius: 999px; text-transform: uppercase;">
+                  Central Administrator
+                </span>
+              </div>
+              <div style="font-size: 0.85rem; color: #e2e8f0; margin-top: 0.25rem;">
+                Access user roles, staff invites, event approvals, and institutional audit trails:
+              </div>
+            </div>
+          </div>
+          <button id="btn-quick-to-admin" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; border: none; padding: 0.65rem 1.3rem; border-radius: 10px; font-weight: 700; font-size: 0.875rem; cursor: pointer; display: flex; align-items: center; gap: 0.45rem; box-shadow: 0 4px 14px rgba(220, 38, 38, 0.4); transition: transform 0.15s; white-space: nowrap;">
+            <span>Open Admin Console</span> <span>→</span>
+          </button>
+        </div>
+      ` : ''}
+
       <!-- Hero Banner Header -->
       <div class="hero-banner">
         <h1 style="margin-bottom: 0.5rem; font-size: 2.25rem;">Event<span style="opacity: 0.95;">Pulse</span></h1>
@@ -572,6 +640,17 @@ export async function renderEventsView(container, navigateTo) {
       updateGrid();
     });
   }
+
+  // Quick-switch staff banner listeners
+  container.querySelector('#btn-quick-to-executive')?.addEventListener('click', () => {
+    navigateTo('executive');
+  });
+  container.querySelector('#btn-quick-to-organizer')?.addEventListener('click', () => {
+    navigateTo('organizer');
+  });
+  container.querySelector('#btn-quick-to-admin')?.addEventListener('click', () => {
+    navigateTo('admin');
+  });
 
   // Initial Grid Render & Closed Events Resolution
   refreshAllowedClosedEvents(events).then(() => updateGrid()).catch(() => {});

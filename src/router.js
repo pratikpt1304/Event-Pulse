@@ -65,7 +65,13 @@ export function getRoleDefaultRoute(role) {
 
 export function getHashRoute() {
   const hash = window.location.hash.slice(1);
-  if (!hash) return { name: 'events', param: null };
+  if (!hash) {
+    const user = getCurrentUser();
+    if (user && user.role && user.role !== 'student') {
+      return { name: getRoleDefaultRoute(user.role), param: null };
+    }
+    return { name: 'events', param: null };
+  }
   const parts = hash.split('/');
   return { name: parts[0], param: parts[1] || null };
 }

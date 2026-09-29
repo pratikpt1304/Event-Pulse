@@ -169,6 +169,22 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
                   <div style="font-size: 0.75rem; color: var(--primary); font-family: monospace; margin-top: 0.2rem;">PRN: ${user.prn || 'Not Set'}</div>
                 </div>
 
+                ${['hod', 'dean', 'vc'].includes(user.role) || isUserAdmin(user) ? `
+                  <button class="nav-dropdown-item" id="btn-menu-executive" style="color: #3b82f6; font-weight: 700; background: rgba(59, 130, 246, 0.08); margin-bottom: 0.25rem;">
+                    🏛️ Executive Hub (${(user.role || '').toUpperCase()})
+                  </button>
+                ` : ''}
+                ${user.role === 'organizer' || isUserAdmin(user) ? `
+                  <button class="nav-dropdown-item" id="btn-menu-organizer" style="color: var(--primary); font-weight: 700; background: rgba(124, 58, 237, 0.08); margin-bottom: 0.25rem;">
+                    ⚡ Organizer Hub
+                  </button>
+                ` : ''}
+                ${isUserAdmin(user) ? `
+                  <button class="nav-dropdown-item" id="btn-menu-admin" style="color: #ef4444; font-weight: 700; background: rgba(239, 68, 68, 0.08); margin-bottom: 0.25rem;">
+                    🛡️ Admin Console
+                  </button>
+                ` : ''}
+
                 <button class="nav-dropdown-item" id="btn-menu-events">
                   🎉 Campus Events
                 </button>
@@ -427,6 +443,21 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
         dropdownMenu.style.display = 'none';
         if (notifMenu) notifMenu.style.display = 'none';
       }
+    });
+
+    container.querySelector('#btn-menu-executive')?.addEventListener('click', () => {
+      dropdownMenu.style.display = 'none';
+      navigateTo('executive');
+    });
+
+    container.querySelector('#btn-menu-organizer')?.addEventListener('click', () => {
+      dropdownMenu.style.display = 'none';
+      navigateTo('organizer');
+    });
+
+    container.querySelector('#btn-menu-admin')?.addEventListener('click', () => {
+      dropdownMenu.style.display = 'none';
+      navigateTo('admin');
     });
 
     container.querySelector('#btn-menu-events')?.addEventListener('click', () => {
