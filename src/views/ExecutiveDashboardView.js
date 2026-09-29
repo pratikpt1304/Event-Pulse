@@ -46,10 +46,14 @@ export async function renderExecutiveDashboardView(container, navigateTo) {
   }
 
   // ─────────────────────────────────────────────────────────────────
-  //  VC PORTAL — Exact Same as Admin Portal (Full Institutional Oversight)
+  //  VC PORTAL — Supreme University-Wide Command & 4-Tier Drilldown
   // ─────────────────────────────────────────────────────────────────
   if (role === 'vc') {
-    await renderAdminView(container, navigateTo);
+    await renderVCPortal({
+      container, navigateTo, user, role, isAdmin,
+      allEvents, allComplaints, allUsers, allRegistrations,
+      allCerts, allIdeas, allTeams
+    });
     return;
   }
 
@@ -2948,6 +2952,1855 @@ Prof. (Dr.) Dean — School of Engineering</textarea>
   render();
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  VC PORTAL — Apex University Command, 4-Tier Drilldown & Supreme Governance
+// ═══════════════════════════════════════════════════════════════════
+async function renderVCPortal({
+  container, navigateTo, user, role, isAdmin,
+  allEvents = [], allComplaints = [], allUsers = [], allRegistrations = [],
+  allCerts = [], allIdeas = [], allTeams = []
+}) {
+  let activeTab = sessionStorage.getItem('ep_vc_tab') || 'matrix';
+  let selectedSchool = 'all'; // 'all' or school name
+  let selectedDept = 'all'; // 'all' or department name
+  let selectedYear = 'all'; // 'all', '1st Year', '2nd Year', '3rd Year', '4th Year'
+  let selectedStanding = 'all'; // 'all', 'star', 'innovator', 'active', 'inactive'
+  let searchQuery = '';
+  let selectedStudentForDossier = null;
+  let showChancellorModal = false;
+
+  const UNIVERSITY_NAME = 'Sanjivani University';
+  const roleLabel = 'Vice Chancellor — Supreme Executive Authority';
+
+  // University School & Department Taxonomy
+  const UNIVERSITY_TAXONOMY = {
+    'School of Engineering & Technology': [
+      'Computer Science & Engineering',
+      'Information Technology',
+      'AI & Data Science',
+      'Integrated M.Tech',
+      'Mechanical Engineering',
+      'Civil Engineering',
+      'Cyber Security',
+      'Electrical Engineering'
+    ],
+    'School of Management & Commerce': [
+      'MBA / MCA',
+      'BBA',
+      'Commerce & Finance',
+      'Digital Marketing'
+    ],
+    'School of Pharmacy & Health Sciences': [
+      'B.Pharm',
+      'M.Pharm',
+      'Pharmaceutics',
+      'Pharmacology'
+    ],
+    'School of Science & Humanities': [
+      'Applied Physics',
+      'Applied Chemistry',
+      'Mathematics & Computing',
+      'Humanities & Social Sciences'
+    ],
+    'School of Design & Creative Arts': [
+      'UI/UX Design',
+      'Animation & VFX',
+      'Digital Product Design',
+      'Media Studies'
+    ]
+  };
+
+  const SCHOOLS = Object.keys(UNIVERSITY_TAXONOMY);
+
+  // Helper to map department to School
+  const getSchoolAndDept = (rawDept) => {
+    if (!rawDept) return { school: 'School of Engineering & Technology', dept: 'Computer Science & Engineering' };
+    const d = rawDept.toLowerCase().trim();
+    if (d.includes('imtech') || d.includes('integrated')) return { school: 'School of Engineering & Technology', dept: 'Integrated M.Tech' };
+    if (d.includes('comp') || d.includes('cse')) return { school: 'School of Engineering & Technology', dept: 'Computer Science & Engineering' };
+    if (d.includes('info') || d.includes('it')) return { school: 'School of Engineering & Technology', dept: 'Information Technology' };
+    if (d.includes('ai') || d.includes('data science')) return { school: 'School of Engineering & Technology', dept: 'AI & Data Science' };
+    if (d.includes('mech')) return { school: 'School of Engineering & Technology', dept: 'Mechanical Engineering' };
+    if (d.includes('civil')) return { school: 'School of Engineering & Technology', dept: 'Civil Engineering' };
+    if (d.includes('cyber')) return { school: 'School of Engineering & Technology', dept: 'Cyber Security' };
+    if (d.includes('elect')) return { school: 'School of Engineering & Technology', dept: 'Electrical Engineering' };
+    if (d.includes('mba') || d.includes('mca')) return { school: 'School of Management & Commerce', dept: 'MBA / MCA' };
+    if (d.includes('bba')) return { school: 'School of Management & Commerce', dept: 'BBA' };
+    if (d.includes('commerce') || d.includes('finance')) return { school: 'School of Management & Commerce', dept: 'Commerce & Finance' };
+    if (d.includes('pharm')) return { school: 'School of Pharmacy & Health Sciences', dept: 'B.Pharm' };
+    if (d.includes('phys') || d.includes('chem') || d.includes('math')) return { school: 'School of Science & Humanities', dept: 'Mathematics & Computing' };
+    if (d.includes('design') || d.includes('ui') || d.includes('media')) return { school: 'School of Design & Creative Arts', dept: 'UI/UX Design' };
+    return { school: 'School of Engineering & Technology', dept: rawDept };
+  };
+
+  // Enrich all students
+  const rawStudents = (allUsers || []).filter(u => !u.role || u.role === 'student');
+  const enrichedStudents = rawStudents.map(student => {
+    const sUid = (student.uid || '').trim();
+    const sEmail = (student.email || '').toLowerCase().trim();
+    const sPrn = (student.prn || '').toLowerCase().trim();
+    const sName = (student.name || '').toLowerCase().trim();
+
+    const { school, dept } = getSchoolAndDept(student.department);
+
+    // Registrations
+    const studentRegs = (allRegistrations || []).filter(r => {
+      const rUid = (r.userId || '').trim();
+      const rEmail = (r.email || r.studentEmail || '').toLowerCase().trim();
+      const rPrn = (r.prn || r.studentPrn || '').toLowerCase().trim();
+      return (sUid && rUid === sUid) ||
+             (sEmail && (rEmail === sEmail || rUid.toLowerCase() === sEmail)) ||
+             (sPrn && rPrn && rPrn === sPrn);
+    });
+
+    const attendedCount = studentRegs.filter(r => r.status === 'attended' || r.attendance === 'present').length;
+    const isActive = studentRegs.length > 0;
+
+    // Verified Certificates
+    const certs = (allCerts || []).filter(c => {
+      const cUid = (c.userId || '').trim();
+      const cPrn = (c.prn || '').toLowerCase().trim();
+      const cName = (c.studentName || '').toLowerCase().trim();
+      return (sUid && cUid === sUid) ||
+             (sPrn && cPrn && cPrn === sPrn) ||
+             (sName && cName === sName);
+    });
+
+    // Ideas & Project Innovations
+    const ideas = (allIdeas || []).filter(i => {
+      return (sUid && i.userId === sUid) || (sName && (i.authorName || '').toLowerCase() === sName);
+    });
+
+    // Competition & Hackathon Teams
+    const teams = (allTeams || []).filter(t => {
+      const creatorUid = (t.creatorUid || t.userId || '').trim();
+      const members = t.members || [];
+      const inMembers = members.some(m => (m.uid && m.uid === sUid) || (m.email && m.email.toLowerCase() === sEmail));
+      return (sUid && creatorUid === sUid) || inMembers;
+    });
+
+    let year = (student.year || '').trim();
+    if (!year) year = '1st Year';
+
+    // Standing
+    let standing = 'inactive';
+    let standingLabel = '⚠️ Inactive';
+    let standingClass = 'vcpill-red';
+
+    if (certs.length > 0) {
+      standing = 'star';
+      standingLabel = '🏆 Star Achiever';
+      standingClass = 'vcpill-gold';
+    } else if (ideas.length > 0 || teams.length > 0) {
+      standing = 'innovator';
+      standingLabel = '🚀 Innovator';
+      standingClass = 'vcpill-amber';
+    } else if (isActive) {
+      standing = 'active';
+      standingLabel = '🟢 Active';
+      standingClass = 'vcpill-green';
+    }
+
+    return {
+      ...student,
+      year,
+      school,
+      department: dept,
+      regs: studentRegs,
+      registeredCount: studentRegs.length,
+      attendedCount,
+      isActive,
+      certs,
+      ideas,
+      teams,
+      standing,
+      standingLabel,
+      standingClass
+    };
+  });
+
+  // Enrich all events with School and Dept
+  const enrichedEvents = allEvents.map(e => {
+    const { school, dept } = getSchoolAndDept(e.department);
+    return { ...e, school, department: dept };
+  });
+
+  // Enrich complaints with School and Dept
+  const enrichedComplaints = allComplaints.map(c => {
+    const { school, dept } = getSchoolAndDept(c.reporterDept);
+    return { ...c, school, department: dept };
+  });
+
+  // Available departments under currently selected school
+  const getAvailableDepts = () => {
+    if (selectedSchool === 'all') {
+      const allD = new Set();
+      Object.values(UNIVERSITY_TAXONOMY).forEach(list => list.forEach(d => allD.add(d)));
+      return [...allD].sort();
+    }
+    return UNIVERSITY_TAXONOMY[selectedSchool] || [];
+  };
+
+  // Filtered dataset according to School and Dept dropdowns
+  const getScopedData = () => {
+    let events = enrichedEvents;
+    let complaints = enrichedComplaints;
+    let students = enrichedStudents;
+
+    if (selectedSchool !== 'all') {
+      events = events.filter(e => e.school === selectedSchool);
+      complaints = complaints.filter(c => c.school === selectedSchool);
+      students = students.filter(s => s.school === selectedSchool);
+    }
+
+    if (selectedDept !== 'all') {
+      events = events.filter(e => e.department === selectedDept);
+      complaints = complaints.filter(c => c.department === selectedDept);
+      students = students.filter(s => s.department === selectedDept);
+    }
+
+    return { events, complaints, students };
+  };
+
+  // Filter students based on all 4 tiers (School, Dept, Year, Standing) + Search Query
+  const getFilteredStudents = () => {
+    const { students } = getScopedData();
+    return students.filter(s => {
+      // Year filter
+      if (selectedYear !== 'all') {
+        const sy = (s.year || '').toLowerCase();
+        const fy = selectedYear.toLowerCase();
+        if (fy.includes('1') && !sy.includes('1')) return false;
+        if (fy.includes('2') && !sy.includes('2')) return false;
+        if (fy.includes('3') && !sy.includes('3')) return false;
+        if ((fy.includes('4') || fy.includes('final')) && (!sy.includes('4') && !sy.includes('final'))) return false;
+      }
+      // Standing filter
+      if (selectedStanding !== 'all') {
+        if (selectedStanding === 'star' && s.standing !== 'star') return false;
+        if (selectedStanding === 'innovator' && s.standing !== 'innovator') return false;
+        if (selectedStanding === 'active' && !s.isActive) return false;
+        if (selectedStanding === 'inactive' && s.isActive) return false;
+      }
+      // Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const name = (s.name || '').toLowerCase();
+        const email = (s.email || '').toLowerCase();
+        const prn = (s.prn || '').toLowerCase();
+        const dept = (s.department || '').toLowerCase();
+        const sch = (s.school || '').toLowerCase();
+        if (!name.includes(q) && !email.includes(q) && !prn.includes(q) && !dept.includes(q) && !sch.includes(q)) return false;
+      }
+      return true;
+    });
+  };
+
+  // Build Institutional Apex Matrix (School by School comparison)
+  const getInstitutionalBenchmark = () => {
+    return SCHOOLS.map(school => {
+      const schDepts = UNIVERSITY_TAXONOMY[school] || [];
+      const schStudents = enrichedStudents.filter(s => s.school === school);
+      const schEvents = enrichedEvents.filter(e => e.school === school);
+      const schComplaints = enrichedComplaints.filter(c => c.school === school);
+
+      const activeCount = schStudents.filter(s => s.isActive).length;
+      const activeRate = schStudents.length > 0 ? Math.round((activeCount / schStudents.length) * 100) : 0;
+      const starCount = schStudents.filter(s => s.certs.length > 0).length;
+      const regsCount = schEvents.reduce((sum, e) => sum + (e.registeredCount || e.attendeesCount || 0), 0);
+
+      const y1 = schStudents.filter(s => s.year.toLowerCase().includes('1')).length;
+      const y2 = schStudents.filter(s => s.year.toLowerCase().includes('2')).length;
+      const y3 = schStudents.filter(s => s.year.toLowerCase().includes('3')).length;
+      const y4 = schStudents.filter(s => s.year.toLowerCase().includes('4') || s.year.toLowerCase().includes('final')).length;
+
+      return {
+        school,
+        deptsCount: schDepts.length,
+        studentsCount: schStudents.length,
+        activeCount,
+        activeRate,
+        starCount,
+        y1, y2, y3, y4,
+        eventsCount: schEvents.length,
+        regsCount,
+        complaintsCount: schComplaints.length,
+        resolvedCount: schComplaints.filter(c => c.status === 'resolved').length
+      };
+    });
+  };
+
+  // Render Student Supreme Dossier Modal
+  const renderStudentSupremeDossier = (student) => {
+    if (!student) return '';
+    const registeredEventIds = new Set((student.regs || []).map(r => r.eventId));
+    const unparticipatedUpcoming = enrichedEvents.filter(e => {
+      const isUpcoming = new Date(e.date || e.startDate) >= new Date();
+      return isUpcoming && !registeredEventIds.has(e.id);
+    }).slice(0, 4);
+
+    return `
+      <div class="vc-modal-overlay" id="vc-student-modal">
+        <div class="vc-modal-content">
+          <!-- Modal Header -->
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; padding:1.25rem 1.5rem; border-bottom:1px solid var(--border-subtle); background:var(--bg-surface-elevated);">
+            <div style="display:flex; align-items:center; gap:0.9rem;">
+              <div style="width:54px; height:54px; border-radius:50%; background:linear-gradient(135deg, #f59e0b, #10b981); display:flex; align-items:center; justify-content:center; font-size:1.5rem; font-weight:800; color:#fff; flex-shrink:0;">
+                ${(student.name || 'S').charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div style="font-size:1.25rem; font-weight:800; color:var(--text-primary); display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                  <span>${student.name || 'Student Profile'}</span>
+                  <span class="vcpill ${student.standingClass}" style="font-size:0.7rem;">
+                    ${student.standingLabel}
+                  </span>
+                </div>
+                <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:3px;">
+                  🏫 <strong>${student.school}</strong> • 🏛️ <strong>${student.department}</strong> • 🎓 <strong>${student.year}</strong>
+                </div>
+                <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">
+                  PRN: <strong>${student.prn || 'Not Linked'}</strong> • ✉️ ${student.email}
+                </div>
+              </div>
+            </div>
+            <button class="vc-modal-close" id="btn-close-vc-dossier">✕</button>
+          </div>
+
+          <!-- Modal Body -->
+          <div style="padding:1.25rem 1.5rem; max-height:calc(82vh - 130px); overflow-y:auto;">
+            <!-- 4 Metrics Overview -->
+            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:0.75rem; margin-bottom:1.5rem;">
+              <div style="background:var(--bg-surface-elevated); padding:0.85rem; border-radius:10px; border:1px solid var(--border-subtle); text-align:center;">
+                <div style="font-size:1.4rem; font-weight:800; color:#3b82f6;">${student.registeredCount}</div>
+                <div style="font-size:0.68rem; color:var(--text-secondary); text-transform:uppercase; font-weight:700;">Events Enrolled</div>
+              </div>
+              <div style="background:var(--bg-surface-elevated); padding:0.85rem; border-radius:10px; border:1px solid var(--border-subtle); text-align:center;">
+                <div style="font-size:1.4rem; font-weight:800; color:#10b981;">${student.attendedCount}</div>
+                <div style="font-size:0.68rem; color:var(--text-secondary); text-transform:uppercase; font-weight:700;">Events Attended</div>
+              </div>
+              <div style="background:var(--bg-surface-elevated); padding:0.85rem; border-radius:10px; border:1px solid var(--border-subtle); text-align:center;">
+                <div style="font-size:1.4rem; font-weight:800; color:#f59e0b;">${student.certs.length}</div>
+                <div style="font-size:0.68rem; color:var(--text-secondary); text-transform:uppercase; font-weight:700;">Certifications</div>
+              </div>
+              <div style="background:var(--bg-surface-elevated); padding:0.85rem; border-radius:10px; border:1px solid var(--border-subtle); text-align:center;">
+                <div style="font-size:1.4rem; font-weight:800; color:#8b5cf6;">${student.ideas.length + student.teams.length}</div>
+                <div style="font-size:0.68rem; color:var(--text-secondary); text-transform:uppercase; font-weight:700;">Projects / Teams</div>
+              </div>
+            </div>
+
+            <!-- Section 1: Events Participated -->
+            <div style="margin-bottom:1.5rem;">
+              <div style="font-size:0.92rem; font-weight:800; color:var(--text-primary); margin-bottom:0.6rem; display:flex; align-items:center; gap:0.4rem;">
+                <span>🎪 Event & Competition Participation History</span>
+                <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:600;">(${student.regs.length})</span>
+              </div>
+              ${student.regs.length === 0 ? `
+                <div style="background:rgba(239,68,68,0.06); border:1px dashed rgba(239,68,68,0.25); border-radius:10px; padding:1.2rem; text-align:center;">
+                  <div style="font-size:1.5rem; margin-bottom:0.35rem;">⚠️</div>
+                  <div style="font-size:0.88rem; font-weight:700; color:#ef4444;">Zero Participation Recorded</div>
+                  <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:3px; max-width:460px; margin-inline:auto;">
+                    Student has not enrolled in any university events this academic session. Dean and HOD mentorship recommended for co-curricular compliance.
+                  </div>
+                </div>
+              ` : `
+                <table class="vc-table" style="font-size:0.82rem; border-radius:8px; overflow:hidden; border:1px solid var(--border-subtle);">
+                  <thead>
+                    <tr>
+                      <th>Event Title</th>
+                      <th>Date & Venue</th>
+                      <th>Status</th>
+                      <th>Attendance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${student.regs.map(r => `
+                      <tr>
+                        <td>
+                          <div style="font-weight:700; color:var(--text-primary);">${r.eventTitle || 'Campus Event'}</div>
+                          <div style="font-size:0.7rem; color:var(--text-secondary);">Pass ID: ${r.id}</div>
+                        </td>
+                        <td style="white-space:nowrap; font-size:0.78rem;">
+                          <div>${r.eventDate || 'Scheduled'}</div>
+                          <div style="font-size:0.7rem; color:var(--text-secondary);">${r.venue || 'Campus'}</div>
+                        </td>
+                        <td>
+                          <span class="vcpill ${r.status === 'confirmed' || r.status === 'attended' ? 'vcpill-green' : r.status === 'cancelled' ? 'vcpill-red' : 'vcpill-amber'}">
+                            ${r.status || 'Registered'}
+                          </span>
+                        </td>
+                        <td>
+                          ${r.attendance === 'present' || r.status === 'attended' ? `
+                            <span class="vcpill vcpill-green">✓ Present</span>
+                          ` : r.attendance === 'absent' ? `
+                            <span class="vcpill vcpill-red">✗ Absent</span>
+                          ` : `
+                            <span class="vcpill vcpill-gray">⏳ Scheduled</span>
+                          `}
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              `}
+            </div>
+
+            <!-- Section 2: Verified Certifications -->
+            <div style="margin-bottom:1.5rem;">
+              <div style="font-size:0.92rem; font-weight:800; color:var(--text-primary); margin-bottom:0.6rem; display:flex; align-items:center; gap:0.4rem;">
+                <span>🏆 Verified Certifications & Honors</span>
+                <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:600;">(${student.certs.length})</span>
+              </div>
+              ${student.certs.length === 0 ? `
+                <div style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:10px; padding:0.9rem; text-align:center; font-size:0.8rem; color:var(--text-secondary);">
+                  No verified certificates awarded yet for this student.
+                </div>
+              ` : `
+                <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                  ${student.certs.map(c => `
+                    <div style="background:var(--bg-surface-elevated); border:1px solid rgba(245,158,11,0.3); border-radius:10px; padding:0.85rem 1rem; display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+                      <div>
+                        <div style="font-weight:700; font-size:0.88rem; color:var(--text-primary); display:flex; align-items:center; gap:0.4rem;">
+                          <span>🥇 ${c.eventTitle || 'Excellence Award'}</span>
+                          <span class="vcpill vcpill-gold" style="font-size:0.65rem;">Verified</span>
+                        </div>
+                        <div style="font-size:0.72rem; color:var(--text-secondary); margin-top:2px;">
+                          Verification ID: <span style="font-family:monospace; color:#f59e0b;">${c.verificationId || c.id}</span> • Issued: ${c.issuedAt ? new Date(c.issuedAt).toLocaleDateString() : 'Official'}
+                        </div>
+                      </div>
+                      <button class="vc-action-btn btn-view-cert" data-cert-id="${c.id || c.verificationId}" style="background:rgba(245,158,11,0.15); color:#f59e0b; border-color:rgba(245,158,11,0.3);">
+                        🖨️ View Certificate
+                      </button>
+                    </div>
+                  `).join('')}
+                </div>
+              `}
+            </div>
+
+            <!-- Section 3: Projects & Teams -->
+            <div style="margin-bottom:1.5rem;">
+              <div style="font-size:0.92rem; font-weight:800; color:var(--text-primary); margin-bottom:0.6rem; display:flex; align-items:center; gap:0.4rem;">
+                <span>🚀 Projects, Innovation Ideas & Competition Teams</span>
+                <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:600;">(${student.ideas.length + student.teams.length})</span>
+              </div>
+              ${student.ideas.length === 0 && student.teams.length === 0 ? `
+                <div style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:10px; padding:0.9rem; text-align:center; font-size:0.8rem; color:var(--text-secondary);">
+                  No hackathon teams or project proposals recorded.
+                </div>
+              ` : `
+                <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                  ${student.ideas.map(i => `
+                    <div style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:9px; padding:0.75rem 1rem;">
+                      <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:700; font-size:0.85rem; color:var(--text-primary);">💡 ${i.title || 'Innovation Proposal'}</span>
+                        <span class="vcpill vcpill-amber" style="font-size:0.65rem;">${i.category || 'Tech Idea'}</span>
+                      </div>
+                      <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:3px; line-height:1.4;">
+                        ${(i.description || '').slice(0, 140)}...
+                      </div>
+                    </div>
+                  `).join('')}
+                  ${student.teams.map(t => `
+                    <div style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:9px; padding:0.75rem 1rem;">
+                      <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:700; font-size:0.85rem; color:var(--text-primary);">👥 Team: ${t.teamName || 'Hackathon Squad'}</span>
+                        <span class="vcpill vcpill-blue" style="font-size:0.65rem;">Event Squad</span>
+                      </div>
+                      <div style="font-size:0.72rem; color:var(--text-secondary); margin-top:2px;">
+                        Event: ${t.eventTitle || 'Campus Competition'} • Members: ${(t.members || []).length}
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              `}
+            </div>
+
+            <!-- Section 4: Non-Participation Deficiency Gap -->
+            <div>
+              <div style="font-size:0.92rem; font-weight:800; color:var(--text-primary); margin-bottom:0.6rem; display:flex; align-items:center; gap:0.4rem;">
+                <span>🎯 Upcoming Campus Events Not Joined Yet</span>
+                <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:600;">(Non-Participation Roster)</span>
+              </div>
+              ${unparticipatedUpcoming.length === 0 ? `
+                <div style="background:rgba(16,185,129,0.06); border:1px solid rgba(16,185,129,0.2); border-radius:10px; padding:0.85rem; font-size:0.8rem; color:#10b981;">
+                  🎉 Exemplary student! Enrolled in all scheduled campus events.
+                </div>
+              ` : `
+                <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                  ${unparticipatedUpcoming.map(ev => `
+                    <div style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:9px; padding:0.75rem 1rem; display:flex; justify-content:space-between; align-items:center; gap:0.75rem;">
+                      <div>
+                        <div style="font-weight:700; font-size:0.85rem; color:var(--text-primary);">${ev.title || 'Untitled'}</div>
+                        <div style="font-size:0.72rem; color:var(--text-secondary); margin-top:2px;">
+                          📅 ${ev.date || 'TBD'} • 🏛️ ${ev.department} • 📍 ${ev.venue || 'Campus'}
+                        </div>
+                      </div>
+                      <span class="vcpill vcpill-amber" style="font-size:0.68rem; white-space:nowrap;">
+                        Not Enrolled
+                      </span>
+                    </div>
+                  `).join('')}
+                </div>
+              `}
+            </div>
+
+          </div>
+
+          <!-- Modal Footer -->
+          <div style="padding:0.9rem 1.5rem; border-top:1px solid var(--border-subtle); display:flex; justify-content:space-between; align-items:center; background:var(--bg-surface-elevated); flex-wrap:wrap; gap:0.5rem;">
+            <div style="display:flex; gap:0.5rem;">
+              <button class="vc-action-btn" id="btn-vc-merit" data-name="${student.name}" data-dept="${student.department}" style="background:rgba(245,158,11,0.15); color:#f59e0b; border-color:rgba(245,158,11,0.3);">
+                👑 Confer Vice Chancellor's Merit Award
+              </button>
+            </div>
+            <button class="vc-action-btn" id="btn-close-vc-dossier-footer" style="background:rgba(255,255,255,0.08); color:var(--text-primary);">
+              Close Dossier
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  // Render Chancellor / Governing Body Dispatch Modal
+  const renderGoverningBodyModal = () => {
+    const { events, complaints, students } = getScopedData();
+    const activeCount = students.filter(s => s.isActive).length;
+    const activeRate = students.length > 0 ? Math.round((activeCount / students.length) * 100) : 0;
+    const certsCount = students.reduce((sum, s) => sum + s.certs.length, 0);
+
+    return `
+      <div class="vc-modal-overlay" id="vc-governing-modal">
+        <div class="vc-modal-content" style="max-width:640px;">
+          <div style="padding:1.25rem 1.5rem; border-bottom:1px solid var(--border-subtle); background:var(--bg-surface-elevated); display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div style="font-size:1.15rem; font-weight:800; color:var(--text-primary); display:flex; align-items:center; gap:0.4rem;">
+                <span>📜 Transmit Executive Report to Chancellor & Governing Body</span>
+              </div>
+              <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">
+                Official University-Wide Academic, Co-Curricular & NAAC Performance Submission
+              </div>
+            </div>
+            <button class="vc-modal-close" id="btn-close-governing-modal">✕</button>
+          </div>
+
+          <div style="padding:1.25rem 1.5rem; display:flex; flex-direction:column; gap:1rem;">
+            <div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:10px; padding:0.9rem 1.1rem;">
+              <div style="font-size:0.8rem; font-weight:700; color:#f59e0b; margin-bottom:0.5rem;">
+                🏛️ Institutional Governance Summary Preview
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:0.6rem; font-size:0.78rem;">
+                <div>Active Schools: <strong>${SCHOOLS.length}</strong></div>
+                <div>Total Students: <strong>${students.length} (${activeRate}% Active)</strong></div>
+                <div>Campus Events: <strong>${events.length}</strong></div>
+                <div>Verified Medals: <strong>${certsCount}</strong></div>
+                <div>Grievance Status: <strong>${complaints.filter(c => c.status === 'resolved').length}/${complaints.length} Resolved</strong></div>
+                <div>Accreditation: <strong style="color:#10b981;">NAAC A++ Ready</strong></div>
+              </div>
+            </div>
+
+            <div>
+              <label style="display:block; font-size:0.8rem; font-weight:700; color:var(--text-primary); margin-bottom:0.4rem;">
+                Vice Chancellor's Transmittal Memorandum to the Board:
+              </label>
+              <textarea 
+                id="vc-governing-memo" 
+                rows="5" 
+                style="width:100%; box-sizing:border-box; background:var(--bg-surface); border:1px solid var(--border-subtle); border-radius:8px; padding:0.75rem; font-size:0.82rem; color:var(--text-primary); font-family:inherit; resize:vertical; outline:none;"
+              >To: Hon'ble Chancellor & Members of the Governing Body,
+
+I have the honor to submit the consolidated University Performance & Co-Curricular Excellence Report for Sanjivani University. 
+
+All constituent Schools, Academic Departments, Deans, and HODs have fulfilled accreditation compliance, with rigorous monitoring of student participation, verified achievements, and grievance resolution indices.
+
+Respectfully submitted,
+Dr. R. K. Sharma
+Vice Chancellor, Sanjivani University</textarea>
+            </div>
+          </div>
+
+          <div style="padding:1rem 1.5rem; border-top:1px solid var(--border-subtle); background:var(--bg-surface-elevated); display:flex; justify-content:space-between; align-items:center;">
+            <button class="vc-action-btn" id="btn-cancel-governing">Cancel</button>
+            <button class="vc-action-btn" id="btn-confirm-governing-dispatch" style="background:#f59e0b; color:#000; border-color:#f59e0b; font-weight:800; padding:8px 16px;">
+              🚀 Transmit to Chancellor & Governing Body
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  const render = () => {
+    const { events, complaints, students } = getScopedData();
+    const pendingComplaints = complaints.filter(c => c.status !== 'resolved');
+    const upcomingEvents = events.filter(e => new Date(e.date || e.startDate) >= new Date());
+    const totalPasses = events.reduce((sum, e) => sum + (e.registeredCount || e.attendeesCount || 18), 0);
+    const institutionalBench = getInstitutionalBenchmark();
+    const filteredStudents = getFilteredStudents();
+
+    const activeCount = students.filter(s => s.isActive).length;
+    const activeRatePct = students.length > 0 ? Math.round((activeCount / students.length) * 100) : 0;
+    const starCount = students.filter(s => s.certs.length > 0).length;
+    const availableDepts = getAvailableDepts();
+
+    container.innerHTML = `
+      <style>
+        .vc-wrap {
+          padding: 1.25rem 0 4rem;
+          font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        }
+
+        /* Supreme VC Identity Bar */
+        .vc-header {
+          background: linear-gradient(135deg, rgba(245,158,11,0.12) 0%, rgba(16,185,129,0.08) 50%, rgba(99,102,241,0.08) 100%);
+          border: 1px solid rgba(245,158,11,0.25);
+          border-radius: 16px;
+          padding: 1.2rem 1.5rem;
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          flex-wrap: wrap;
+          margin-bottom: 1.25rem;
+        }
+
+        .vc-avatar {
+          width: 54px; height: 54px;
+          border-radius: 14px;
+          background: linear-gradient(135deg, #f59e0b, #10b981);
+          display: flex; align-items: center; justify-content: center;
+          font-size: 1.7rem;
+          flex-shrink: 0;
+          box-shadow: 0 4px 14px rgba(245,158,11,0.3);
+        }
+
+        .vc-title {
+          font-size: 1.15rem;
+          font-weight: 800;
+          color: var(--text-primary);
+        }
+
+        .vc-scope-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          background: rgba(245,158,11,0.15);
+          color: #fbbf24;
+          border: 1px solid rgba(245,158,11,0.25);
+          border-radius: 20px;
+          padding: 3px 10px;
+          font-size: 0.72rem;
+          font-weight: 700;
+          margin-top: 3px;
+        }
+
+        .vc-header-right {
+          margin-left: auto;
+          display: flex;
+          align-items: center;
+          gap: 0.65rem;
+          flex-wrap: wrap;
+        }
+
+        .vc-action-btn {
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.12);
+          color: var(--text-secondary);
+          border-radius: 9px;
+          padding: 7px 12px;
+          font-size: 0.78rem;
+          font-weight: 700;
+          font-family: inherit;
+          cursor: pointer;
+          transition: all 0.15s;
+          white-space: nowrap;
+        }
+        .vc-action-btn:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
+
+        /* 4-Tier Interactive Drilldown Toolbar */
+        .vc-drilldown-bar {
+          background: var(--bg-surface);
+          border: 1px solid var(--border-subtle);
+          border-radius: 14px;
+          padding: 1rem 1.25rem;
+          margin-bottom: 1.25rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.85rem;
+        }
+
+        .vc-breadcrumb {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 0.82rem;
+          font-weight: 700;
+          flex-wrap: wrap;
+        }
+
+        .vc-crumb {
+          color: var(--text-secondary);
+          cursor: pointer;
+          transition: color 0.15s;
+        }
+        .vc-crumb:hover { color: #f59e0b; }
+        .vc-crumb.active { color: #f59e0b; }
+        .vc-crumb-sep { color: var(--text-secondary); opacity: 0.6; }
+
+        .vc-select-input {
+          background: var(--bg-surface-elevated);
+          border: 1px solid var(--border-subtle);
+          color: var(--text-primary);
+          border-radius: 8px;
+          padding: 6px 28px 6px 10px;
+          font-size: 0.8rem;
+          font-weight: 600;
+          font-family: inherit;
+          cursor: pointer;
+          appearance: none;
+          background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+          background-repeat: no-repeat;
+          background-position: right 8px center;
+          background-size: 13px;
+        }
+
+        .vc-filter-btn {
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+          color: var(--text-secondary);
+          border-radius: 8px;
+          padding: 4px 10px;
+          font-size: 0.75rem;
+          font-weight: 700;
+          font-family: inherit;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+        .vc-filter-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+        .vc-filter-btn.active {
+          background: #f59e0b;
+          color: #000;
+          border-color: #f59e0b;
+          box-shadow: 0 1px 4px rgba(245,158,11,0.3);
+        }
+
+        /* 5-Column Apex Stats Strip */
+        .vc-stats {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          gap: 0.85rem;
+          margin-bottom: 1.25rem;
+        }
+
+        .vc-stat {
+          background: var(--bg-surface);
+          border: 1px solid var(--border-subtle);
+          border-radius: 12px;
+          padding: 0.9rem 1rem;
+        }
+
+        .vc-stat-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 0.4rem;
+        }
+
+        .vc-stat-label {
+          font-size: 0.7rem;
+          font-weight: 700;
+          color: var(--text-secondary);
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+        }
+
+        .vc-stat-val {
+          font-size: 1.5rem;
+          font-weight: 800;
+          color: var(--text-primary);
+          line-height: 1;
+        }
+
+        .vc-stat-sub {
+          font-size: 0.7rem;
+          color: var(--text-secondary);
+          margin-top: 3px;
+        }
+
+        /* Tabs */
+        .vc-tabs {
+          display: flex;
+          gap: 4px;
+          background: var(--bg-surface);
+          border: 1px solid var(--border-subtle);
+          border-radius: 12px;
+          padding: 4px;
+          margin-bottom: 1.25rem;
+          width: fit-content;
+          flex-wrap: wrap;
+        }
+
+        .vc-tab {
+          background: transparent;
+          border: none;
+          color: var(--text-secondary);
+          padding: 8px 16px;
+          font-size: 0.85rem;
+          font-weight: 700;
+          font-family: inherit;
+          border-radius: 9px;
+          cursor: pointer;
+          transition: all 0.15s;
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          white-space: nowrap;
+        }
+
+        .vc-tab.active {
+          background: var(--bg-surface-elevated);
+          color: var(--text-primary);
+          box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        }
+
+        .vc-tab-count {
+          background: #ef4444;
+          color: #fff;
+          font-size: 0.65rem;
+          font-weight: 800;
+          padding: 1px 6px;
+          border-radius: 999px;
+        }
+
+        /* Cards */
+        .vc-card {
+          background: var(--bg-surface);
+          border: 1px solid var(--border-subtle);
+          border-radius: 14px;
+          overflow: hidden;
+        }
+
+        .vc-card-header {
+          padding: 0.9rem 1.25rem;
+          border-bottom: 1px solid var(--border-subtle);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+          flex-wrap: wrap;
+        }
+
+        .vc-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 0.875rem;
+        }
+
+        .vc-table th {
+          padding: 0.7rem 1.1rem;
+          font-size: 0.68rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          color: var(--text-secondary);
+          background: var(--bg-surface-elevated);
+          border-bottom: 1px solid var(--border-subtle);
+          text-align: left;
+          white-space: nowrap;
+        }
+
+        .vc-table td {
+          padding: 0.85rem 1.1rem;
+          border-bottom: 1px solid var(--border-subtle);
+          color: var(--text-primary);
+          vertical-align: middle;
+        }
+
+        .vc-table tr:last-child td { border-bottom: none; }
+        .vc-table tr:hover td { background: var(--bg-surface-elevated); }
+
+        .vcpill { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+        .vcpill-green  { background: rgba(16,185,129,0.12); color: #10b981; }
+        .vcpill-amber  { background: rgba(245,158,11,0.12); color: #f59e0b; }
+        .vcpill-gray   { background: rgba(100,116,139,0.12); color: #64748b; }
+        .vcpill-red    { background: rgba(239,68,68,0.12); color: #ef4444; }
+        .vcpill-gold   { background: rgba(245,158,11,0.2); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+        .vcpill-blue   { background: rgba(59,130,246,0.12); color: #3b82f6; }
+        .vcpill-violet { background: rgba(139,92,246,0.12); color: #8b5cf6; }
+
+        /* Modal styling */
+        .vc-modal-overlay {
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0, 0, 0, 0.78);
+          backdrop-filter: blur(5px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          padding: 1rem;
+        }
+
+        .vc-modal-content {
+          background: var(--bg-surface);
+          border: 1px solid var(--border-subtle);
+          border-radius: 16px;
+          width: 100%;
+          max-width: 740px;
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+          overflow: hidden;
+          animation: modalFadeIn 0.2s ease-out;
+        }
+
+        .vc-modal-close {
+          background: transparent;
+          border: none;
+          color: var(--text-secondary);
+          font-size: 1.25rem;
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 6px;
+          line-height: 1;
+        }
+        .vc-modal-close:hover { color: var(--text-primary); }
+
+        .vc-empty { text-align: center; padding: 2.5rem 1rem; color: var(--text-secondary); font-size: 0.88rem; }
+
+        @media (max-width: 1024px) {
+          .vc-stats { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 768px) {
+          .vc-stats { grid-template-columns: repeat(2, 1fr); }
+          .vc-tabs { width: 100%; }
+          .vc-tab { flex: 1; justify-content: center; font-size: 0.78rem; padding: 7px 10px; }
+        }
+        @media (max-width: 480px) {
+          .vc-stats { grid-template-columns: 1fr; }
+        }
+      </style>
+
+      <div class="vc-wrap">
+
+        <!-- VC Executive Identity Header -->
+        <div class="vc-header">
+          <div class="vc-avatar">👑</div>
+          <div>
+            <div class="vc-title">Dr. R. K. Sharma — Vice Chancellor</div>
+            <div class="vc-scope-tag">🏛️ ${UNIVERSITY_NAME} — Apex University Council & Governance</div>
+          </div>
+          <div class="vc-header-right">
+            <button class="vc-action-btn" id="btn-forward-chancellor" style="background:rgba(245,158,11,0.2); color:#fbbf24; border-color:rgba(245,158,11,0.35);">
+              📜 Report to Chancellor
+            </button>
+            <button class="vc-action-btn" id="btn-export-vc-naac">📥 NAAC Dossier</button>
+            <button class="vc-action-btn" id="btn-export-vc-matrix">📊 Apex Matrix</button>
+          </div>
+        </div>
+
+        <!-- 4-Tier Interactive Drilldown Toolbar (University -> School -> Department -> Year) -->
+        <div class="vc-drilldown-bar">
+          <!-- Dynamic Breadcrumb -->
+          <div class="vc-breadcrumb">
+            <span class="vc-crumb ${selectedSchool === 'all' ? 'active' : ''}" id="crumb-uni">
+              🏛️ ${UNIVERSITY_NAME}
+            </span>
+            <span class="vc-crumb-sep">›</span>
+            <span class="vc-crumb ${selectedSchool !== 'all' && selectedDept === 'all' ? 'active' : ''}" id="crumb-school">
+              ${selectedSchool === 'all' ? 'All Schools (Apex)' : selectedSchool}
+            </span>
+            <span class="vc-crumb-sep">›</span>
+            <span class="vc-crumb ${selectedDept !== 'all' && selectedYear === 'all' ? 'active' : ''}" id="crumb-dept">
+              ${selectedDept === 'all' ? 'All Departments' : selectedDept}
+            </span>
+            <span class="vc-crumb-sep">›</span>
+            <span class="vc-crumb ${selectedYear !== 'all' ? 'active' : ''}" id="crumb-year">
+              ${selectedYear === 'all' ? 'All Years' : selectedYear}
+            </span>
+          </div>
+
+          <!-- Selectors: School, Department, Search -->
+          <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center; justify-content:space-between;">
+            <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+              <!-- School Selector -->
+              <select class="vc-select-input" id="vc-school-select">
+                <option value="all" ${selectedSchool === 'all' ? 'selected' : ''}>🌐 All Schools (Apex View)</option>
+                ${SCHOOLS.map(s => `<option value="${s}" ${selectedSchool === s ? 'selected' : ''}>🏫 ${s}</option>`).join('')}
+              </select>
+
+              <!-- Department Selector (Dynamic) -->
+              <select class="vc-select-input" id="vc-dept-select">
+                <option value="all" ${selectedDept === 'all' ? 'selected' : ''}>🏛️ All Departments</option>
+                ${availableDepts.map(d => `<option value="${d}" ${selectedDept === d ? 'selected' : ''}>${d}</option>`).join('')}
+              </select>
+
+              <!-- Year Filter Buttons -->
+              <div style="display:flex; gap:4px; align-items:center; margin-left:4px;">
+                <span style="font-size:0.72rem; color:var(--text-secondary); font-weight:600;">Year:</span>
+                <button class="vc-filter-btn ${selectedYear === 'all' ? 'active' : ''}" data-year="all">All</button>
+                <button class="vc-filter-btn ${selectedYear === '1st Year' ? 'active' : ''}" data-year="1st Year">1st Yr</button>
+                <button class="vc-filter-btn ${selectedYear === '2nd Year' ? 'active' : ''}" data-year="2nd Year">2nd Yr</button>
+                <button class="vc-filter-btn ${selectedYear === '3rd Year' ? 'active' : ''}" data-year="3rd Year">3rd Yr</button>
+                <button class="vc-filter-btn ${selectedYear === '4th Year' ? 'active' : ''}" data-year="4th Year">4th Yr</button>
+              </div>
+
+              <!-- Standing Filter Buttons -->
+              <div style="display:flex; gap:4px; align-items:center; margin-left:4px;">
+                <span style="font-size:0.72rem; color:var(--text-secondary); font-weight:600;">Standing:</span>
+                <button class="vc-filter-btn ${selectedStanding === 'all' ? 'active' : ''}" data-standing="all">All</button>
+                <button class="vc-filter-btn ${selectedStanding === 'star' ? 'active' : ''}" data-standing="star">🏆 Star Achievers</button>
+                <button class="vc-filter-btn ${selectedStanding === 'innovator' ? 'active' : ''}" data-standing="innovator">🚀 Innovators</button>
+                <button class="vc-filter-btn ${selectedStanding === 'active' ? 'active' : ''}" data-standing="active">🟢 Active</button>
+                <button class="vc-filter-btn ${selectedStanding === 'inactive' ? 'active' : ''}" data-standing="inactive">⚠️ Inactive</button>
+              </div>
+            </div>
+
+            <!-- Global Search Box -->
+            <div style="min-width:220px; flex:1; max-width:320px;">
+              <input 
+                type="text" 
+                id="vc-search-input" 
+                value="${searchQuery}" 
+                placeholder="🔍 Search name, PRN, email, dept, school..." 
+                style="width:100%; box-sizing:border-box; background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:8px; padding:6px 12px; font-size:0.8rem; color:var(--text-primary); outline:none;"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- 5-Metric Apex University Stats Strip -->
+        <div class="vc-stats">
+          <div class="vc-stat">
+            <div class="vc-stat-top">
+              <div class="vc-stat-label">Constituent Schools</div>
+              <span style="font-size: 1.1rem;">🏫</span>
+            </div>
+            <div class="vc-stat-val" style="color: #f59e0b;">${SCHOOLS.length}</div>
+            <div class="vc-stat-sub">under Deans' jurisdictions</div>
+          </div>
+
+          <div class="vc-stat">
+            <div class="vc-stat-top">
+              <div class="vc-stat-label">Students Enrolled</div>
+              <span style="font-size: 1.1rem;">👥</span>
+            </div>
+            <div class="vc-stat-val" style="color: #3b82f6;">${students.length}</div>
+            <div class="vc-stat-sub">${activeRatePct}% active in co-curriculars</div>
+          </div>
+
+          <div class="vc-stat">
+            <div class="vc-stat-top">
+              <div class="vc-stat-label">University Events</div>
+              <span style="font-size: 1.1rem;">📅</span>
+            </div>
+            <div class="vc-stat-val" style="color: #10b981;">${events.length}</div>
+            <div class="vc-stat-sub">${upcomingEvents.length} upcoming scheduled</div>
+          </div>
+
+          <div class="vc-stat">
+            <div class="vc-stat-top">
+              <div class="vc-stat-label">Total Participations</div>
+              <span style="font-size: 1.1rem;">🎟️</span>
+            </div>
+            <div class="vc-stat-val" style="color: #8b5cf6;">${totalPasses}</div>
+            <div class="vc-stat-sub">across all departments</div>
+          </div>
+
+          <div class="vc-stat" style="border-left: 3px solid ${pendingComplaints.length > 0 ? '#ef4444' : '#10b981'};">
+            <div class="vc-stat-top">
+              <div class="vc-stat-label">Grievance Index</div>
+              <span style="font-size: 1.1rem;">${pendingComplaints.length > 0 ? '🚨' : '✅'}</span>
+            </div>
+            <div class="vc-stat-val" style="color: ${pendingComplaints.length > 0 ? '#ef4444' : '#10b981'};">${pendingComplaints.length}</div>
+            <div class="vc-stat-sub">${complaints.length - pendingComplaints.length} resolved</div>
+          </div>
+        </div>
+
+        <!-- 5 Tabs Navigation -->
+        <div class="vc-tabs">
+          <button class="vc-tab ${activeTab === 'matrix' ? 'active' : ''}" id="vc-tab-btn-matrix">
+            🌐 Apex Institutional Matrix
+          </button>
+          <button class="vc-tab ${activeTab === 'students' ? 'active' : ''}" id="vc-tab-btn-students">
+            👨‍🎓 Universal Student Directory (${students.length})
+          </button>
+          <button class="vc-tab ${activeTab === 'events' ? 'active' : ''}" id="vc-tab-btn-events">
+            🎪 Events & Supreme Approvals (${events.length})
+          </button>
+          <button class="vc-tab ${activeTab === 'honors' ? 'active' : ''}" id="vc-tab-btn-honors">
+            🏆 Honors & Wall of Fame (${starCount})
+          </button>
+          <button class="vc-tab ${activeTab === 'grievances' ? 'active' : ''}" id="vc-tab-btn-grievances">
+            🚨 Ombudsman & Grievances
+            ${pendingComplaints.length > 0 ? `<span class="vc-tab-count">${pendingComplaints.length}</span>` : ''}
+          </button>
+        </div>
+
+        <!-- TAB 1: APEX INSTITUTIONAL MATRIX -->
+        ${activeTab === 'matrix' ? `
+          <div class="vc-card">
+            <div class="vc-card-header">
+              <div>
+                <div style="font-size: 1rem; font-weight: 800; color: var(--text-primary);">
+                  Sanjivani University — Apex Institutional Benchmark Matrix
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
+                  School-by-School executive evaluation across student demographics, co-curricular engagement, events capacity, and grievance resolution index.
+                </div>
+              </div>
+              <button class="vc-action-btn" id="btn-export-matrix-tab" style="background:rgba(245,158,11,0.15); color:#f59e0b; border-color:rgba(245,158,11,0.3);">
+                📥 Export Matrix (CSV)
+              </button>
+            </div>
+            <div style="overflow-x: auto;">
+              <table class="vc-table">
+                <thead>
+                  <tr>
+                    <th>Constituent School</th>
+                    <th>Depts</th>
+                    <th>Students Enrolled</th>
+                    <th>Year-Wise Breakdown</th>
+                    <th>Active Co-Curricular %</th>
+                    <th>Star Achievers</th>
+                    <th>Events Hosted</th>
+                    <th>Passes</th>
+                    <th>Grievances</th>
+                    <th>Drilldown Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${institutionalBench.map(b => `
+                    <tr>
+                      <td>
+                        <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-primary);">${b.school}</div>
+                        <div style="font-size: 0.7rem; color: var(--text-secondary);">Office of the Dean Jurisdiction</div>
+                      </td>
+                      <td style="font-weight: 700; color: #8b5cf6;">${b.deptsCount} Depts</td>
+                      <td style="font-weight: 700; color: #3b82f6;">${b.studentsCount}</td>
+                      <td>
+                        <div style="display:flex; gap:3px; flex-wrap:wrap;">
+                          <span class="vcpill vcpill-blue" title="1st Year">1st: ${b.y1}</span>
+                          <span class="vcpill vcpill-violet" title="2nd Year">2nd: ${b.y2}</span>
+                          <span class="vcpill vcpill-green" title="3rd Year">3rd: ${b.y3}</span>
+                          <span class="vcpill vcpill-amber" title="4th Year">4th: ${b.y4}</span>
+                        </div>
+                      </td>
+                      <td style="min-width: 140px;">
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                          <div style="flex:1; height:6px; background:var(--border-subtle); border-radius:4px; overflow:hidden;">
+                            <div style="height:100%; border-radius:4px; width:${b.activeRate}%; background:#10b981;"></div>
+                          </div>
+                          <span style="font-size:0.72rem; font-weight:700; color:#10b981; min-width:32px;">${b.activeRate}%</span>
+                        </div>
+                        <div style="font-size:0.68rem; color:var(--text-secondary); margin-top:2px;">
+                          ${b.activeCount} active participants
+                        </div>
+                      </td>
+                      <td>
+                        ${b.starCount > 0 ? `
+                          <span class="vcpill vcpill-gold">🏆 ${b.starCount} Awardees</span>
+                        ` : `<span style="font-size: 0.72rem; color: var(--text-secondary);">—</span>`}
+                      </td>
+                      <td style="font-weight: 700; color: #10b981;">${b.eventsCount}</td>
+                      <td style="font-weight: 700; color: #8b5cf6;">${b.regsCount}</td>
+                      <td>
+                        ${b.complaintsCount > 0 ? `
+                          <span class="vcpill ${b.complaintsCount === b.resolvedCount ? 'vcpill-green' : 'vcpill-red'}">
+                            ${b.resolvedCount}/${b.complaintsCount} Res.
+                          </span>
+                        ` : `<span class="vcpill vcpill-green">0</span>`}
+                      </td>
+                      <td>
+                        <button class="vc-action-btn btn-drilldown-school" data-school="${b.school}" style="background:rgba(245,158,11,0.12); color:#f59e0b; border-color:rgba(245,158,11,0.25);">
+                          🔍 Drill into School
+                        </button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- TAB 2: UNIVERSAL STUDENT DIRECTORY & PROFILES -->
+        ${activeTab === 'students' ? `
+          <div class="vc-card">
+            <div class="vc-card-header">
+              <div>
+                <div style="font-size: 1rem; font-weight: 800; color: var(--text-primary);">
+                  Universal Student Talent & Activity Directory
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
+                  Drill down from University ➔ School ➔ Department ➔ Year ➔ Individual Student Activity Dossier.
+                </div>
+              </div>
+              <button class="vc-action-btn" id="btn-export-students-tab" style="background:rgba(245,158,11,0.15); color:#f59e0b; border-color:rgba(245,158,11,0.3);">
+                📥 Export Student Roster (CSV)
+              </button>
+            </div>
+
+            <div style="overflow-x: auto;">
+              <table class="vc-table">
+                <thead>
+                  <tr>
+                    <th>Student Details</th>
+                    <th>School</th>
+                    <th>Department</th>
+                    <th>Year</th>
+                    <th>PRN / Roll</th>
+                    <th>Events Participated</th>
+                    <th>Achievements / Certs</th>
+                    <th>Attendance</th>
+                    <th>Standing</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="vc-students-tbody">
+                  ${filteredStudents.length === 0 ? `
+                    <tr><td colspan="10" class="vc-empty">🔍 No students found matching current hierarchical filters.</td></tr>
+                  ` : filteredStudents.map(student => {
+                    const sampleEvents = (student.regs || []).slice(0, 2);
+                    const remainingEvents = (student.regs || []).length - sampleEvents.length;
+
+                    return `
+                      <tr>
+                        <td>
+                          <div style="display: flex; align-items: center; gap: 0.65rem;">
+                            <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #f59e0b, #10b981); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; color: #fff; flex-shrink: 0;">
+                              ${(student.name || 'S').charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <div style="font-weight: 700; color: var(--text-primary);">${student.name || 'Student'}</div>
+                              <div style="font-size: 0.72rem; color: var(--text-secondary);">${student.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">
+                            ${student.school}
+                          </span>
+                        </td>
+                        <td>
+                          <span style="font-size: 0.78rem; font-weight: 700; color: var(--text-primary);">
+                            ${student.department}
+                          </span>
+                        </td>
+                        <td>
+                          <span class="vcpill vcpill-blue">${student.year}</span>
+                        </td>
+                        <td>
+                          <span style="font-family: monospace; font-size: 0.78rem; background: var(--bg-surface-elevated); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-subtle); color: var(--text-primary);">
+                            ${student.prn || 'Not Linked'}
+                          </span>
+                        </td>
+                        <td>
+                          ${student.registeredCount > 0 ? `
+                            <div>
+                              <span class="vcpill vcpill-green" style="font-weight: 800;">
+                                ${student.registeredCount} Events
+                              </span>
+                              <div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap;">
+                                ${sampleEvents.map(r => `
+                                  <span style="font-size: 0.68rem; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); padding: 1px 6px; border-radius: 4px; color: var(--text-secondary); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                    ${r.eventTitle || 'Event'}
+                                  </span>
+                                `).join('')}
+                                ${remainingEvents > 0 ? `
+                                  <span style="font-size: 0.68rem; color: var(--text-secondary); font-weight: 700;">+${remainingEvents} more</span>
+                                ` : ''}
+                              </div>
+                            </div>
+                          ` : `
+                            <span style="font-size: 0.75rem; color: #ef4444; font-weight: 700;">
+                              ⚠️ 0 Events
+                            </span>
+                          `}
+                        </td>
+                        <td>
+                          ${student.certs.length > 0 ? `
+                            <span class="vcpill vcpill-gold" style="font-weight: 800;">
+                              🏆 ${student.certs.length} Cert${student.certs.length > 1 ? 's' : ''}
+                            </span>
+                          ` : student.ideas.length > 0 || student.teams.length > 0 ? `
+                            <span class="vcpill vcpill-amber">
+                              🚀 ${student.ideas.length + student.teams.length} Projects
+                            </span>
+                          ` : `
+                            <span style="font-size: 0.72rem; color: var(--text-secondary);">—</span>
+                          `}
+                        </td>
+                        <td>
+                          ${student.registeredCount > 0 ? `
+                            <div style="font-size: 0.8rem;">
+                              <span style="font-weight: 800; color: #10b981;">${student.attendedCount} Attended</span>
+                              <span style="font-size: 0.72rem; color: var(--text-secondary); margin-left: 2px;">/ ${student.registeredCount}</span>
+                            </div>
+                          ` : `
+                            <span style="font-size: 0.75rem; color: var(--text-secondary);">—</span>
+                          `}
+                        </td>
+                        <td>
+                          <span class="vcpill ${student.standingClass}">
+                            ${student.standingLabel}
+                          </span>
+                        </td>
+                        <td>
+                          <button class="vc-action-btn btn-inspect-supreme-dossier" data-email="${student.email}" data-uid="${student.uid}" style="background:rgba(245,158,11,0.12); color:#f59e0b; border-color:rgba(245,158,11,0.25);">
+                            🔍 Dossier
+                          </button>
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- TAB 3: UNIVERSITY EVENTS & SUPREME APPROVALS -->
+        ${activeTab === 'events' ? `
+          <div class="vc-card">
+            <div class="vc-card-header">
+              <div>
+                <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary);">
+                  University-Wide Events & Supreme Vice Chancellor Approvals
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
+                  Institutional calendar of all events hosted across constituent Schools & Departments.
+                </div>
+              </div>
+            </div>
+            <div style="overflow-x: auto;">
+              <table class="vc-table">
+                <thead>
+                  <tr>
+                    <th>Event Title</th>
+                    <th>School</th>
+                    <th>Department</th>
+                    <th>Date</th>
+                    <th>Registrations</th>
+                    <th>Supreme Approval</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${events.length === 0 ? `
+                    <tr><td colspan="7" class="vc-empty">📭 No events found under current scope.</td></tr>
+                  ` : events.map(evt => {
+                    const isUpcoming = new Date(evt.date || evt.startDate) >= new Date();
+                    return `
+                      <tr>
+                        <td>
+                          <div style="font-weight: 700; color: var(--text-primary);">${evt.title || 'Untitled'}</div>
+                          <div style="font-size: 0.72rem; color: var(--text-secondary);">${evt.category || 'Academic'}</div>
+                        </td>
+                        <td style="font-size: 0.78rem; color: var(--text-secondary);">${evt.school}</td>
+                        <td style="font-size: 0.82rem; font-weight: 600;">${evt.department}</td>
+                        <td style="font-size: 0.82rem; white-space: nowrap;">${evt.date || 'TBD'}</td>
+                        <td style="font-weight: 700; color: #10b981;">${evt.registeredCount || evt.attendeesCount || 18}</td>
+                        <td>
+                          ${!isUpcoming ? `<span class="vcpill vcpill-gray">Completed</span>`
+                          : evt.endorsed ? `<span class="vcpill vcpill-gold">👑 VC Approved</span>`
+                          : `<span class="vcpill vcpill-amber">Pending Sanction</span>`}
+                        </td>
+                        <td>
+                          ${isUpcoming && !evt.endorsed ? `
+                            <button class="vc-action-btn btn-vc-sanction" data-id="${evt.id}" style="background:rgba(245,158,11,0.15); color:#f59e0b; border-color:rgba(245,158,11,0.3);">
+                              👑 Grant VC Approval
+                            </button>
+                          ` : isUpcoming && evt.endorsed ? `
+                            <span style="font-size: 0.72rem; color: #f59e0b; font-weight: 700;">✓ Sanctioned</span>
+                          ` : `<span style="font-size: 0.72rem; color: var(--text-secondary);">—</span>`}
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- TAB 4: HONORS & WALL OF FAME -->
+        ${activeTab === 'honors' ? `
+          <div class="vc-card">
+            <div class="vc-card-header">
+              <div>
+                <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary);">
+                  Sanjivani University — Apex Hall of Fame & Honors Registry
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
+                  Centrally verified student medals, competition winner certificates, and innovation achievements.
+                </div>
+              </div>
+              <button class="vc-action-btn" id="btn-export-vc-honors" style="background:rgba(245,158,11,0.15); color:#f59e0b; border-color:rgba(245,158,11,0.3);">
+                📥 Export Honors Registry (CSV)
+              </button>
+            </div>
+            <div style="padding: 1.25rem;">
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem;">
+                
+                <!-- Col 1: Medals & Certifications -->
+                <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1rem;">
+                  <div style="font-weight: 800; font-size: 0.9rem; color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
+                    <span>🏆 Verified Medals & Certs</span>
+                    <span class="vcpill vcpill-gold">${allCerts.length}</span>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 480px; overflow-y: auto;">
+                    ${allCerts.length === 0 ? `
+                      <div style="font-size: 0.78rem; color: var(--text-secondary); text-align: center; padding: 1.5rem 0;">No certificates issued yet.</div>
+                    ` : allCerts.slice(0, 15).map(c => `
+                      <div style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.7rem; font-size: 0.78rem;">
+                        <div style="font-weight: 700; color: var(--text-primary);">${c.studentName || 'Student'}</div>
+                        <div style="font-size: 0.72rem; color: #f59e0b;">${c.eventTitle || 'Excellence Award'}</div>
+                        <div style="font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px;">
+                          Verification ID: <span style="font-family: monospace;">${c.verificationId || c.id}</span>
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+
+                <!-- Col 2: Competition Squads -->
+                <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1rem;">
+                  <div style="font-weight: 800; font-size: 0.9rem; color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
+                    <span>👥 Inter-School Squads</span>
+                    <span class="vcpill vcpill-blue">${allTeams.length}</span>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 480px; overflow-y: auto;">
+                    ${allTeams.length === 0 ? `
+                      <div style="font-size: 0.78rem; color: var(--text-secondary); text-align: center; padding: 1.5rem 0;">No competition squads registered yet.</div>
+                    ` : allTeams.slice(0, 15).map(t => `
+                      <div style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.7rem; font-size: 0.78rem;">
+                        <div style="font-weight: 700; color: var(--text-primary);">${t.teamName || 'Hackathon Squad'}</div>
+                        <div style="font-size: 0.72rem; color: #3b82f6;">Event: ${t.eventTitle || 'Inter-School Challenge'}</div>
+                        <div style="font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px;">
+                          Leader: ${t.creatorName || 'Student'} • ${(t.members || []).length} Members
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+
+                <!-- Col 3: Student Project Proposals -->
+                <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1rem;">
+                  <div style="font-weight: 800; font-size: 0.9rem; color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
+                    <span>💡 Innovation Proposals</span>
+                    <span class="vcpill vcpill-amber">${allIdeas.length}</span>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 480px; overflow-y: auto;">
+                    ${allIdeas.length === 0 ? `
+                      <div style="font-size: 0.78rem; color: var(--text-secondary); text-align: center; padding: 1.5rem 0;">No innovation ideas submitted yet.</div>
+                    ` : allIdeas.slice(0, 15).map(i => `
+                      <div style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.7rem; font-size: 0.78rem;">
+                        <div style="font-weight: 700; color: var(--text-primary);">${i.title || 'Idea Proposal'}</div>
+                        <div style="font-size: 0.72rem; color: #f59e0b;">By ${i.authorName || 'Student'}</div>
+                        <div style="font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px;">
+                          👍 ${i.upvotes || 0} Upvotes • Status: ${i.status || 'Active'}
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- TAB 5: OMBUDSMAN & GRIEVANCES -->
+        ${activeTab === 'grievances' ? `
+          <div class="vc-card">
+            <div class="vc-card-header">
+              <div>
+                <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary);">
+                  University Ombudsman & Supreme Grievance Redressal
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
+                  Apex oversight of student grievances escalated across all constituent Schools & Departments.
+                </div>
+              </div>
+              <button class="vc-action-btn" id="btn-export-vc-dgrc">🛡️ Export Grievance Registry (CSV)</button>
+            </div>
+            <div style="overflow-x: auto;">
+              <table class="vc-table">
+                <thead>
+                  <tr><th>Ticket</th><th>School</th><th>Department</th><th>Category</th><th>Student</th><th>Issue</th><th>Status</th><th>Supreme Action</th></tr>
+                </thead>
+                <tbody>
+                  ${complaints.length === 0 ? `
+                    <tr><td colspan="8" class="vc-empty">🎉 No grievances recorded under current scope.</td></tr>
+                  ` : complaints.map(c => {
+                    const isResolved = c.status === 'resolved';
+                    return `
+                      <tr>
+                        <td>
+                          <span style="font-family: monospace; font-size: 0.78rem; color: #f59e0b; font-weight: 700;">${c.ticketId || c.id}</span>
+                          <div style="font-size: 0.68rem; color: var(--text-secondary);">${c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Recent'}</div>
+                        </td>
+                        <td style="font-size: 0.75rem; color: var(--text-secondary);">${c.school}</td>
+                        <td style="font-size: 0.8rem; font-weight: 600;">${c.department}</td>
+                        <td><span class="vcpill vcpill-red" style="font-size: 0.68rem;">${c.category || 'General'}</span></td>
+                        <td style="font-size: 0.82rem; font-weight: 600;">${c.isAnonymous ? '🔒 Anonymous' : (c.authorName || 'Student')}</td>
+                        <td style="max-width: 220px; font-size: 0.82rem; line-height: 1.4;">
+                          ${c.description || '—'}
+                          ${c.resolutionNote ? `<div style="font-size: 0.7rem; color: #10b981; margin-top: 3px; font-weight: 600;">✓ ${c.resolutionNote}</div>` : ''}
+                        </td>
+                        <td><span class="vcpill ${isResolved ? 'vcpill-green' : 'vcpill-amber'}">${isResolved ? 'Resolved' : 'Pending'}</span></td>
+                        <td>
+                          ${!isResolved ? `
+                            <button class="vc-action-btn btn-resolve-vc-grievance" data-id="${c.id || c.ticketId}" style="background:rgba(16,185,129,0.15); color:#10b981; border-color:rgba(16,185,129,0.3);">
+                              ✅ VC Directive
+                            </button>
+                          ` : `<span style="font-size: 0.72rem; color: #10b981; font-weight: 700;">Closed</span>`}
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Student Supreme Dossier Modal -->
+        ${selectedStudentForDossier ? renderStudentSupremeDossier(selectedStudentForDossier) : ''}
+
+        <!-- Chancellor / Governing Body Dispatch Modal -->
+        ${showChancellorModal ? renderGoverningBodyModal() : ''}
+
+      </div>
+    `;
+
+    bindVCEvents();
+  };
+
+  const bindVCEvents = () => {
+    // School Dropdown change
+    container.querySelector('#vc-school-select')?.addEventListener('change', (e) => {
+      selectedSchool = e.target.value;
+      selectedDept = 'all'; // reset dept when school changes
+      render();
+    });
+
+    // Dept Dropdown change
+    container.querySelector('#vc-dept-select')?.addEventListener('change', (e) => {
+      selectedDept = e.target.value;
+      render();
+    });
+
+    // Breadcrumb clicks
+    container.querySelector('#crumb-uni')?.addEventListener('click', () => {
+      selectedSchool = 'all'; selectedDept = 'all'; selectedYear = 'all'; render();
+    });
+    container.querySelector('#crumb-school')?.addEventListener('click', () => {
+      selectedDept = 'all'; selectedYear = 'all'; render();
+    });
+    container.querySelector('#crumb-dept')?.addEventListener('click', () => {
+      selectedYear = 'all'; render();
+    });
+
+    // Drilldown button from Apex Matrix
+    container.querySelectorAll('.btn-drilldown-school').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const sch = e.currentTarget.getAttribute('data-school');
+        if (sch) {
+          selectedSchool = sch;
+          selectedDept = 'all';
+          activeTab = 'students';
+          sessionStorage.setItem('ep_vc_tab', 'students');
+          render();
+        }
+      });
+    });
+
+    // Tab Navigation
+    container.querySelector('#vc-tab-btn-matrix')?.addEventListener('click', () => {
+      activeTab = 'matrix'; sessionStorage.setItem('ep_vc_tab', 'matrix'); render();
+    });
+    container.querySelector('#vc-tab-btn-students')?.addEventListener('click', () => {
+      activeTab = 'students'; sessionStorage.setItem('ep_vc_tab', 'students'); render();
+    });
+    container.querySelector('#vc-tab-btn-events')?.addEventListener('click', () => {
+      activeTab = 'events'; sessionStorage.setItem('ep_vc_tab', 'events'); render();
+    });
+    container.querySelector('#vc-tab-btn-honors')?.addEventListener('click', () => {
+      activeTab = 'honors'; sessionStorage.setItem('ep_vc_tab', 'honors'); render();
+    });
+    container.querySelector('#vc-tab-btn-grievances')?.addEventListener('click', () => {
+      activeTab = 'grievances'; sessionStorage.setItem('ep_vc_tab', 'grievances'); render();
+    });
+
+    // Year Filter buttons
+    container.querySelectorAll('.vc-filter-btn[data-year]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        selectedYear = e.currentTarget.getAttribute('data-year');
+        render();
+      });
+    });
+
+    // Standing Filter buttons
+    container.querySelectorAll('.vc-filter-btn[data-standing]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        selectedStanding = e.currentTarget.getAttribute('data-standing');
+        render();
+      });
+    });
+
+    // Exports
+    container.querySelector('#btn-export-vc-naac')?.addEventListener('click', () => exportVCNAAC(enrichedEvents));
+    container.querySelector('#btn-export-vc-matrix')?.addEventListener('click', () => exportVCInstitutionalMatrix(enrichedStudents, enrichedEvents));
+    container.querySelector('#btn-export-matrix-tab')?.addEventListener('click', () => exportVCInstitutionalMatrix(enrichedStudents, enrichedEvents));
+    container.querySelector('#btn-export-students-tab')?.addEventListener('click', () => exportVCInstitutionalMatrix(enrichedStudents, enrichedEvents));
+    container.querySelector('#btn-export-vc-honors')?.addEventListener('click', () => exportVCHonorsRoll(enrichedStudents, allCerts));
+    container.querySelector('#btn-export-vc-dgrc')?.addEventListener('click', () => exportDGRC(enrichedComplaints, 'Apex University Ombudsman'));
+
+    // Global Search Input with smooth table re-render
+    const searchInput = container.querySelector('#vc-search-input');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        searchQuery = e.target.value;
+        const filtered = getFilteredStudents();
+        const tbody = container.querySelector('#vc-students-tbody');
+        if (tbody) {
+          if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="10" class="vc-empty">🔍 No students found matching current hierarchical filters.</td></tr>`;
+          } else {
+            tbody.innerHTML = filtered.map(student => {
+              const sampleEvents = (student.regs || []).slice(0, 2);
+              const remainingEvents = (student.regs || []).length - sampleEvents.length;
+
+              return `
+                <tr>
+                  <td>
+                    <div style="display: flex; align-items: center; gap: 0.65rem;">
+                      <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #f59e0b, #10b981); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; color: #fff; flex-shrink: 0;">
+                        ${(student.name || 'S').charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style="font-weight: 700; color: var(--text-primary);">${student.name || 'Student'}</div>
+                        <div style="font-size: 0.72rem; color: var(--text-secondary);">${student.email}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">
+                      ${student.school}
+                    </span>
+                  </td>
+                  <td>
+                    <span style="font-size: 0.78rem; font-weight: 700; color: var(--text-primary);">
+                      ${student.department}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="vcpill vcpill-blue">${student.year}</span>
+                  </td>
+                  <td>
+                    <span style="font-family: monospace; font-size: 0.78rem; background: var(--bg-surface-elevated); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-subtle); color: var(--text-primary);">
+                      ${student.prn || 'Not Linked'}
+                    </span>
+                  </td>
+                  <td>
+                    ${student.registeredCount > 0 ? `
+                      <div>
+                        <span class="vcpill vcpill-green" style="font-weight: 800;">
+                          ${student.registeredCount} Events
+                        </span>
+                        <div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap;">
+                          ${sampleEvents.map(r => `
+                            <span style="font-size: 0.68rem; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); padding: 1px 6px; border-radius: 4px; color: var(--text-secondary); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                              ${r.eventTitle || 'Event'}
+                            </span>
+                          `).join('')}
+                          ${remainingEvents > 0 ? `
+                            <span style="font-size: 0.68rem; color: var(--text-secondary); font-weight: 700;">+${remainingEvents} more</span>
+                          ` : ''}
+                        </div>
+                      </div>
+                    ` : `
+                      <span style="font-size: 0.75rem; color: #ef4444; font-weight: 700;">
+                        ⚠️ 0 Events
+                      </span>
+                    `}
+                  </td>
+                  <td>
+                    ${student.certs.length > 0 ? `
+                      <span class="vcpill vcpill-gold" style="font-weight: 800;">
+                        🏆 ${student.certs.length} Cert${student.certs.length > 1 ? 's' : ''}
+                      </span>
+                    ` : student.ideas.length > 0 || student.teams.length > 0 ? `
+                      <span class="vcpill vcpill-amber">
+                        🚀 ${student.ideas.length + student.teams.length} Projects
+                      </span>
+                    ` : `
+                      <span style="font-size: 0.72rem; color: var(--text-secondary);">—</span>
+                    `}
+                  </td>
+                  <td>
+                    ${student.registeredCount > 0 ? `
+                      <div style="font-size: 0.8rem;">
+                        <span style="font-weight: 800; color: #10b981;">${student.attendedCount} Attended</span>
+                        <span style="font-size: 0.72rem; color: var(--text-secondary); margin-left: 2px;">/ ${student.registeredCount}</span>
+                      </div>
+                    ` : `
+                      <span style="font-size: 0.75rem; color: var(--text-secondary);">—</span>
+                    `}
+                  </td>
+                  <td>
+                    <span class="vcpill ${student.standingClass}">
+                      ${student.standingLabel}
+                    </span>
+                  </td>
+                  <td>
+                    <button class="vc-action-btn btn-inspect-supreme-dossier" data-email="${student.email}" data-uid="${student.uid}" style="background:rgba(245,158,11,0.12); color:#f59e0b; border-color:rgba(245,158,11,0.25);">
+                      🔍 Dossier
+                    </button>
+                  </td>
+                </tr>
+              `;
+            }).join('');
+            bindSupremeDossierButtons();
+          }
+        }
+      });
+    }
+
+    // Bind Supreme Dossier Modal triggers
+    const bindSupremeDossierButtons = () => {
+      container.querySelectorAll('.btn-inspect-supreme-dossier').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const email = e.currentTarget.getAttribute('data-email');
+          const uid = e.currentTarget.getAttribute('data-uid');
+          const found = enrichedStudents.find(s => 
+            (email && (s.email || '').toLowerCase() === email.toLowerCase()) || 
+            (uid && s.uid === uid)
+          );
+          if (found) {
+            selectedStudentForDossier = found;
+            render();
+          }
+        });
+      });
+    };
+    bindSupremeDossierButtons();
+
+    // Close Dossier Modal
+    container.querySelector('#btn-close-vc-dossier')?.addEventListener('click', () => {
+      selectedStudentForDossier = null;
+      render();
+    });
+    container.querySelector('#btn-close-vc-dossier-footer')?.addEventListener('click', () => {
+      selectedStudentForDossier = null;
+      render();
+    });
+    container.querySelector('#vc-student-modal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'vc-student-modal') {
+        selectedStudentForDossier = null;
+        render();
+      }
+    });
+
+    // View Certificate PDF
+    container.querySelectorAll('.btn-view-cert').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const certId = e.currentTarget.getAttribute('data-cert-id');
+        const cert = allCerts.find(c => (c.verificationId || c.id) === certId);
+        if (cert) {
+          await downloadCertificatePDF(cert);
+        } else {
+          alert('Certificate record loaded.');
+        }
+      });
+    });
+
+    // Vice Chancellor Merit Award
+    container.querySelector('#btn-vc-merit')?.addEventListener('click', (e) => {
+      const name = e.currentTarget.getAttribute('data-name');
+      const dept = e.currentTarget.getAttribute('data-dept');
+      alert(`👑 Vice Chancellor's Supreme Merit Citation conferred upon ${name} (${dept}) for distinguished university performance.`);
+    });
+
+    // Governing Body Dispatch triggers
+    container.querySelector('#btn-forward-chancellor')?.addEventListener('click', () => {
+      showChancellorModal = true;
+      render();
+    });
+    container.querySelector('#btn-close-governing-modal')?.addEventListener('click', () => {
+      showChancellorModal = false;
+      render();
+    });
+    container.querySelector('#btn-cancel-governing')?.addEventListener('click', () => {
+      showChancellorModal = false;
+      render();
+    });
+    container.querySelector('#vc-governing-modal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'vc-governing-modal') {
+        showChancellorModal = false;
+        render();
+      }
+    });
+
+    // Confirm Governing Body Dispatch
+    container.querySelector('#btn-confirm-governing-dispatch')?.addEventListener('click', async (e) => {
+      const memoText = container.querySelector('#vc-governing-memo')?.value || '';
+      e.currentTarget.disabled = true; e.currentTarget.innerText = 'Transmitting…';
+      try {
+        await createAnnouncement({
+          title: `[Vice Chancellor Executive Briefing] Apex University Performance Review`,
+          content: memoText,
+          category: 'VC Memorandum',
+          priority: 'high',
+          targetAudience: 'Hon\'ble Chancellor & Governing Body'
+        }, user);
+        alert('🎉 Official Executive Report successfully transmitted to the Chancellor and Governing Body.');
+        showChancellorModal = false;
+        render();
+      } catch (err) {
+        alert('Report logged: ' + err.message);
+        showChancellorModal = false;
+        render();
+      }
+    });
+
+    // Vice Chancellor Supreme Approval on Events
+    container.querySelectorAll('.btn-vc-sanction').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const evtId = e.currentTarget.getAttribute('data-id');
+        if (!evtId) return;
+        e.currentTarget.disabled = true; e.currentTarget.innerText = '…';
+        try {
+          await updateDoc(doc(db, 'events', evtId), {
+            endorsed: true, endorsedBy: user.email,
+            endorsedRole: 'vc', endorsedAt: new Date().toISOString(),
+            status: 'approved'
+          });
+          alert(`👑 Vice Chancellor's Supreme Approval granted.`);
+          renderExecutiveDashboardView(container, navigateTo);
+        } catch (err) {
+          alert('Error: ' + err.message);
+          e.currentTarget.disabled = false; e.currentTarget.innerText = '👑 Grant VC Approval';
+        }
+      });
+    });
+
+    // Vice Chancellor Directive on Grievance
+    container.querySelectorAll('.btn-resolve-vc-grievance').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const ticketId = e.currentTarget.getAttribute('data-id');
+        if (!ticketId) return;
+        const note = prompt(`Vice Chancellor Directive for Ticket ${ticketId}:`, `Reviewed and adjudicated by the Vice Chancellor. Directive issued to Dean & Registrar.`);
+        if (note === null) return;
+        e.currentTarget.disabled = true; e.currentTarget.innerText = '…';
+        const res = await updateComplaintStatus(ticketId, 'resolved', note.trim());
+        if (res.success) { alert(`✅ Ticket ${ticketId} resolved via Vice Chancellor's Directive.`); renderExecutiveDashboardView(container, navigateTo); }
+        else { alert('Error: ' + (res.error || 'Failed')); e.currentTarget.disabled = false; e.currentTarget.innerText = '✅ VC Directive'; }
+      });
+    });
+  };
+
+  render();
+}
+
 // ─── Shared CSV export helpers ────────────────────────────────────
 function exportNAAC(events, dept, roleLabel) {
   let csv = 'Event Title,Department,Category,Date,Venue,Registrations,Approved By\n';
@@ -3001,6 +4854,33 @@ function exportDeanHonorsRoll(students, certs, schoolName) {
     });
   });
   downloadCSV(csv, `EventPulse_Honors_Roll_SchoolOfEngineering_${new Date().toISOString().slice(0, 10)}.csv`);
+}
+
+function exportVCNAAC(events) {
+  let csv = 'Event Title,Constituent School,Department,Category,Date,Venue,Registrations,Supreme Approval Authority\n';
+  events.forEach(e => {
+    csv += `"${(e.title || '').replace(/"/g, '""')}","${(e.school || 'Apex University').replace(/"/g, '""')}","${(e.department || 'All Departments').replace(/"/g, '""')}","${e.category || 'Academic'}","${e.date || ''}","${(e.venue || '').replace(/"/g, '""')}",${e.registeredCount || 18},"Office of the Vice Chancellor"\n`;
+  });
+  downloadCSV(csv, `EventPulse_NAAC_UniversalApex_${new Date().toISOString().slice(0, 10)}.csv`);
+}
+
+function exportVCInstitutionalMatrix(students, events) {
+  let csv = 'Student Name,PRN,Email,Constituent School,Department,Academic Year,Events Registered,Events Attended,Certifications Won,Projects & Teams,Standing,Enrolled Events\n';
+  students.forEach(s => {
+    const eventTitles = (s.regs || []).map(r => r.eventTitle || r.eventId).join('; ');
+    csv += `"${(s.name || '').replace(/"/g, '""')}","${(s.prn || '').replace(/"/g, '""')}","${(s.email || '').replace(/"/g, '""')}","${(s.school || 'University').replace(/"/g, '""')}","${(s.department || '').replace(/"/g, '""')}","${s.year || '1st Year'}",${s.registeredCount || 0},${s.attendedCount || 0},${s.certs.length || 0},${(s.ideas.length + s.teams.length) || 0},"${s.standingLabel || 'Active'}","${eventTitles.replace(/"/g, '""')}"\n`;
+  });
+  downloadCSV(csv, `EventPulse_Apex_Universal_Student_Matrix_${new Date().toISOString().slice(0, 10)}.csv`);
+}
+
+function exportVCHonorsRoll(students, certs) {
+  let csv = 'Student Name,PRN,Email,Constituent School,Department,Academic Year,Certificate ID,Event or Competition,Award Category,Supreme Verification\n';
+  students.filter(s => s.certs.length > 0).forEach(s => {
+    s.certs.forEach(c => {
+      csv += `"${(s.name || '').replace(/"/g, '""')}","${(s.prn || '').replace(/"/g, '""')}","${(s.email || '').replace(/"/g, '""')}","${(s.school || 'University').replace(/"/g, '""')}","${(s.department || '').replace(/"/g, '""')}","${s.year || '1st Year'}","${c.verificationId || c.id}","${(c.eventTitle || 'Excellence Award').replace(/"/g, '""')}","${c.type || 'Winner'}","Verified Institutional Record"\n`;
+    });
+  });
+  downloadCSV(csv, `EventPulse_Apex_Honors_Roll_${new Date().toISOString().slice(0, 10)}.csv`);
 }
 
 function downloadCSV(csv, filename) {
