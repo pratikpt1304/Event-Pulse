@@ -126,6 +126,24 @@ export async function getStudentRegistrations(userId) {
 }
 
 /**
+ * Get all registrations across all events (Admin/HOD/Executive View)
+ */
+export async function getAllRegistrations() {
+  try {
+    const snap = await Promise.race([
+      getDocs(collection(db, 'registrations')),
+      new Promise(res => setTimeout(() => res(null), 4000))
+    ]);
+    if (snap && snap.docs) {
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+  } catch (e) {
+    console.warn('getAllRegistrations notice:', e.message);
+  }
+  return inMemoryRegistrations;
+}
+
+/**
  * Get all registrations for an Event (Organizer View)
  */
 export async function getEventRegistrations(eventId) {

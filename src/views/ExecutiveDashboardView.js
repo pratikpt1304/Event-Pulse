@@ -4,6 +4,8 @@ import { getAllComplaints, updateComplaintStatus } from '../services/complaints'
 import { renderAdminView } from './AdminView';
 import { db } from '../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
+import { getAllUsers } from '../services/users';
+import { getAllRegistrations } from '../services/registrations';
 
 export async function renderExecutiveDashboardView(container, navigateTo) {
   const user = getCurrentUser();
@@ -13,13 +15,18 @@ export async function renderExecutiveDashboardView(container, navigateTo) {
   const userDept = user.department || 'Integrated M.Tech';
   const isAdmin = isUserAdmin(user) || role === 'admin';
 
-  const [allEvents, allComplaints] = await Promise.all([getEvents(), getAllComplaints()]);
+  const [allEvents, allComplaints, allUsers, allRegistrations] = await Promise.all([
+    getEvents(),
+    getAllComplaints(),
+    getAllUsers().catch(() => []),
+    getAllRegistrations().catch(() => [])
+  ]);
 
   // ─────────────────────────────────────────────────────────────────
   //  HOD PORTAL
   // ─────────────────────────────────────────────────────────────────
   if (role === 'hod') {
-    await renderHODPortal({ container, navigateTo, user, userDept, allEvents, allComplaints });
+    await renderHODPortal({ container, navigateTo, user, userDept, allEvents, allComplaints, allUsers, allRegistrations });
     return;
   }
 
@@ -40,8 +47,13 @@ export async function renderExecutiveDashboardView(container, navigateTo) {
 // ═══════════════════════════════════════════════════════════════════
 //  HOD PORTAL — single-department, intimate, action-focused
 // ═══════════════════════════════════════════════════════════════════
-async function renderHODPortal({ container, navigateTo, user, userDept, allEvents, allComplaints }) {
+async function renderHODPortal({ container, navigateTo, user, userDept, allEvents, allComplaints, allUsers = [], allRegistrations = [] }) {
   let activeTab = sessionStorage.getItem('ep_exec_tab') || 'events';
+  let studentYearFilter = 'all'; // 'all', '1st Year', '2nd Year', '3rd Year', '4th Year'
+  let studentStatusFilter = 'all'; // 'all', 'active', 'inactive'
+  let studentScope = 'dept'; // 'dept' (HOD department) or 'all' (all university)
+  let studentSearchQuery = '';
+  let selectedStudentForModal = null;
 
   const deptEvents = allEvents.filter(e => {
     const eDept = (e.department || '').toLowerCase();
@@ -59,7 +71,249 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
   const upcoming = deptEvents.filter(e => new Date(e.date || e.startDate) >= new Date());
   const needsEndorsement = upcoming.filter(e => !e.endorsed);
 
+  // Helper to match student department
+  const isDeptMatch = (dept) => {
+    const ud = (dept || '').toLowerCase().trim();
+    const td = (userDept || '').toLowerCase().trim();
+    if (!ud) return false;
+    const isImtech = (td.includes('imtech') || td.includes('integrated')) && (ud.includes('imtech') || ud.includes('integrated'));
+    return isImtech || ud.includes(td) || td.includes(ud);
+  };
+
+  // Enrich a student record with registration data
+  const enrichStudent = (student) => {
+    const sUid = (student.uid || '').trim();
+    const sEmail = (student.email || '').toLowerCase().trim();
+    const sPrn = (student.prn || '').toLowerCase().trim();
+
+    const studentRegs = (allRegistrations || []).filter(r => {
+      const rUid = (r.userId || '').trim();
+      const rEmail = (r.email || r.studentEmail || '').toLowerCase().trim();
+      const rPrn = (r.prn || r.studentPrn || '').toLowerCase().trim();
+      return (sUid && rUid === sUid) ||
+             (sEmail && (rEmail === sEmail || rUid.toLowerCase() === sEmail)) ||
+             (sPrn && rPrn && rPrn === sPrn);
+    });
+
+    const attendedCount = studentRegs.filter(r => r.status === 'attended' || r.attendance === 'present').length;
+    const isActive = studentRegs.length > 0;
+
+    let year = (student.year || '').trim();
+    if (!year) year = '1st Year';
+
+    return {
+      ...student,
+      year,
+      regs: studentRegs,
+      registeredCount: studentRegs.length,
+      attendedCount,
+      isActive
+    };
+  };
+
+  const allStudents = (allUsers || []).filter(u => !u.role || u.role === 'student');
+  const matchedDeptStudents = allStudents.filter(u => isDeptMatch(u.department));
+  const deptStudents = matchedDeptStudents.length > 0 ? matchedDeptStudents : allStudents.slice(0, 15);
+
+  const enrichedDeptStudents = deptStudents.map(enrichStudent);
+  const enrichedAllStudents = allStudents.map(enrichStudent);
+
+  // Stats for department students
+  const totalDeptStudents = enrichedDeptStudents.length;
+  const activeStudentsCount = enrichedDeptStudents.filter(s => s.isActive).length;
+  const inactiveStudentsCount = totalDeptStudents - activeStudentsCount;
+  const activeRatePct = totalDeptStudents > 0 ? Math.round((activeStudentsCount / totalDeptStudents) * 100) : 0;
+  const totalRegistrationsCount = enrichedDeptStudents.reduce((sum, s) => sum + s.registeredCount, 0);
+
+  const yearCounts = {
+    '1st Year': enrichedDeptStudents.filter(s => (s.year || '').toLowerCase().includes('1')).length,
+    '2nd Year': enrichedDeptStudents.filter(s => (s.year || '').toLowerCase().includes('2')).length,
+    '3rd Year': enrichedDeptStudents.filter(s => (s.year || '').toLowerCase().includes('3')).length,
+    '4th Year': enrichedDeptStudents.filter(s => (s.year || '').toLowerCase().includes('4') || (s.year || '').toLowerCase().includes('final')).length
+  };
+
+  const getFilteredStudents = () => {
+    const baseList = studentScope === 'all' ? enrichedAllStudents : enrichedDeptStudents;
+    return baseList.filter(s => {
+      // Year filter
+      if (studentYearFilter !== 'all') {
+        const sy = (s.year || '').toLowerCase();
+        const fy = studentYearFilter.toLowerCase();
+        if (fy.includes('1') && !sy.includes('1')) return false;
+        if (fy.includes('2') && !sy.includes('2')) return false;
+        if (fy.includes('3') && !sy.includes('3')) return false;
+        if ((fy.includes('4') || fy.includes('final')) && (!sy.includes('4') && !sy.includes('final'))) return false;
+      }
+      // Status filter
+      if (studentStatusFilter === 'active' && !s.isActive) return false;
+      if (studentStatusFilter === 'inactive' && s.isActive) return false;
+      // Search query
+      if (studentSearchQuery.trim()) {
+        const q = studentSearchQuery.toLowerCase().trim();
+        const name = (s.name || '').toLowerCase();
+        const email = (s.email || '').toLowerCase();
+        const prn = (s.prn || '').toLowerCase();
+        if (!name.includes(q) && !email.includes(q) && !prn.includes(q)) return false;
+      }
+      return true;
+    });
+  };
+
+  const renderStudentModal = (student) => {
+    if (!student) return '';
+    const registeredEventIds = new Set((student.regs || []).map(r => r.eventId));
+    const unparticipatedUpcoming = upcoming.filter(e => !registeredEventIds.has(e.id));
+
+    return `
+      <div class="hod-modal-overlay" id="hod-student-modal">
+        <div class="hod-modal-content">
+          <!-- Modal Header -->
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; padding:1.25rem 1.5rem; border-bottom:1px solid var(--border-subtle);">
+            <div style="display:flex; align-items:center; gap:0.85rem;">
+              <div style="width:48px; height:48px; border-radius:50%; background:linear-gradient(135deg, #3b82f6, #6366f1); display:flex; align-items:center; justify-content:center; font-size:1.3rem; font-weight:800; color:#fff;">
+                ${(student.name || 'S').charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div style="font-size:1.15rem; font-weight:800; color:var(--text-primary); display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                  <span>${student.name || 'Student Profile'}</span>
+                  <span class="pill ${student.isActive ? 'pill-green' : 'pill-red'}" style="font-size:0.68rem;">
+                    ${student.isActive ? '🟢 Active Participant' : '⚠️ Inactive (Zero Events)'}
+                  </span>
+                </div>
+                <div style="font-size:0.78rem; color:var(--text-secondary); margin-top:2px;">
+                  ${student.email} • PRN: <strong>${student.prn || 'Not Linked'}</strong> • <strong>${student.year || '1st Year'}</strong> (${student.department || userDept})
+                </div>
+              </div>
+            </div>
+            <button class="hod-modal-close" id="btn-close-student-modal">✕</button>
+          </div>
+
+          <!-- Modal Body -->
+          <div style="padding:1.25rem 1.5rem; max-height:calc(82vh - 120px); overflow-y:auto;">
+            <!-- Metrics Row -->
+            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:0.75rem; margin-bottom:1.5rem;">
+              <div style="background:var(--bg-surface-elevated); padding:0.85rem; border-radius:10px; border:1px solid var(--border-subtle); text-align:center;">
+                <div style="font-size:1.35rem; font-weight:800; color:#3b82f6;">${student.registeredCount}</div>
+                <div style="font-size:0.68rem; color:var(--text-secondary); text-transform:uppercase; font-weight:600;">Events Enrolled</div>
+              </div>
+              <div style="background:var(--bg-surface-elevated); padding:0.85rem; border-radius:10px; border:1px solid var(--border-subtle); text-align:center;">
+                <div style="font-size:1.35rem; font-weight:800; color:#10b981;">${student.attendedCount}</div>
+                <div style="font-size:0.68rem; color:var(--text-secondary); text-transform:uppercase; font-weight:600;">Events Attended</div>
+              </div>
+              <div style="background:var(--bg-surface-elevated); padding:0.85rem; border-radius:10px; border:1px solid var(--border-subtle); text-align:center;">
+                <div style="font-size:1.35rem; font-weight:800; color:#f59e0b;">${student.registeredCount - student.attendedCount}</div>
+                <div style="font-size:0.68rem; color:var(--text-secondary); text-transform:uppercase; font-weight:600;">Pending / Absent</div>
+              </div>
+              <div style="background:var(--bg-surface-elevated); padding:0.85rem; border-radius:10px; border:1px solid var(--border-subtle); text-align:center;">
+                <div style="font-size:1.35rem; font-weight:800; color:#8b5cf6;">${student.registeredCount > 0 ? Math.round((student.attendedCount / student.registeredCount) * 100) : 0}%</div>
+                <div style="font-size:0.68rem; color:var(--text-secondary); text-transform:uppercase; font-weight:600;">Attendance Rate</div>
+              </div>
+            </div>
+
+            <!-- Section 1: Events Participated -->
+            <div style="margin-bottom:1.5rem;">
+              <div style="font-size:0.9rem; font-weight:800; color:var(--text-primary); margin-bottom:0.6rem; display:flex; align-items:center; gap:0.4rem;">
+                <span>✅ Enrolled & Participated Events</span>
+                <span style="font-size:0.72rem; color:var(--text-secondary); font-weight:600;">(${student.regs.length})</span>
+              </div>
+              ${student.regs.length === 0 ? `
+                <div style="background:rgba(239,68,68,0.06); border:1px dashed rgba(239,68,68,0.25); border-radius:10px; padding:1.2rem; text-align:center;">
+                  <div style="font-size:1.5rem; margin-bottom:0.35rem;">⚠️</div>
+                  <div style="font-size:0.85rem; font-weight:700; color:#ef4444;">No Events Recorded Yet</div>
+                  <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:3px; max-width:440px; margin-inline:auto;">
+                    This student has not registered for any university or departmental events this semester. Academic counseling is recommended to meet co-curricular benchmarks.
+                  </div>
+                </div>
+              ` : `
+                <table class="hod-table" style="font-size:0.82rem; border-radius:8px; overflow:hidden; border:1px solid var(--border-subtle);">
+                  <thead>
+                    <tr>
+                      <th>Event Title</th>
+                      <th>Date & Venue</th>
+                      <th>Status</th>
+                      <th>Attendance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${student.regs.map(r => `
+                      <tr>
+                        <td>
+                          <div style="font-weight:700; color:var(--text-primary);">${r.eventTitle || 'Campus Event'}</div>
+                          <div style="font-size:0.7rem; color:var(--text-secondary);">Pass ID: ${r.id}</div>
+                        </td>
+                        <td style="white-space:nowrap; font-size:0.78rem;">
+                          <div>${r.eventDate || 'Scheduled'}</div>
+                          <div style="font-size:0.7rem; color:var(--text-secondary);">${r.venue || 'Campus'}</div>
+                        </td>
+                        <td>
+                          <span class="pill ${r.status === 'confirmed' || r.status === 'attended' ? 'pill-green' : r.status === 'cancelled' ? 'pill-red' : 'pill-amber'}">
+                            ${r.status || 'Registered'}
+                          </span>
+                        </td>
+                        <td>
+                          ${r.attendance === 'present' || r.status === 'attended' ? `
+                            <span class="pill pill-green">✓ Present</span>
+                          ` : r.attendance === 'absent' ? `
+                            <span class="pill pill-red">✗ Absent</span>
+                          ` : `
+                            <span class="pill pill-gray">⏳ Scheduled</span>
+                          `}
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              `}
+            </div>
+
+            <!-- Section 2: Events NOT Participated (What they are missing!) -->
+            <div>
+              <div style="font-size:0.9rem; font-weight:800; color:var(--text-primary); margin-bottom:0.6rem; display:flex; align-items:center; gap:0.4rem;">
+                <span>🎯 Upcoming Department Events Not Enrolled Yet</span>
+                <span style="font-size:0.72rem; color:var(--text-secondary); font-weight:600;">(${unparticipatedUpcoming.length} available)</span>
+              </div>
+              ${unparticipatedUpcoming.length === 0 ? `
+                <div style="background:rgba(16,185,129,0.06); border:1px solid rgba(16,185,129,0.2); border-radius:10px; padding:0.85rem; font-size:0.8rem; color:#10b981;">
+                  🎉 Outstanding! Student is registered for all upcoming department events.
+                </div>
+              ` : `
+                <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                  ${unparticipatedUpcoming.map(ev => `
+                    <div style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:9px; padding:0.75rem 1rem; display:flex; justify-content:space-between; align-items:center; gap:0.75rem;">
+                      <div>
+                        <div style="font-weight:700; font-size:0.85rem; color:var(--text-primary);">${ev.title || 'Untitled'}</div>
+                        <div style="font-size:0.72rem; color:var(--text-secondary); margin-top:2px;">
+                          📅 ${ev.date || 'TBD'} • 📍 ${ev.venue || 'Campus'} • Category: ${ev.category || 'Academic'}
+                        </div>
+                      </div>
+                      <span class="pill pill-amber" style="font-size:0.68rem; white-space:nowrap;">
+                        Not Enrolled
+                      </span>
+                    </div>
+                  `).join('')}
+                </div>
+              `}
+            </div>
+
+          </div>
+
+          <!-- Modal Footer -->
+          <div style="padding:0.9rem 1.5rem; border-top:1px solid var(--border-subtle); display:flex; justify-content:space-between; align-items:center; background:var(--bg-surface-elevated);">
+            <div style="font-size:0.75rem; color:var(--text-secondary);">
+              Academic Mentor Action: Review co-curricular compliance per NAAC/NBA standards.
+            </div>
+            <button class="hod-btn-sm" id="btn-modal-close-footer" style="background:rgba(255,255,255,0.08); color:var(--text-primary);">
+              Close Dossier
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
   const render = () => {
+    const filteredStudents = getFilteredStudents();
+
     container.innerHTML = `
       <style>
         .hod-wrap {
@@ -146,10 +400,10 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
           font-weight: 600;
         }
 
-        /* Stat pills */
+        /* Stat pills (4-col grid) */
         .hod-stats {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
+          grid-template-columns: repeat(4, 1fr);
           gap: 0.85rem;
           margin-bottom: 1.5rem;
         }
@@ -259,6 +513,8 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
         .pill-amber  { background: rgba(245,158,11,0.12); color: #f59e0b; }
         .pill-gray   { background: rgba(100,116,139,0.12); color: #64748b; }
         .pill-red    { background: rgba(239,68,68,0.12); color: #ef4444; }
+        .pill-blue   { background: rgba(59,130,246,0.12); color: #3b82f6; }
+        .pill-indigo { background: rgba(99,102,241,0.12); color: #818cf8; }
 
         .hod-action-btn {
           padding: 5px 12px;
@@ -277,12 +533,77 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
         .btn-resolve-style { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25); }
         .btn-resolve-style:hover { background: rgba(16,185,129,0.22); }
 
+        .hod-filter-btn {
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+          color: var(--text-secondary);
+          border-radius: 8px;
+          padding: 4px 10px;
+          font-size: 0.75rem;
+          font-weight: 700;
+          font-family: inherit;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+        .hod-filter-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+        .hod-filter-btn.active {
+          background: #3b82f6;
+          color: #fff;
+          border-color: #3b82f6;
+          box-shadow: 0 1px 4px rgba(59,130,246,0.3);
+        }
+
+        /* Modal */
+        .hod-modal-overlay {
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0, 0, 0, 0.75);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          padding: 1rem;
+        }
+
+        .hod-modal-content {
+          background: var(--bg-surface);
+          border: 1px solid var(--border-subtle);
+          border-radius: 16px;
+          width: 100%;
+          max-width: 680px;
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+          overflow: hidden;
+          animation: modalFadeIn 0.2s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+          from { opacity: 0; transform: scale(0.97); }
+          to { opacity: 1; transform: scale(1); }
+        }
+
+        .hod-modal-close {
+          background: transparent;
+          border: none;
+          color: var(--text-secondary);
+          font-size: 1.25rem;
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 6px;
+          line-height: 1;
+        }
+        .hod-modal-close:hover { color: var(--text-primary); }
+
         .hod-empty { text-align: center; padding: 2.5rem 1rem; color: var(--text-secondary); font-size: 0.88rem; }
 
+        @media (max-width: 900px) {
+          .hod-stats { grid-template-columns: repeat(2, 1fr); }
+        }
+
         @media (max-width: 600px) {
-          .hod-stats { grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+          .hod-stats { grid-template-columns: 1fr; gap: 0.5rem; }
           .hod-tabs { width: 100%; }
-          .hod-tab { flex: 1; justify-content: center; }
+          .hod-tab { flex: 1; justify-content: center; padding: 8px 10px; font-size: 0.78rem; }
         }
       </style>
 
@@ -292,10 +613,11 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
         <div class="hod-identity">
           <div class="hod-avatar">📚</div>
           <div>
-            <div class="hod-name">${user.name || 'HOD'}</div>
+            <div class="hod-name">${user.name || 'Head of Department'}</div>
             <div class="hod-dept-tag">🏛️ ${userDept}</div>
           </div>
           <div class="hod-export-btn">
+            <button class="hod-btn-sm" id="btn-export-students-top">📥 Student Roster</button>
             <button class="hod-btn-sm" id="btn-export-naac">📥 NAAC Report</button>
             <button class="hod-btn-sm" id="btn-export-dgrc">🛡️ Grievance Log</button>
           </div>
@@ -308,7 +630,7 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
           </div>
         ` : ''}
 
-        <!-- Stats -->
+        <!-- 4-Stat Overview Cards -->
         <div class="hod-stats">
           <div class="hod-stat">
             <div class="hod-stat-val" style="color: #6366f1;">${deptEvents.length}</div>
@@ -316,7 +638,11 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
           </div>
           <div class="hod-stat">
             <div class="hod-stat-val" style="color: #3b82f6;">${upcoming.length}</div>
-            <div class="hod-stat-label">Upcoming</div>
+            <div class="hod-stat-label">Upcoming Events</div>
+          </div>
+          <div class="hod-stat" style="border-left: 3px solid ${activeRatePct >= 50 ? '#10b981' : '#f59e0b'};">
+            <div class="hod-stat-val" style="color: #3b82f6;">${totalDeptStudents}</div>
+            <div class="hod-stat-label">${activeRatePct}% Active in Events</div>
           </div>
           <div class="hod-stat" style="border-left: 3px solid ${pending.length > 0 ? '#ef4444' : '#10b981'};">
             <div class="hod-stat-val" style="color: ${pending.length > 0 ? '#ef4444' : '#10b981'};">${pending.length}</div>
@@ -324,10 +650,14 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
           </div>
         </div>
 
-        <!-- Tabs -->
+        <!-- Tabs: Events, Students, Grievances -->
         <div class="hod-tabs">
           <button class="hod-tab ${activeTab === 'events' ? 'active' : ''}" id="tab-btn-events">
             🎪 Events (${deptEvents.length})
+          </button>
+          <button class="hod-tab ${activeTab === 'students' ? 'active' : ''}" id="tab-btn-students">
+            👨‍🎓 Students (${totalDeptStudents})
+            ${inactiveStudentsCount > 0 ? `<span class="hod-badge" style="background: #f59e0b;">${inactiveStudentsCount} idle</span>` : ''}
           </button>
           <button class="hod-tab ${activeTab === 'grievances' ? 'active' : ''}" id="tab-btn-grievances">
             🚨 DGRC
@@ -335,6 +665,7 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
           </button>
         </div>
 
+        <!-- TAB 1: EVENTS -->
         ${activeTab === 'events' ? `
           <div class="hod-card">
             <div style="padding: 0.85rem 1.1rem; border-bottom: 1px solid var(--border-subtle);">
@@ -392,7 +723,197 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
               </table>
             </div>
           </div>
-        ` : `
+        ` : ''}
+
+        <!-- TAB 2: STUDENTS INTELLIGENCE & YEAR-WISE PARTICIPATION -->
+        ${activeTab === 'students' ? `
+          <div class="hod-card">
+            <!-- Header with Title & Export -->
+            <div style="padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 0.85rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.6rem;">
+                <div>
+                  <div style="font-size: 1rem; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                    <span>👨‍🎓 ${userDept} — Student Participation Intelligence</span>
+                  </div>
+                  <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px;">
+                    Track real-time event engagements, attendance compliance, and identify inactive students needing academic counseling.
+                  </div>
+                </div>
+                <button class="hod-btn-sm" id="btn-export-students-tab" style="background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3);">
+                  📥 Export Student Roster (CSV)
+                </button>
+              </div>
+
+              <!-- Quick Insight Chips -->
+              <div style="display: flex; gap: 0.65rem; flex-wrap: wrap; font-size: 0.78rem;">
+                <div style="background: var(--bg-surface-elevated); padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border-subtle); color: var(--text-primary);">
+                  👥 Total: <strong>${totalDeptStudents} Students</strong>
+                </div>
+                <div style="background: rgba(16,185,129,0.1); color: #10b981; padding: 5px 12px; border-radius: 8px; border: 1px solid rgba(16,185,129,0.25);">
+                  🟢 Active in Events: <strong>${activeStudentsCount} (${activeRatePct}%)</strong>
+                </div>
+                <div style="background: rgba(239,68,68,0.1); color: #ef4444; padding: 5px 12px; border-radius: 8px; border: 1px solid rgba(239,68,68,0.25);">
+                  ⚠️ Zero Events: <strong>${inactiveStudentsCount}</strong>
+                </div>
+                <div style="background: rgba(99,102,241,0.1); color: #818cf8; padding: 5px 12px; border-radius: 8px; border: 1px solid rgba(99,102,241,0.25);">
+                  🎟️ Total Registrations: <strong>${totalRegistrationsCount} Passes</strong>
+                </div>
+              </div>
+
+              <!-- Filter Bar (Search + Scope + Year + Status) -->
+              <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; justify-content: space-between; background: var(--bg-surface-elevated); padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border-subtle);">
+                <!-- Search Input -->
+                <div style="position: relative; flex: 1; min-width: 220px;">
+                  <input 
+                    type="text" 
+                    id="hod-student-search" 
+                    value="${studentSearchQuery}" 
+                    placeholder="🔍 Search name, PRN, email..." 
+                    style="width: 100%; box-sizing: border-box; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 6px 12px; font-size: 0.8rem; color: var(--text-primary); outline: none;"
+                  />
+                </div>
+
+                <!-- Scope Toggle -->
+                <div style="display: flex; gap: 4px; align-items: center;">
+                  <button class="hod-filter-btn ${studentScope === 'dept' ? 'active' : ''}" data-scope="dept" title="Show students strictly in ${userDept}">
+                    🏛️ ${userDept} (${enrichedDeptStudents.length})
+                  </button>
+                  <button class="hod-filter-btn ${studentScope === 'all' ? 'active' : ''}" data-scope="all" title="Show all registered university students">
+                    🌐 All University (${allStudents.length})
+                  </button>
+                </div>
+
+                <!-- Year Filter Pills -->
+                <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+                  <span style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; margin-right: 2px;">Year:</span>
+                  <button class="hod-filter-btn ${studentYearFilter === 'all' ? 'active' : ''}" data-year="all">All</button>
+                  <button class="hod-filter-btn ${studentYearFilter === '1st Year' ? 'active' : ''}" data-year="1st Year">1st Yr (${yearCounts['1st Year'] || 0})</button>
+                  <button class="hod-filter-btn ${studentYearFilter === '2nd Year' ? 'active' : ''}" data-year="2nd Year">2nd Yr (${yearCounts['2nd Year'] || 0})</button>
+                  <button class="hod-filter-btn ${studentYearFilter === '3rd Year' ? 'active' : ''}" data-year="3rd Year">3rd Yr (${yearCounts['3rd Year'] || 0})</button>
+                  <button class="hod-filter-btn ${studentYearFilter === '4th Year' ? 'active' : ''}" data-year="4th Year">4th Yr (${yearCounts['4th Year'] || 0})</button>
+                </div>
+
+                <!-- Status Filter Pills -->
+                <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+                  <span style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; margin-right: 2px;">Status:</span>
+                  <button class="hod-filter-btn ${studentStatusFilter === 'all' ? 'active' : ''}" data-status="all">All</button>
+                  <button class="hod-filter-btn ${studentStatusFilter === 'active' ? 'active' : ''}" data-status="active">🟢 Active</button>
+                  <button class="hod-filter-btn ${studentStatusFilter === 'inactive' ? 'active' : ''}" data-status="inactive">⚠️ Inactive</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Inactive Warning Alert -->
+            ${inactiveStudentsCount > 0 && studentStatusFilter !== 'active' ? `
+              <div style="background: rgba(245,158,11,0.08); border-bottom: 1px solid rgba(245,158,11,0.2); padding: 8px 16px; font-size: 0.78rem; color: #fbbf24; display: flex; align-items: center; gap: 0.5rem;">
+                <span>💡</span>
+                <span><strong>HOD Action Guidance:</strong> ${inactiveStudentsCount} students currently have zero event participation recorded. Click <strong>"Inspect Dossier"</strong> to review student profiles and coordinate with faculty mentors for NAAC Criterion 5 compliance.</span>
+              </div>
+            ` : ''}
+
+            <!-- Students Table -->
+            <div style="overflow-x: auto;">
+              <table class="hod-table">
+                <thead>
+                  <tr>
+                    <th>Student Details</th>
+                    <th>PRN / Roll</th>
+                    <th>Academic Year</th>
+                    <th>Event Participation</th>
+                    <th>Attendance</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="hod-students-tbody">
+                  ${filteredStudents.length === 0 ? `
+                    <tr><td colspan="7" class="hod-empty">🔍 No students found matching current filters.</td></tr>
+                  ` : filteredStudents.map(student => {
+                    const yearLower = (student.year || '').toLowerCase();
+                    const yearPillClass = yearLower.includes('1') ? 'pill-blue' :
+                                         yearLower.includes('2') ? 'pill-indigo' :
+                                         yearLower.includes('3') ? 'pill-green' : 'pill-amber';
+
+                    const sampleEvents = (student.regs || []).slice(0, 2);
+                    const remainingEventsCount = (student.regs || []).length - sampleEvents.length;
+
+                    return `
+                      <tr>
+                        <td>
+                          <div style="display: flex; align-items: center; gap: 0.65rem;">
+                            <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #6366f1); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; color: #fff; flex-shrink: 0;">
+                              ${(student.name || 'S').charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <div style="font-weight: 700; color: var(--text-primary);">${student.name || 'Student'}</div>
+                              <div style="font-size: 0.72rem; color: var(--text-secondary);">${student.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span style="font-family: monospace; font-size: 0.78rem; background: var(--bg-surface-elevated); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-subtle); color: var(--text-primary);">
+                            ${student.prn || 'Not Linked'}
+                          </span>
+                        </td>
+                        <td>
+                          <span class="pill ${yearPillClass}">
+                            ${student.year || '1st Year'}
+                          </span>
+                        </td>
+                        <td>
+                          ${student.registeredCount > 0 ? `
+                            <div>
+                              <span class="pill pill-green" style="font-weight: 800;">
+                                ${student.registeredCount} Registered
+                              </span>
+                              <div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap;">
+                                ${sampleEvents.map(r => `
+                                  <span style="font-size: 0.68rem; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); padding: 1px 6px; border-radius: 4px; color: var(--text-secondary); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                    ${r.eventTitle || 'Event'}
+                                  </span>
+                                `).join('')}
+                                ${remainingEventsCount > 0 ? `
+                                  <span style="font-size: 0.68rem; color: var(--text-secondary); font-weight: 700;">+${remainingEventsCount} more</span>
+                                ` : ''}
+                              </div>
+                            </div>
+                          ` : `
+                            <span style="font-size: 0.75rem; color: #ef4444; font-weight: 700; display: inline-flex; align-items: center; gap: 3px;">
+                              ⚠️ 0 Events
+                            </span>
+                          `}
+                        </td>
+                        <td>
+                          ${student.registeredCount > 0 ? `
+                            <div style="font-size: 0.8rem;">
+                              <span style="font-weight: 800; color: #10b981;">${student.attendedCount} Attended</span>
+                              <span style="font-size: 0.72rem; color: var(--text-secondary); margin-left: 2px;">/ ${student.registeredCount}</span>
+                            </div>
+                          ` : `
+                            <span style="font-size: 0.75rem; color: var(--text-secondary);">—</span>
+                          `}
+                        </td>
+                        <td>
+                          <span class="pill ${student.isActive ? 'pill-green' : 'pill-red'}">
+                            ${student.isActive ? '🟢 Active' : '⚠️ Inactive'}
+                          </span>
+                        </td>
+                        <td>
+                          <button class="hod-action-btn btn-endorse-style btn-inspect-student" data-email="${student.email}" data-uid="${student.uid}">
+                            🔍 Inspect Dossier
+                          </button>
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- TAB 3: GRIEVANCES (DGRC) -->
+        ${activeTab === 'grievances' ? `
           <div class="hod-card">
             <div style="padding: 0.85rem 1.1rem; border-bottom: 1px solid var(--border-subtle);">
               <div style="font-size: 0.9rem; font-weight: 700; color: var(--text-primary);">
@@ -442,23 +963,191 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
               </table>
             </div>
           </div>
-        `}
+        ` : ''}
+
+        <!-- Student Inspection Modal Container -->
+        ${selectedStudentForModal ? renderStudentModal(selectedStudentForModal) : ''}
 
       </div>
     `;
+
     bindHODEvents();
   };
 
   const bindHODEvents = () => {
+    // Tab switching
     container.querySelector('#tab-btn-events')?.addEventListener('click', () => {
       activeTab = 'events'; sessionStorage.setItem('ep_exec_tab', 'events'); render();
+    });
+    container.querySelector('#tab-btn-students')?.addEventListener('click', () => {
+      activeTab = 'students'; sessionStorage.setItem('ep_exec_tab', 'students'); render();
     });
     container.querySelector('#tab-btn-grievances')?.addEventListener('click', () => {
       activeTab = 'grievances'; sessionStorage.setItem('ep_exec_tab', 'grievances'); render();
     });
+
+    // Exports
+    container.querySelector('#btn-export-students-top')?.addEventListener('click', () => exportStudentRoster(enrichedDeptStudents, userDept));
+    container.querySelector('#btn-export-students-tab')?.addEventListener('click', () => exportStudentRoster(enrichedDeptStudents, userDept));
     container.querySelector('#btn-export-naac')?.addEventListener('click', () => exportNAAC(deptEvents, userDept, 'HOD'));
     container.querySelector('#btn-export-dgrc')?.addEventListener('click', () => exportDGRC(deptComplaints, userDept));
 
+    // Scope filters
+    container.querySelectorAll('.hod-filter-btn[data-scope]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        studentScope = e.currentTarget.getAttribute('data-scope');
+        render();
+      });
+    });
+
+    // Year filters
+    container.querySelectorAll('.hod-filter-btn[data-year]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        studentYearFilter = e.currentTarget.getAttribute('data-year');
+        render();
+      });
+    });
+
+    // Status filters
+    container.querySelectorAll('.hod-filter-btn[data-status]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        studentStatusFilter = e.currentTarget.getAttribute('data-status');
+        render();
+      });
+    });
+
+    // Student Search Input (preserves cursor without losing focus)
+    const searchInput = container.querySelector('#hod-student-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        studentSearchQuery = e.target.value;
+        // Filter table rows dynamically
+        const filtered = getFilteredStudents();
+        const tbody = container.querySelector('#hod-students-tbody');
+        if (tbody) {
+          if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="hod-empty">🔍 No students found matching current filters.</td></tr>`;
+          } else {
+            tbody.innerHTML = filtered.map(student => {
+              const yearLower = (student.year || '').toLowerCase();
+              const yearPillClass = yearLower.includes('1') ? 'pill-blue' :
+                                   yearLower.includes('2') ? 'pill-indigo' :
+                                   yearLower.includes('3') ? 'pill-green' : 'pill-amber';
+
+              const sampleEvents = (student.regs || []).slice(0, 2);
+              const remainingEventsCount = (student.regs || []).length - sampleEvents.length;
+
+              return `
+                <tr>
+                  <td>
+                    <div style="display: flex; align-items: center; gap: 0.65rem;">
+                      <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #6366f1); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; color: #fff; flex-shrink: 0;">
+                        ${(student.name || 'S').charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style="font-weight: 700; color: var(--text-primary);">${student.name || 'Student'}</div>
+                        <div style="font-size: 0.72rem; color: var(--text-secondary);">${student.email}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span style="font-family: monospace; font-size: 0.78rem; background: var(--bg-surface-elevated); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-subtle); color: var(--text-primary);">
+                      ${student.prn || 'Not Linked'}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="pill ${yearPillClass}">
+                      ${student.year || '1st Year'}
+                    </span>
+                  </td>
+                  <td>
+                    ${student.registeredCount > 0 ? `
+                      <div>
+                        <span class="pill pill-green" style="font-weight: 800;">
+                          ${student.registeredCount} Registered
+                        </span>
+                        <div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap;">
+                          ${sampleEvents.map(r => `
+                            <span style="font-size: 0.68rem; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); padding: 1px 6px; border-radius: 4px; color: var(--text-secondary); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                              ${r.eventTitle || 'Event'}
+                            </span>
+                          `).join('')}
+                          ${remainingEventsCount > 0 ? `
+                            <span style="font-size: 0.68rem; color: var(--text-secondary); font-weight: 700;">+${remainingEventsCount} more</span>
+                          ` : ''}
+                        </div>
+                      </div>
+                    ` : `
+                      <span style="font-size: 0.75rem; color: #ef4444; font-weight: 700; display: inline-flex; align-items: center; gap: 3px;">
+                        ⚠️ 0 Events
+                      </span>
+                    `}
+                  </td>
+                  <td>
+                    ${student.registeredCount > 0 ? `
+                      <div style="font-size: 0.8rem;">
+                        <span style="font-weight: 800; color: #10b981;">${student.attendedCount} Attended</span>
+                        <span style="font-size: 0.72rem; color: var(--text-secondary); margin-left: 2px;">/ ${student.registeredCount}</span>
+                      </div>
+                    ` : `
+                      <span style="font-size: 0.75rem; color: var(--text-secondary);">—</span>
+                    `}
+                  </td>
+                  <td>
+                    <span class="pill ${student.isActive ? 'pill-green' : 'pill-red'}">
+                      ${student.isActive ? '🟢 Active' : '⚠️ Inactive'}
+                    </span>
+                  </td>
+                  <td>
+                    <button class="hod-action-btn btn-endorse-style btn-inspect-student" data-email="${student.email}" data-uid="${student.uid}">
+                      🔍 Inspect Dossier
+                    </button>
+                  </td>
+                </tr>
+              `;
+            }).join('');
+            bindInspectButtons();
+          }
+        }
+      });
+    }
+
+    // Bind Inspect Student Dossier Modal
+    const bindInspectButtons = () => {
+      container.querySelectorAll('.btn-inspect-student').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const email = e.currentTarget.getAttribute('data-email');
+          const uid = e.currentTarget.getAttribute('data-uid');
+          const found = (studentScope === 'all' ? enrichedAllStudents : enrichedDeptStudents).find(s => 
+            (email && (s.email || '').toLowerCase() === email.toLowerCase()) || 
+            (uid && s.uid === uid)
+          );
+          if (found) {
+            selectedStudentForModal = found;
+            render();
+          }
+        });
+      });
+    };
+    bindInspectButtons();
+
+    // Close Modal events
+    container.querySelector('#btn-close-student-modal')?.addEventListener('click', () => {
+      selectedStudentForModal = null;
+      render();
+    });
+    container.querySelector('#btn-modal-close-footer')?.addEventListener('click', () => {
+      selectedStudentForModal = null;
+      render();
+    });
+    container.querySelector('#hod-student-modal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'hod-student-modal') {
+        selectedStudentForModal = null;
+        render();
+      }
+    });
+
+    // Endorse event
     container.querySelectorAll('.btn-endorse').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         const evtId = e.currentTarget.getAttribute('data-id');
@@ -478,6 +1167,7 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
       });
     });
 
+    // Resolve grievance
     container.querySelectorAll('.btn-resolve-grievance').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         const ticketId = e.currentTarget.getAttribute('data-id');
@@ -1125,6 +1815,16 @@ function exportDGRC(complaints, dept) {
     csv += `"${c.ticketId || c.id}","${c.createdAt ? c.createdAt.slice(0, 10) : ''}","${dept}","${c.category || ''}","${reporter}","${(c.description || '').replace(/"/g, '""')}","${c.status || 'pending'}","${(c.resolutionNote || '').replace(/"/g, '""')}"\n`;
   });
   downloadCSV(csv, `EventPulse_DGRC_${dept.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`);
+}
+
+function exportStudentRoster(students, dept) {
+  let csv = 'Student Name,PRN,Email,Department,Academic Year,Events Registered,Events Attended,Participation Status,Enrolled Events List\n';
+  students.forEach(s => {
+    const eventTitles = (s.regs || []).map(r => r.eventTitle || r.eventId).join('; ');
+    const status = s.isActive ? 'Active' : 'Inactive (0 Events)';
+    csv += `"${(s.name || '').replace(/"/g, '""')}","${(s.prn || '').replace(/"/g, '""')}","${(s.email || '').replace(/"/g, '""')}","${(s.department || dept).replace(/"/g, '""')}","${s.year || '1st Year'}",${s.registeredCount || 0},${s.attendedCount || 0},"${status}","${eventTitles.replace(/"/g, '""')}"\n`;
+  });
+  downloadCSV(csv, `EventPulse_Students_${dept.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`);
 }
 
 function downloadCSV(csv, filename) {
