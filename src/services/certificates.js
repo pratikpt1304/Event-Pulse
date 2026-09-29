@@ -34,6 +34,24 @@ export async function getStudentCertificates(userId) {
 }
 
 /**
+ * Fetch all certificates across the university/school (Dean/VC/Admin View)
+ */
+export async function getAllCertificates() {
+  try {
+    const snap = await Promise.race([
+      getDocs(collection(db, 'certificates')),
+      new Promise(res => setTimeout(() => res(null), 3500))
+    ]);
+    if (snap && snap.docs) {
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+  } catch (e) {
+    console.warn('getAllCertificates fallback:', e.message);
+  }
+  return [];
+}
+
+/**
  * Public lookup for Certificate Verification Page (No login required)
  */
 export async function getCertificateByVerificationId(verificationId) {

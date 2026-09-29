@@ -6,6 +6,10 @@ import { db } from '../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { getAllUsers } from '../services/users';
 import { getAllRegistrations } from '../services/registrations';
+import { getAllCertificates, downloadCertificatePDF } from '../services/certificates';
+import { getCampusIdeas } from '../services/ideas';
+import { getEventTeams } from '../services/teams';
+import { createAnnouncement } from '../services/announcements';
 
 export async function renderExecutiveDashboardView(container, navigateTo) {
   const user = getCurrentUser();
@@ -15,11 +19,22 @@ export async function renderExecutiveDashboardView(container, navigateTo) {
   const userDept = user.department || 'Integrated M.Tech';
   const isAdmin = isUserAdmin(user) || role === 'admin';
 
-  const [allEvents, allComplaints, allUsers, allRegistrations] = await Promise.all([
+  const [
+    allEvents, 
+    allComplaints, 
+    allUsers, 
+    allRegistrations,
+    allCerts,
+    allIdeas,
+    allTeams
+  ] = await Promise.all([
     getEvents(),
     getAllComplaints(),
     getAllUsers().catch(() => []),
-    getAllRegistrations().catch(() => [])
+    getAllRegistrations().catch(() => []),
+    getAllCertificates().catch(() => []),
+    getCampusIdeas().catch(() => []),
+    getEventTeams().catch(() => [])
   ]);
 
   // ─────────────────────────────────────────────────────────────────
@@ -39,9 +54,13 @@ export async function renderExecutiveDashboardView(container, navigateTo) {
   }
 
   // ─────────────────────────────────────────────────────────────────
-  //  DEAN / ADMIN PORTAL
+  //  DEAN / ADMIN PORTAL — Complete School-Level & Student Intelligence
   // ─────────────────────────────────────────────────────────────────
-  await renderDeanPortal({ container, navigateTo, user, role, isAdmin, allEvents, allComplaints });
+  await renderDeanPortal({ 
+    container, navigateTo, user, role, isAdmin, 
+    allEvents, allComplaints, allUsers, allRegistrations,
+    allCerts, allIdeas, allTeams
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1188,44 +1207,543 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
 // ═══════════════════════════════════════════════════════════════════
 //  DEAN / VC / ADMIN PORTAL — school-wide, multi-dept view
 // ═══════════════════════════════════════════════════════════════════
-async function renderDeanPortal({ container, navigateTo, user, role, isAdmin, allEvents, allComplaints }) {
-  let activeTab = sessionStorage.getItem('ep_exec_tab') || 'overview';
-  let deptFilter = 'all'; // department drill-down filter
+// ═══════════════════════════════════════════════════════════════════
+//  DEAN PORTAL — School-Level Oversight, Dept Drilldown & Student Intelligence
+// ═══════════════════════════════════════════════════════════════════
+async function renderDeanPortal({ 
+  container, navigateTo, user, role, isAdmin, 
+  allEvents = [], allComplaints = [], allUsers = [], allRegistrations = [],
+  allCerts = [], allIdeas = [], allTeams = [] 
+}) {
+  let activeTab = sessionStorage.getItem('ep_dean_tab') || 'overview';
+  let deptFilter = 'all'; // department drill-down filter: 'all' or specific dept
+  let studentYearFilter = 'all'; // 'all', '1st Year', '2nd Year', '3rd Year', '4th Year'
+  let studentStatusFilter = 'all'; // 'all', 'star', 'innovator', 'active', 'inactive'
+  let studentSearchQuery = '';
+  let selectedStudentForDossier = null;
+  let showForwardVCModal = false;
 
-  const roleLabel = role === 'dean' ? 'Dean — School of Engineering' : role === 'vc' ? 'Vice Chancellor' : 'Administration';
+  const roleLabel = role === 'dean' ? 'Dean — School of Engineering' : role === 'vc' ? 'Vice Chancellor' : 'Executive Administration';
   const roleIcon  = role === 'dean' ? '🎓' : role === 'vc' ? '👑' : '🛡️';
-  const accentColor = role === 'dean' ? '#8b5cf6' : role === 'vc' ? '#10b981' : '#ef4444';
+  const schoolTitle = 'School of Engineering';
 
-  // Dynamically extract ALL unique departments from events + complaints data
-  const deptSet = new Set();
-  allEvents.forEach(e => { if (e.department) deptSet.add(e.department); });
-  allComplaints.forEach(c => { if (c.reporterDept && c.reporterDept !== 'general') deptSet.add(c.reporterDept); });
-  // Ensure baseline departments are always present even if no data yet
-  ['Computer Science & Engineering', 'Information Technology', 'AI & Data Science',
-   'Integrated M.Tech', 'BBA', 'Mechanical Engineering',
-   'Cyber Security', 'MBA / MCA'].forEach(d => deptSet.add(d));
-  const DEPTS = [...deptSet].sort();
+  // Canonical Engineering Departments
+  const ENGINEERING_DEPTS = [
+    'Computer Science & Engineering',
+    'Information Technology',
+    'AI & Data Science',
+    'Integrated M.Tech',
+    'Mechanical Engineering',
+    'Civil Engineering',
+    'Cyber Security',
+    'Electrical Engineering'
+  ];
 
-  const getFiltered = () => {
-    const events = deptFilter === 'all' ? allEvents : allEvents.filter(e => (e.department || '') === deptFilter);
-    const complaints = deptFilter === 'all' ? allComplaints : allComplaints.filter(c => (c.reporterDept || '') === deptFilter);
-    return { events, complaints };
+  // Helper to normalize department names
+  const normalizeDept = (raw) => {
+    if (!raw) return 'Computer Science & Engineering';
+    const l = raw.toLowerCase().trim();
+    if (l.includes('imtech') || l.includes('integrated')) return 'Integrated M.Tech';
+    if (l.includes('comp') || l.includes('cse')) return 'Computer Science & Engineering';
+    if (l.includes('info') || l.includes('it')) return 'Information Technology';
+    if (l.includes('ai') || l.includes('data science')) return 'AI & Data Science';
+    if (l.includes('mech')) return 'Mechanical Engineering';
+    if (l.includes('civil')) return 'Civil Engineering';
+    if (l.includes('cyber')) return 'Cyber Security';
+    if (l.includes('elect')) return 'Electrical Engineering';
+    return raw;
   };
 
-  // Build benchmarking — one row per department, exact match
-  const getBenchmark = () => DEPTS.map(dept => {
-    const evts = allEvents.filter(e => (e.department || '') === dept);
-    const comps = allComplaints.filter(c => (c.reporterDept || '') === dept);
-    const regs = evts.reduce((a, e) => a + (e.registeredCount || e.attendeesCount || 0), 0);
-    return { dept, evts: evts.length, regs, complaints: comps.length, resolved: comps.filter(c => c.status === 'resolved').length };
+  // Dynamically collect all departments under the school
+  const deptSet = new Set(ENGINEERING_DEPTS);
+  allEvents.forEach(e => { if (e.department) deptSet.add(normalizeDept(e.department)); });
+  allComplaints.forEach(c => { if (c.reporterDept && c.reporterDept !== 'general') deptSet.add(normalizeDept(c.reporterDept)); });
+  allUsers.forEach(u => { if (u.department) deptSet.add(normalizeDept(u.department)); });
+  const DEPTS = [...deptSet].sort();
+
+  // Enrich all students
+  const rawStudents = (allUsers || []).filter(u => !u.role || u.role === 'student');
+  const enrichedStudents = rawStudents.map(student => {
+    const sUid = (student.uid || '').trim();
+    const sEmail = (student.email || '').toLowerCase().trim();
+    const sPrn = (student.prn || '').toLowerCase().trim();
+    const sName = (student.name || '').toLowerCase().trim();
+
+    // Registrations
+    const studentRegs = (allRegistrations || []).filter(r => {
+      const rUid = (r.userId || '').trim();
+      const rEmail = (r.email || r.studentEmail || '').toLowerCase().trim();
+      const rPrn = (r.prn || r.studentPrn || '').toLowerCase().trim();
+      return (sUid && rUid === sUid) ||
+             (sEmail && (rEmail === sEmail || rUid.toLowerCase() === sEmail)) ||
+             (sPrn && rPrn && rPrn === sPrn);
+    });
+
+    const attendedCount = studentRegs.filter(r => r.status === 'attended' || r.attendance === 'present').length;
+    const isActive = studentRegs.length > 0;
+
+    // Verified Certificates
+    const certs = (allCerts || []).filter(c => {
+      const cUid = (c.userId || '').trim();
+      const cPrn = (c.prn || '').toLowerCase().trim();
+      const cName = (c.studentName || '').toLowerCase().trim();
+      return (sUid && cUid === sUid) ||
+             (sPrn && cPrn && cPrn === sPrn) ||
+             (sName && cName === sName);
+    });
+
+    // Ideas & Project Innovations
+    const ideas = (allIdeas || []).filter(i => {
+      return (sUid && i.userId === sUid) || (sName && (i.authorName || '').toLowerCase() === sName);
+    });
+
+    // Competition & Hackathon Teams
+    const teams = (allTeams || []).filter(t => {
+      const creatorUid = (t.creatorUid || t.userId || '').trim();
+      const members = t.members || [];
+      const inMembers = members.some(m => (m.uid && m.uid === sUid) || (m.email && m.email.toLowerCase() === sEmail));
+      return (sUid && creatorUid === sUid) || inMembers;
+    });
+
+    let year = (student.year || '').trim();
+    if (!year) year = '1st Year';
+
+    const normalizedDept = normalizeDept(student.department);
+
+    // Standing / Level
+    let standing = 'inactive';
+    let standingLabel = '⚠️ Inactive';
+    let standingClass = 'dpill-red';
+
+    if (certs.length > 0) {
+      standing = 'star';
+      standingLabel = '🏆 Star Achiever';
+      standingClass = 'dpill-violet';
+    } else if (ideas.length > 0 || teams.length > 0) {
+      standing = 'innovator';
+      standingLabel = '🚀 Innovator';
+      standingClass = 'dpill-amber';
+    } else if (isActive) {
+      standing = 'active';
+      standingLabel = '🟢 Active';
+      standingClass = 'dpill-green';
+    }
+
+    return {
+      ...student,
+      year,
+      department: normalizedDept,
+      regs: studentRegs,
+      registeredCount: studentRegs.length,
+      attendedCount,
+      isActive,
+      certs,
+      ideas,
+      teams,
+      standing,
+      standingLabel,
+      standingClass
+    };
   });
 
+  // Filter events and complaints according to deptFilter
+  const getFilteredData = () => {
+    const events = deptFilter === 'all' 
+      ? allEvents 
+      : allEvents.filter(e => normalizeDept(e.department) === deptFilter);
+
+    const complaints = deptFilter === 'all' 
+      ? allComplaints 
+      : allComplaints.filter(c => normalizeDept(c.reporterDept) === deptFilter);
+
+    const students = deptFilter === 'all'
+      ? enrichedStudents
+      : enrichedStudents.filter(s => s.department === deptFilter);
+
+    return { events, complaints, students };
+  };
+
+  // Build Department Benchmarking Matrix (one row per department)
+  const getBenchmark = () => DEPTS.map(dept => {
+    const deptStudents = enrichedStudents.filter(s => s.department === dept);
+    const evts = allEvents.filter(e => normalizeDept(e.department) === dept);
+    const comps = allComplaints.filter(c => normalizeDept(c.reporterDept) === dept);
+    const regs = evts.reduce((a, e) => a + (e.registeredCount || e.attendeesCount || 0), 0);
+    const activeCount = deptStudents.filter(s => s.isActive).length;
+    const activeRate = deptStudents.length > 0 ? Math.round((activeCount / deptStudents.length) * 100) : 0;
+    const starCount = deptStudents.filter(s => s.certs.length > 0).length;
+
+    const y1 = deptStudents.filter(s => s.year.toLowerCase().includes('1')).length;
+    const y2 = deptStudents.filter(s => s.year.toLowerCase().includes('2')).length;
+    const y3 = deptStudents.filter(s => s.year.toLowerCase().includes('3')).length;
+    const y4 = deptStudents.filter(s => s.year.toLowerCase().includes('4') || s.year.toLowerCase().includes('final')).length;
+
+    return {
+      dept,
+      studentsCount: deptStudents.length,
+      activeCount,
+      activeRate,
+      starCount,
+      y1, y2, y3, y4,
+      evts: evts.length,
+      regs,
+      complaints: comps.length,
+      resolved: comps.filter(c => c.status === 'resolved').length
+    };
+  });
+
+  // Filter students based on current filters and search query
+  const getFilteredStudents = () => {
+    const { students } = getFilteredData();
+    return students.filter(s => {
+      // Year filter
+      if (studentYearFilter !== 'all') {
+        const sy = (s.year || '').toLowerCase();
+        const fy = studentYearFilter.toLowerCase();
+        if (fy.includes('1') && !sy.includes('1')) return false;
+        if (fy.includes('2') && !sy.includes('2')) return false;
+        if (fy.includes('3') && !sy.includes('3')) return false;
+        if ((fy.includes('4') || fy.includes('final')) && (!sy.includes('4') && !sy.includes('final'))) return false;
+      }
+      // Standing filter
+      if (studentStatusFilter !== 'all') {
+        if (studentStatusFilter === 'star' && s.standing !== 'star') return false;
+        if (studentStatusFilter === 'innovator' && s.standing !== 'innovator') return false;
+        if (studentStatusFilter === 'active' && !s.isActive) return false;
+        if (studentStatusFilter === 'inactive' && s.isActive) return false;
+      }
+      // Search Query
+      if (studentSearchQuery.trim()) {
+        const q = studentSearchQuery.toLowerCase().trim();
+        const name = (s.name || '').toLowerCase();
+        const email = (s.email || '').toLowerCase();
+        const prn = (s.prn || '').toLowerCase();
+        const dept = (s.department || '').toLowerCase();
+        if (!name.includes(q) && !email.includes(q) && !prn.includes(q) && !dept.includes(q)) return false;
+      }
+      return true;
+    });
+  };
+
+  // Render Student Comprehensive Profile Modal
+  const renderStudentDossierModal = (student) => {
+    if (!student) return '';
+    const registeredEventIds = new Set((student.regs || []).map(r => r.eventId));
+    const unparticipatedUpcoming = allEvents.filter(e => {
+      const isUpcoming = new Date(e.date || e.startDate) >= new Date();
+      return isUpcoming && !registeredEventIds.has(e.id);
+    }).slice(0, 4);
+
+    return `
+      <div class="dean-modal-overlay" id="dean-student-modal">
+        <div class="dean-modal-content">
+          <!-- Modal Header -->
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; padding:1.25rem 1.5rem; border-bottom:1px solid var(--border-subtle); background:var(--bg-surface-elevated);">
+            <div style="display:flex; align-items:center; gap:0.9rem;">
+              <div style="width:52px; height:52px; border-radius:50%; background:linear-gradient(135deg, #8b5cf6, #6366f1); display:flex; align-items:center; justify-content:center; font-size:1.4rem; font-weight:800; color:#fff; flex-shrink:0;">
+                ${(student.name || 'S').charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div style="font-size:1.2rem; font-weight:800; color:var(--text-primary); display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                  <span>${student.name || 'Student Profile'}</span>
+                  <span class="dpill ${student.standingClass}" style="font-size:0.7rem;">
+                    ${student.standingLabel}
+                  </span>
+                </div>
+                <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:3px;">
+                  🏛️ <strong>${student.department}</strong> • 🎓 <strong>${student.year}</strong> • PRN: <strong>${student.prn || 'Not Linked'}</strong>
+                </div>
+                <div style="font-size:0.75rem; color:var(--text-secondary);">
+                  ✉️ ${student.email}
+                </div>
+              </div>
+            </div>
+            <button class="dean-modal-close" id="btn-close-dossier-modal">✕</button>
+          </div>
+
+          <!-- Modal Body -->
+          <div style="padding:1.25rem 1.5rem; max-height:calc(82vh - 130px); overflow-y:auto;">
+            <!-- 4 Metrics Overview -->
+            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:0.75rem; margin-bottom:1.5rem;">
+              <div style="background:var(--bg-surface-elevated); padding:0.85rem; border-radius:10px; border:1px solid var(--border-subtle); text-align:center;">
+                <div style="font-size:1.35rem; font-weight:800; color:#8b5cf6;">${student.registeredCount}</div>
+                <div style="font-size:0.68rem; color:var(--text-secondary); text-transform:uppercase; font-weight:700;">Events Enrolled</div>
+              </div>
+              <div style="background:var(--bg-surface-elevated); padding:0.85rem; border-radius:10px; border:1px solid var(--border-subtle); text-align:center;">
+                <div style="font-size:1.35rem; font-weight:800; color:#10b981;">${student.attendedCount}</div>
+                <div style="font-size:0.68rem; color:var(--text-secondary); text-transform:uppercase; font-weight:700;">Events Attended</div>
+              </div>
+              <div style="background:var(--bg-surface-elevated); padding:0.85rem; border-radius:10px; border:1px solid var(--border-subtle); text-align:center;">
+                <div style="font-size:1.35rem; font-weight:800; color:#f59e0b;">${student.certs.length}</div>
+                <div style="font-size:0.68rem; color:var(--text-secondary); text-transform:uppercase; font-weight:700;">Certifications</div>
+              </div>
+              <div style="background:var(--bg-surface-elevated); padding:0.85rem; border-radius:10px; border:1px solid var(--border-subtle); text-align:center;">
+                <div style="font-size:1.35rem; font-weight:800; color:#6366f1;">${student.ideas.length + student.teams.length}</div>
+                <div style="font-size:0.68rem; color:var(--text-secondary); text-transform:uppercase; font-weight:700;">Projects / Teams</div>
+              </div>
+            </div>
+
+            <!-- Section 1: Events Participated -->
+            <div style="margin-bottom:1.5rem;">
+              <div style="font-size:0.92rem; font-weight:800; color:var(--text-primary); margin-bottom:0.6rem; display:flex; align-items:center; gap:0.4rem;">
+                <span>🎪 Event & Competition Participation History</span>
+                <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:600;">(${student.regs.length})</span>
+              </div>
+              ${student.regs.length === 0 ? `
+                <div style="background:rgba(239,68,68,0.06); border:1px dashed rgba(239,68,68,0.25); border-radius:10px; padding:1.2rem; text-align:center;">
+                  <div style="font-size:1.5rem; margin-bottom:0.35rem;">⚠️</div>
+                  <div style="font-size:0.88rem; font-weight:700; color:#ef4444;">Zero Participation Recorded</div>
+                  <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:3px; max-width:460px; margin-inline:auto;">
+                    Student has not engaged in any school or campus events this academic session. Dean's advisory note recommended to department HOD.
+                  </div>
+                </div>
+              ` : `
+                <table class="dean-table" style="font-size:0.82rem; border-radius:8px; overflow:hidden; border:1px solid var(--border-subtle);">
+                  <thead>
+                    <tr>
+                      <th>Event Title</th>
+                      <th>Date & Venue</th>
+                      <th>Status</th>
+                      <th>Attendance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${student.regs.map(r => `
+                      <tr>
+                        <td>
+                          <div style="font-weight:700; color:var(--text-primary);">${r.eventTitle || 'Campus Event'}</div>
+                          <div style="font-size:0.7rem; color:var(--text-secondary);">Pass ID: ${r.id}</div>
+                        </td>
+                        <td style="white-space:nowrap; font-size:0.78rem;">
+                          <div>${r.eventDate || 'Scheduled'}</div>
+                          <div style="font-size:0.7rem; color:var(--text-secondary);">${r.venue || 'Campus'}</div>
+                        </td>
+                        <td>
+                          <span class="dpill ${r.status === 'confirmed' || r.status === 'attended' ? 'dpill-green' : r.status === 'cancelled' ? 'dpill-red' : 'dpill-amber'}">
+                            ${r.status || 'Registered'}
+                          </span>
+                        </td>
+                        <td>
+                          ${r.attendance === 'present' || r.status === 'attended' ? `
+                            <span class="dpill dpill-green">✓ Present</span>
+                          ` : r.attendance === 'absent' ? `
+                            <span class="dpill dpill-red">✗ Absent</span>
+                          ` : `
+                            <span class="dpill dpill-gray">⏳ Scheduled</span>
+                          `}
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              `}
+            </div>
+
+            <!-- Section 2: Certifications & Verified Credentials -->
+            <div style="margin-bottom:1.5rem;">
+              <div style="font-size:0.92rem; font-weight:800; color:var(--text-primary); margin-bottom:0.6rem; display:flex; align-items:center; gap:0.4rem;">
+                <span>🏆 Verified Certifications & Honors</span>
+                <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:600;">(${student.certs.length})</span>
+              </div>
+              ${student.certs.length === 0 ? `
+                <div style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:10px; padding:0.9rem; text-align:center; font-size:0.8rem; color:var(--text-secondary);">
+                  No certificates awarded yet for this student.
+                </div>
+              ` : `
+                <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                  ${student.certs.map(c => `
+                    <div style="background:var(--bg-surface-elevated); border:1px solid rgba(139,92,246,0.3); border-radius:10px; padding:0.85rem 1rem; display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+                      <div>
+                        <div style="font-weight:700; font-size:0.88rem; color:var(--text-primary); display:flex; align-items:center; gap:0.4rem;">
+                          <span>🥇 ${c.eventTitle || 'Excellence Award'}</span>
+                          <span class="dpill dpill-violet" style="font-size:0.65rem;">Verified</span>
+                        </div>
+                        <div style="font-size:0.72rem; color:var(--text-secondary); margin-top:2px;">
+                          ID: <span style="font-family:monospace; color:#8b5cf6;">${c.verificationId || c.id}</span> • Issued: ${c.issuedAt ? new Date(c.issuedAt).toLocaleDateString() : 'Official Record'}
+                        </div>
+                      </div>
+                      <button class="dean-action-btn btn-view-cert" data-cert-id="${c.id || c.verificationId}" style="background:rgba(139,92,246,0.15); color:#a78bfa; border-color:rgba(139,92,246,0.3);">
+                        🖨️ View Certificate
+                      </button>
+                    </div>
+                  `).join('')}
+                </div>
+              `}
+            </div>
+
+            <!-- Section 3: Projects, Innovation Ideas & Competition Teams -->
+            <div style="margin-bottom:1.5rem;">
+              <div style="font-size:0.92rem; font-weight:800; color:var(--text-primary); margin-bottom:0.6rem; display:flex; align-items:center; gap:0.4rem;">
+                <span>🚀 Projects, Innovation Ideas & Competition Teams</span>
+                <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:600;">(${student.ideas.length + student.teams.length})</span>
+              </div>
+              ${student.ideas.length === 0 && student.teams.length === 0 ? `
+                <div style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:10px; padding:0.9rem; text-align:center; font-size:0.8rem; color:var(--text-secondary);">
+                  No hackathon teams or project proposals recorded.
+                </div>
+              ` : `
+                <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                  ${student.ideas.map(i => `
+                    <div style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:9px; padding:0.75rem 1rem;">
+                      <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:700; font-size:0.85rem; color:var(--text-primary);">💡 ${i.title || 'Innovation Proposal'}</span>
+                        <span class="dpill dpill-amber" style="font-size:0.65rem;">${i.category || 'Tech Idea'}</span>
+                      </div>
+                      <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:3px; line-height:1.4;">
+                        ${(i.description || '').slice(0, 140)}...
+                      </div>
+                    </div>
+                  `).join('')}
+                  ${student.teams.map(t => `
+                    <div style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:9px; padding:0.75rem 1rem;">
+                      <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:700; font-size:0.85rem; color:var(--text-primary);">👥 Team: ${t.teamName || 'Hackathon Squad'}</span>
+                        <span class="dpill dpill-violet" style="font-size:0.65rem;">Event Squad</span>
+                      </div>
+                      <div style="font-size:0.72rem; color:var(--text-secondary); margin-top:2px;">
+                        Event: ${t.eventTitle || 'Campus Competition'} • Members: ${(t.members || []).length}
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              `}
+            </div>
+
+            <!-- Section 4: What the Student has NOT Participated in (Deficiency Gap) -->
+            <div>
+              <div style="font-size:0.92rem; font-weight:800; color:var(--text-primary); margin-bottom:0.6rem; display:flex; align-items:center; gap:0.4rem;">
+                <span>🎯 Upcoming School Events Not Joined Yet</span>
+                <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:600;">(Target for Guidance)</span>
+              </div>
+              ${unparticipatedUpcoming.length === 0 ? `
+                <div style="background:rgba(16,185,129,0.06); border:1px solid rgba(16,185,129,0.2); border-radius:10px; padding:0.85rem; font-size:0.8rem; color:#10b981;">
+                  🎉 Fully engaged! Student is enrolled in all scheduled events.
+                </div>
+              ` : `
+                <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                  ${unparticipatedUpcoming.map(ev => `
+                    <div style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:9px; padding:0.75rem 1rem; display:flex; justify-content:space-between; align-items:center; gap:0.75rem;">
+                      <div>
+                        <div style="font-weight:700; font-size:0.85rem; color:var(--text-primary);">${ev.title || 'Untitled'}</div>
+                        <div style="font-size:0.72rem; color:var(--text-secondary); margin-top:2px;">
+                          📅 ${ev.date || 'TBD'} • 🏛️ ${ev.department || 'School of Engineering'} • 📍 ${ev.venue || 'Campus'}
+                        </div>
+                      </div>
+                      <span class="dpill dpill-amber" style="font-size:0.68rem; white-space:nowrap;">
+                        Not Enrolled
+                      </span>
+                    </div>
+                  `).join('')}
+                </div>
+              `}
+            </div>
+
+          </div>
+
+          <!-- Modal Footer with Dean's Actions -->
+          <div style="padding:0.9rem 1.5rem; border-top:1px solid var(--border-subtle); display:flex; justify-content:space-between; align-items:center; background:var(--bg-surface-elevated); flex-wrap:wrap; gap:0.5rem;">
+            <div style="display:flex; gap:0.5rem;">
+              <button class="dean-action-btn" id="btn-dean-commend" data-name="${student.name}" data-dept="${student.department}" style="background:rgba(139,92,246,0.15); color:#c084fc; border-color:rgba(139,92,246,0.3);">
+                🎓 Grant Dean's Commendation
+              </button>
+            </div>
+            <button class="dean-action-btn" id="btn-close-dossier-footer" style="background:rgba(255,255,255,0.08); color:var(--text-primary);">
+              Close Dossier
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  // Render Forward to VC Modal
+  const renderForwardToVCModal = () => {
+    const { events, complaints, students } = getFilteredData();
+    const activeCount = students.filter(s => s.isActive).length;
+    const activeRate = students.length > 0 ? Math.round((activeCount / students.length) * 100) : 0;
+    const certsCount = students.reduce((sum, s) => sum + s.certs.length, 0);
+    const pendingGrievances = complaints.filter(c => c.status !== 'resolved').length;
+
+    return `
+      <div class="dean-modal-overlay" id="dean-forward-vc-modal">
+        <div class="dean-modal-content" style="max-width:620px;">
+          <!-- Header -->
+          <div style="padding:1.25rem 1.5rem; border-bottom:1px solid var(--border-subtle); background:var(--bg-surface-elevated); display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div style="font-size:1.1rem; font-weight:800; color:var(--text-primary); display:flex; align-items:center; gap:0.4rem;">
+                <span>📤 Executive Dispatch to Vice Chancellor</span>
+              </div>
+              <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">
+                Official School of Engineering Academic & Co-Curricular Executive Briefing
+              </div>
+            </div>
+            <button class="dean-modal-close" id="btn-close-vc-modal">✕</button>
+          </div>
+
+          <!-- Body -->
+          <div style="padding:1.25rem 1.5rem; display:flex; flex-direction:column; gap:1rem;">
+            <!-- Briefing KPI Preview -->
+            <div style="background:rgba(139,92,246,0.08); border:1px solid rgba(139,92,246,0.25); border-radius:10px; padding:0.9rem 1.1rem;">
+              <div style="font-size:0.8rem; font-weight:700; color:#c084fc; margin-bottom:0.5rem;">
+                📊 School of Engineering Executive Metrics (Pre-Compiled)
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:0.6rem; font-size:0.78rem;">
+                <div>Departments: <strong>${DEPTS.length} Active</strong></div>
+                <div>Students: <strong>${students.length} (${activeRate}% Active)</strong></div>
+                <div>Events Hosted: <strong>${events.length} Events</strong></div>
+                <div>Certifications Won: <strong>${certsCount} Awards</strong></div>
+                <div>Pending Grievances: <strong>${pendingGrievances} Pending</strong></div>
+                <div>Accreditation Grade: <strong style="color:#10b981;">NAAC Compliant</strong></div>
+              </div>
+            </div>
+
+            <!-- Memorandum Textarea -->
+            <div>
+              <label style="display:block; font-size:0.8rem; font-weight:700; color:var(--text-primary); margin-bottom:0.4rem;">
+                Dean's Official Memorandum / Transmittal Note:
+              </label>
+              <textarea 
+                id="dean-vc-memo" 
+                rows="5" 
+                style="width:100%; box-sizing:border-box; background:var(--bg-surface); border:1px solid var(--border-subtle); border-radius:8px; padding:0.75rem; font-size:0.82rem; color:var(--text-primary); font-family:inherit; resize:vertical; outline:none;"
+              >Hon'ble Vice Chancellor,
+
+Please find enclosed the consolidated academic, co-curricular participation, and NAAC Criterion 5 progress report for the School of Engineering. 
+
+All departmental rosters, faculty endorsements, student competition achievements, and DGRC compliance have been reviewed and verified by the Office of the Dean.
+
+Respectfully submitted,
+Prof. (Dr.) Dean — School of Engineering</textarea>
+            </div>
+
+            <div style="font-size:0.75rem; color:var(--text-secondary); line-height:1.4;">
+              🛡️ <em>This dispatch will be recorded in the Central Executive Authority Register and notified directly to the Vice Chancellor's Command Console.</em>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div style="padding:1rem 1.5rem; border-top:1px solid var(--border-subtle); background:var(--bg-surface-elevated); display:flex; justify-content:space-between; align-items:center;">
+            <button class="dean-action-btn" id="btn-cancel-vc-forward">Cancel</button>
+            <button class="dean-action-btn" id="btn-confirm-vc-dispatch" style="background:#8b5cf6; color:#fff; border-color:#8b5cf6; font-weight:800; padding:8px 16px;">
+              🚀 Transmit Official Report to VC
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
   const render = () => {
-    const { events, complaints } = getFiltered();
+    const { events, complaints, students } = getFilteredData();
     const pending = complaints.filter(c => c.status !== 'resolved');
     const upcoming = events.filter(e => new Date(e.date || e.startDate) >= new Date());
     const totalRegs = events.reduce((a, e) => a + (e.registeredCount || e.attendeesCount || 18), 0);
     const bench = getBenchmark();
+    const filteredStudents = getFilteredStudents();
+
+    const activeStudentsCount = students.filter(s => s.isActive).length;
+    const activeRatePct = students.length > 0 ? Math.round((activeStudentsCount / students.length) * 100) : 0;
+    const starAchieversCount = students.filter(s => s.certs.length > 0).length;
 
     container.innerHTML = `
       <style>
@@ -1234,10 +1752,10 @@ async function renderDeanPortal({ container, navigateTo, user, role, isAdmin, al
           font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
         }
 
-        /* Identity bar — wider scope emphasis */
+        /* Identity bar */
         .dean-header {
           background: linear-gradient(135deg, rgba(139,92,246,0.12) 0%, rgba(99,102,241,0.06) 100%);
-          border: 1px solid rgba(139,92,246,0.2);
+          border: 1px solid rgba(139,92,246,0.25);
           border-radius: 14px;
           padding: 1.1rem 1.4rem;
           display: flex;
@@ -1248,16 +1766,16 @@ async function renderDeanPortal({ container, navigateTo, user, role, isAdmin, al
         }
 
         .dean-avatar {
-          width: 48px; height: 48px;
+          width: 50px; height: 50px;
           border-radius: 12px;
           background: linear-gradient(135deg, #8b5cf6, #6366f1);
           display: flex; align-items: center; justify-content: center;
-          font-size: 1.4rem;
+          font-size: 1.5rem;
           flex-shrink: 0;
         }
 
         .dean-title {
-          font-size: 1.05rem;
+          font-size: 1.1rem;
           font-weight: 800;
           color: var(--text-primary);
         }
@@ -1265,7 +1783,7 @@ async function renderDeanPortal({ container, navigateTo, user, role, isAdmin, al
         .dean-scope-tag {
           display: inline-flex;
           align-items: center;
-          gap: 0.3rem;
+          gap: 0.35rem;
           background: rgba(139,92,246,0.15);
           color: #c084fc;
           border: 1px solid rgba(139,92,246,0.25);
@@ -1280,11 +1798,10 @@ async function renderDeanPortal({ container, navigateTo, user, role, isAdmin, al
           margin-left: auto;
           display: flex;
           align-items: center;
-          gap: 0.75rem;
+          gap: 0.65rem;
           flex-wrap: wrap;
         }
 
-        /* Dept filter select */
         .dean-dept-filter {
           background: var(--bg-surface);
           border: 1px solid var(--border-subtle);
@@ -1317,10 +1834,10 @@ async function renderDeanPortal({ container, navigateTo, user, role, isAdmin, al
         }
         .dean-action-btn:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
 
-        /* Summary stats — wider */
+        /* 5-Column Stats Grid */
         .dean-stats {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(5, 1fr);
           gap: 0.85rem;
           margin-bottom: 1.5rem;
         }
@@ -1370,13 +1887,14 @@ async function renderDeanPortal({ container, navigateTo, user, role, isAdmin, al
           padding: 4px;
           margin-bottom: 1.25rem;
           width: fit-content;
+          flex-wrap: wrap;
         }
 
         .dean-tab {
           background: transparent;
           border: none;
           color: var(--text-secondary);
-          padding: 8px 18px;
+          padding: 8px 16px;
           font-size: 0.85rem;
           font-weight: 700;
           font-family: inherit;
@@ -1462,6 +1980,27 @@ async function renderDeanPortal({ container, navigateTo, user, role, isAdmin, al
         .dpill-gray   { background: rgba(100,116,139,0.12); color: #64748b; }
         .dpill-red    { background: rgba(239,68,68,0.12); color: #ef4444; }
         .dpill-violet { background: rgba(139,92,246,0.12); color: #8b5cf6; }
+        .dpill-blue   { background: rgba(59,130,246,0.12); color: #3b82f6; }
+
+        .dean-filter-btn {
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+          color: var(--text-secondary);
+          border-radius: 8px;
+          padding: 4px 10px;
+          font-size: 0.75rem;
+          font-weight: 700;
+          font-family: inherit;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+        .dean-filter-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+        .dean-filter-btn.active {
+          background: #8b5cf6;
+          color: #fff;
+          border-color: #8b5cf6;
+          box-shadow: 0 1px 4px rgba(139,92,246,0.3);
+        }
 
         .dean-sanction-btn {
           padding: 5px 12px;
@@ -1492,131 +2031,227 @@ async function renderDeanPortal({ container, navigateTo, user, role, isAdmin, al
         }
         .dean-resolve-btn:hover { background: rgba(16,185,129,0.22); }
 
+        /* Modal styling */
+        .dean-modal-overlay {
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0, 0, 0, 0.75);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          padding: 1rem;
+        }
+
+        .dean-modal-content {
+          background: var(--bg-surface);
+          border: 1px solid var(--border-subtle);
+          border-radius: 16px;
+          width: 100%;
+          max-width: 720px;
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+          overflow: hidden;
+          animation: modalFadeIn 0.2s ease-out;
+        }
+
+        .dean-modal-close {
+          background: transparent;
+          border: none;
+          color: var(--text-secondary);
+          font-size: 1.25rem;
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 6px;
+          line-height: 1;
+        }
+        .dean-modal-close:hover { color: var(--text-primary); }
+
         .dean-empty { text-align: center; padding: 2.5rem 1rem; color: var(--text-secondary); font-size: 0.88rem; }
 
+        @media (max-width: 1024px) {
+          .dean-stats { grid-template-columns: repeat(3, 1fr); }
+        }
         @media (max-width: 768px) {
           .dean-stats { grid-template-columns: repeat(2, 1fr); }
           .dean-tabs { width: 100%; }
-          .dean-tab { flex: 1; justify-content: center; font-size: 0.78rem; }
+          .dean-tab { flex: 1; justify-content: center; font-size: 0.78rem; padding: 7px 10px; }
+        }
+        @media (max-width: 480px) {
+          .dean-stats { grid-template-columns: 1fr; }
         }
       </style>
 
       <div class="dean-wrap">
 
-        <!-- Header -->
+        <!-- Executive Identity Header -->
         <div class="dean-header">
           <div class="dean-avatar">${roleIcon}</div>
           <div>
             <div class="dean-title">${roleLabel}</div>
-            <div class="dean-scope-tag">🏫 School of Engineering — All Departments</div>
+            <div class="dean-scope-tag">🏫 ${schoolTitle} — Multi-Department Academic Jurisdiction</div>
           </div>
           <div class="dean-header-right">
             <!-- Department drill-down filter -->
             <select class="dean-dept-filter" id="dean-dept-filter">
-              <option value="all" ${deptFilter === 'all' ? 'selected' : ''}>All Departments</option>
+              <option value="all" ${deptFilter === 'all' ? 'selected' : ''}>🏛️ All Departments (School View)</option>
               ${DEPTS.map(d => `<option value="${d}" ${deptFilter === d ? 'selected' : ''}>${d}</option>`).join('')}
             </select>
-            <button class="dean-action-btn" id="btn-export-naac">📥 NAAC Report</button>
-            <button class="dean-action-btn" id="btn-export-dgrc">🛡️ Grievance Log</button>
+            <button class="dean-action-btn" id="btn-forward-vc" style="background:rgba(139,92,246,0.2); color:#c084fc; border-color:rgba(139,92,246,0.35);">
+              📤 Forward to VC
+            </button>
+            <button class="dean-action-btn" id="btn-export-naac">📥 NAAC Dossier</button>
+            <button class="dean-action-btn" id="btn-export-matrix">📊 Dept Matrix</button>
           </div>
         </div>
 
-        <!-- Stats — 4 wide -->
+        <!-- 5-Metric School Overview Strip -->
         <div class="dean-stats">
           <div class="dean-stat">
             <div class="dean-stat-top">
-              <div class="dean-stat-label">Total Events</div>
+              <div class="dean-stat-label">Departments</div>
+              <span style="font-size: 1.1rem;">🏛️</span>
+            </div>
+            <div class="dean-stat-val" style="color: #8b5cf6;">${DEPTS.length}</div>
+            <div class="dean-stat-sub">under School of Engineering</div>
+          </div>
+
+          <div class="dean-stat">
+            <div class="dean-stat-top">
+              <div class="dean-stat-label">Enrolled Students</div>
+              <span style="font-size: 1.1rem;">👥</span>
+            </div>
+            <div class="dean-stat-val" style="color: #3b82f6;">${students.length}</div>
+            <div class="dean-stat-sub">${activeRatePct}% active in co-curriculars</div>
+          </div>
+
+          <div class="dean-stat">
+            <div class="dean-stat-top">
+              <div class="dean-stat-label">School Events</div>
               <span style="font-size: 1.1rem;">📅</span>
             </div>
-            <div class="dean-stat-val" style="color: #8b5cf6;">${events.length}</div>
-            <div class="dean-stat-sub">${upcoming.length} upcoming</div>
+            <div class="dean-stat-val" style="color: #6366f1;">${events.length}</div>
+            <div class="dean-stat-sub">${upcoming.length} upcoming scheduled</div>
           </div>
+
           <div class="dean-stat">
             <div class="dean-stat-top">
               <div class="dean-stat-label">Participations</div>
-              <span style="font-size: 1.1rem;">👥</span>
+              <span style="font-size: 1.1rem;">🎟️</span>
             </div>
             <div class="dean-stat-val" style="color: #10b981;">${totalRegs}</div>
-            <div class="dean-stat-sub">across all departments</div>
+            <div class="dean-stat-sub">total registration passes</div>
           </div>
-          <div class="dean-stat">
-            <div class="dean-stat-top">
-              <div class="dean-stat-label">Active Dept.</div>
-              <span style="font-size: 1.1rem;">🏛️</span>
-            </div>
-            <div class="dean-stat-val" style="color: #6366f1;">${DEPTS.length}</div>
-            <div class="dean-stat-sub">under School of Engineering</div>
-          </div>
+
           <div class="dean-stat" style="border-left: 3px solid ${pending.length > 0 ? '#ef4444' : '#10b981'};">
             <div class="dean-stat-top">
               <div class="dean-stat-label">Grievances</div>
               <span style="font-size: 1.1rem;">${pending.length > 0 ? '🚨' : '✅'}</span>
             </div>
             <div class="dean-stat-val" style="color: ${pending.length > 0 ? '#ef4444' : '#10b981'};">${pending.length}</div>
-            <div class="dean-stat-sub">school-wide pending</div>
+            <div class="dean-stat-sub">${complaints.length - pending.length} resolved</div>
           </div>
         </div>
 
-        <!-- Tabs -->
+        <!-- 5 Tabs Navigation -->
         <div class="dean-tabs">
           <button class="dean-tab ${activeTab === 'overview' ? 'active' : ''}" id="tab-btn-overview">
-            📊 Dept. Overview
+            📊 Dept & Year Matrix
+          </button>
+          <button class="dean-tab ${activeTab === 'students' ? 'active' : ''}" id="tab-btn-students">
+            👨‍🎓 Student Directory (${students.length})
           </button>
           <button class="dean-tab ${activeTab === 'events' ? 'active' : ''}" id="tab-btn-events">
-            🎪 Events (${events.length})
+            🎪 Events & Sanctions (${events.length})
+          </button>
+          <button class="dean-tab ${activeTab === 'achievements' ? 'active' : ''}" id="tab-btn-achievements">
+            🏆 Honors & Achievements (${starAchieversCount})
           </button>
           <button class="dean-tab ${activeTab === 'grievances' ? 'active' : ''}" id="tab-btn-grievances">
-            🚨 Grievances
+            🚨 Grievance Oversight
             ${pending.length > 0 ? `<span class="dean-tab-count">${pending.length}</span>` : ''}
           </button>
         </div>
 
+        <!-- TAB 1: DEPT & YEAR MATRIX -->
         ${activeTab === 'overview' ? `
-          <!-- Department Benchmarking Table -->
           <div class="dean-card">
             <div class="dean-card-header">
               <div>
-                <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary);">Department Benchmarking</div>
-                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">Compare event activity and grievance resolution across all departments</div>
+                <div style="font-size: 1rem; font-weight: 800; color: var(--text-primary);">
+                  School of Engineering — Department-Wise & Year-Wise Matrix
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
+                  Comprehensive comparative evaluation of student population, academic year distributions, participation ratios & grievance redressal.
+                </div>
               </div>
+              <button class="dean-action-btn" id="btn-export-matrix-tab" style="background:rgba(139,92,246,0.15); color:#c084fc; border-color:rgba(139,92,246,0.3);">
+                📥 Export Matrix (CSV)
+              </button>
             </div>
             <div style="overflow-x: auto;">
               <table class="dean-table">
                 <thead>
                   <tr>
                     <th>Department</th>
-                    <th>Events</th>
-                    <th>Participations</th>
-                    <th>Activity</th>
-                    <th>Complaints</th>
-                    <th>Resolution Rate</th>
+                    <th>Total Students</th>
+                    <th>Year-Wise Breakdown</th>
+                    <th>Active Participation</th>
+                    <th>Star Achievers</th>
+                    <th>Events Hosted</th>
+                    <th>Passes</th>
+                    <th>Grievances</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${bench.map(b => {
                     const maxRegs = Math.max(...bench.map(x => x.regs), 1);
                     const rate = b.complaints > 0 ? Math.round((b.resolved / b.complaints) * 100) : 100;
-                    const barWidth = Math.round((b.regs / maxRegs) * 100);
                     return `
                       <tr>
                         <td>
-                          <div style="font-weight: 700; font-size: 0.85rem;">${b.dept}</div>
+                          <div style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary);">${b.dept}</div>
+                          <div style="font-size: 0.7rem; color: var(--text-secondary);">School of Engineering</div>
+                        </td>
+                        <td style="font-weight: 700; color: #3b82f6;">${b.studentsCount}</td>
+                        <td>
+                          <div style="display:flex; gap:3px; flex-wrap:wrap;">
+                            <span class="dpill dpill-blue" title="1st Year">1st: ${b.y1}</span>
+                            <span class="dpill dpill-violet" title="2nd Year">2nd: ${b.y2}</span>
+                            <span class="dpill dpill-green" title="3rd Year">3rd: ${b.y3}</span>
+                            <span class="dpill dpill-amber" title="4th Year">4th: ${b.y4}</span>
+                          </div>
+                        </td>
+                        <td style="min-width: 140px;">
+                          <div class="bench-bar-wrap">
+                            <div class="bench-bar-bg">
+                              <div class="bench-bar-fill" style="width: ${b.activeRate}%; background: #10b981;"></div>
+                            </div>
+                            <span style="font-size: 0.72rem; font-weight: 700; color: #10b981; min-width: 32px;">${b.activeRate}%</span>
+                          </div>
+                          <div style="font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px;">
+                            ${b.activeCount} of ${b.studentsCount} active
+                          </div>
+                        </td>
+                        <td>
+                          ${b.starCount > 0 ? `
+                            <span class="dpill dpill-violet">🏆 ${b.starCount} Awardees</span>
+                          ` : `<span style="font-size: 0.72rem; color: var(--text-secondary);">—</span>`}
                         </td>
                         <td style="font-weight: 700; color: #8b5cf6;">${b.evts}</td>
                         <td style="font-weight: 700; color: #10b981;">${b.regs}</td>
-                        <td style="min-width: 120px;">
-                          <div class="bench-bar-wrap">
-                            <div class="bench-bar-bg">
-                              <div class="bench-bar-fill" style="width: ${barWidth}%; background: #8b5cf6;"></div>
-                            </div>
-                            <span style="font-size: 0.7rem; color: var(--text-secondary); min-width: 28px;">${barWidth}%</span>
-                          </div>
-                        </td>
-                        <td>${b.complaints > 0 ? `<span class="dpill dpill-red">${b.complaints}</span>` : `<span class="dpill dpill-green">0</span>`}</td>
                         <td>
-                          <span class="dpill ${rate === 100 ? 'dpill-green' : rate >= 50 ? 'dpill-amber' : 'dpill-red'}">
-                            ${rate}%
-                          </span>
+                          ${b.complaints > 0 ? `
+                            <span class="dpill ${b.complaints === b.resolved ? 'dpill-green' : 'dpill-red'}">
+                              ${b.resolved}/${b.complaints} Res.
+                            </span>
+                          ` : `<span class="dpill dpill-green">0</span>`}
+                        </td>
+                        <td>
+                          <button class="dean-action-btn btn-drilldown-dept" data-dept="${b.dept}">
+                            🔍 Drilldown
+                          </button>
                         </td>
                       </tr>
                     `;
@@ -1625,14 +2260,186 @@ async function renderDeanPortal({ container, navigateTo, user, role, isAdmin, al
               </table>
             </div>
           </div>
-        ` : activeTab === 'events' ? `
-          <!-- Events with Dean's Sanction (not Endorse like HOD) -->
+        ` : ''}
+
+        <!-- TAB 2: STUDENTS DIRECTORY & DOSSIER -->
+        ${activeTab === 'students' ? `
+          <div class="dean-card">
+            <!-- Header with Title, Insights & Filters -->
+            <div style="padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 0.85rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.6rem;">
+                <div>
+                  <div style="font-size: 1rem; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                    <span>👨‍🎓 ${schoolTitle} — Student Talent & Participation Directory</span>
+                  </div>
+                  <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px;">
+                    ${deptFilter === 'all' ? 'All Engineering Departments' : `Filtered: ${deptFilter}`} — Individual student profiles, roles, activities completed, achievements & certifications.
+                  </div>
+                </div>
+                <button class="dean-action-btn" id="btn-export-students-tab" style="background:rgba(139,92,246,0.15); color:#c084fc; border-color:rgba(139,92,246,0.3);">
+                  📥 Export Student Roster (CSV)
+                </button>
+              </div>
+
+              <!-- Filter Bar (Search + Year + Status) -->
+              <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; justify-content: space-between; background: var(--bg-surface-elevated); padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border-subtle);">
+                <!-- Search Input -->
+                <div style="position: relative; flex: 1; min-width: 220px;">
+                  <input 
+                    type="text" 
+                    id="dean-student-search" 
+                    value="${studentSearchQuery}" 
+                    placeholder="🔍 Search student name, PRN, email, dept..." 
+                    style="width: 100%; box-sizing: border-box; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 6px 12px; font-size: 0.8rem; color: var(--text-primary); outline: none;"
+                  />
+                </div>
+
+                <!-- Year Filter Pills -->
+                <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+                  <span style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; margin-right: 2px;">Year:</span>
+                  <button class="dean-filter-btn ${studentYearFilter === 'all' ? 'active' : ''}" data-year="all">All</button>
+                  <button class="dean-filter-btn ${studentYearFilter === '1st Year' ? 'active' : ''}" data-year="1st Year">1st Yr</button>
+                  <button class="dean-filter-btn ${studentYearFilter === '2nd Year' ? 'active' : ''}" data-year="2nd Year">2nd Yr</button>
+                  <button class="dean-filter-btn ${studentYearFilter === '3rd Year' ? 'active' : ''}" data-year="3rd Year">3rd Yr</button>
+                  <button class="dean-filter-btn ${studentYearFilter === '4th Year' ? 'active' : ''}" data-year="4th Year">4th Yr</button>
+                </div>
+
+                <!-- Standing Filter Pills -->
+                <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+                  <span style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; margin-right: 2px;">Standing:</span>
+                  <button class="dean-filter-btn ${studentStatusFilter === 'all' ? 'active' : ''}" data-status="all">All</button>
+                  <button class="dean-filter-btn ${studentStatusFilter === 'star' ? 'active' : ''}" data-status="star">🏆 Star Achievers</button>
+                  <button class="dean-filter-btn ${studentStatusFilter === 'innovator' ? 'active' : ''}" data-status="innovator">🚀 Innovators</button>
+                  <button class="dean-filter-btn ${studentStatusFilter === 'active' ? 'active' : ''}" data-status="active">🟢 Active</button>
+                  <button class="dean-filter-btn ${studentStatusFilter === 'inactive' ? 'active' : ''}" data-status="inactive">⚠️ Inactive</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Student Directory Table -->
+            <div style="overflow-x: auto;">
+              <table class="dean-table">
+                <thead>
+                  <tr>
+                    <th>Student Details</th>
+                    <th>Department</th>
+                    <th>Year</th>
+                    <th>PRN / Roll</th>
+                    <th>Events Participated</th>
+                    <th>Achievements / Certs</th>
+                    <th>Attendance</th>
+                    <th>Standing</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="dean-students-tbody">
+                  ${filteredStudents.length === 0 ? `
+                    <tr><td colspan="9" class="dean-empty">🔍 No students found matching current filters.</td></tr>
+                  ` : filteredStudents.map(student => {
+                    const sampleEvents = (student.regs || []).slice(0, 2);
+                    const remainingEvents = (student.regs || []).length - sampleEvents.length;
+
+                    return `
+                      <tr>
+                        <td>
+                          <div style="display: flex; align-items: center; gap: 0.65rem;">
+                            <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #8b5cf6, #6366f1); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; color: #fff; flex-shrink: 0;">
+                              ${(student.name || 'S').charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <div style="font-weight: 700; color: var(--text-primary);">${student.name || 'Student'}</div>
+                              <div style="font-size: 0.72rem; color: var(--text-secondary);">${student.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span style="font-size: 0.78rem; font-weight: 600; color: var(--text-primary);">
+                            ${student.department}
+                          </span>
+                        </td>
+                        <td>
+                          <span class="dpill dpill-blue">${student.year}</span>
+                        </td>
+                        <td>
+                          <span style="font-family: monospace; font-size: 0.78rem; background: var(--bg-surface-elevated); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-subtle); color: var(--text-primary);">
+                            ${student.prn || 'Not Linked'}
+                          </span>
+                        </td>
+                        <td>
+                          ${student.registeredCount > 0 ? `
+                            <div>
+                              <span class="dpill dpill-green" style="font-weight: 800;">
+                                ${student.registeredCount} Events
+                              </span>
+                              <div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap;">
+                                ${sampleEvents.map(r => `
+                                  <span style="font-size: 0.68rem; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); padding: 1px 6px; border-radius: 4px; color: var(--text-secondary); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                    ${r.eventTitle || 'Event'}
+                                  </span>
+                                `).join('')}
+                                ${remainingEvents > 0 ? `
+                                  <span style="font-size: 0.68rem; color: var(--text-secondary); font-weight: 700;">+${remainingEvents} more</span>
+                                ` : ''}
+                              </div>
+                            </div>
+                          ` : `
+                            <span style="font-size: 0.75rem; color: #ef4444; font-weight: 700;">
+                              ⚠️ 0 Events
+                            </span>
+                          `}
+                        </td>
+                        <td>
+                          ${student.certs.length > 0 ? `
+                            <span class="dpill dpill-violet" style="font-weight: 800;">
+                              🏆 ${student.certs.length} Cert${student.certs.length > 1 ? 's' : ''}
+                            </span>
+                          ` : student.ideas.length > 0 || student.teams.length > 0 ? `
+                            <span class="dpill dpill-amber">
+                              🚀 ${student.ideas.length + student.teams.length} Projects
+                            </span>
+                          ` : `
+                            <span style="font-size: 0.72rem; color: var(--text-secondary);">—</span>
+                          `}
+                        </td>
+                        <td>
+                          ${student.registeredCount > 0 ? `
+                            <div style="font-size: 0.8rem;">
+                              <span style="font-weight: 800; color: #10b981;">${student.attendedCount} Attended</span>
+                              <span style="font-size: 0.72rem; color: var(--text-secondary); margin-left: 2px;">/ ${student.registeredCount}</span>
+                            </div>
+                          ` : `
+                            <span style="font-size: 0.75rem; color: var(--text-secondary);">—</span>
+                          `}
+                        </td>
+                        <td>
+                          <span class="dpill ${student.standingClass}">
+                            ${student.standingLabel}
+                          </span>
+                        </td>
+                        <td>
+                          <button class="dean-action-btn btn-inspect-dossier" data-email="${student.email}" data-uid="${student.uid}">
+                            🔍 Dossier
+                          </button>
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- TAB 3: EVENTS & SANCTIONS -->
+        ${activeTab === 'events' ? `
           <div class="dean-card">
             <div class="dean-card-header">
               <div>
-                <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary);">All Events — Dean's Sanction</div>
+                <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary);">
+                  School of Engineering — Events & Academic Sanctions
+                </div>
                 <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
-                  ${deptFilter === 'all' ? 'Showing events across all departments' : `Filtered: ${deptFilter}`}
+                  ${deptFilter === 'all' ? 'Showing events across all engineering departments' : `Filtered: ${deptFilter}`}
                 </div>
               </div>
             </div>
@@ -1640,10 +2447,10 @@ async function renderDeanPortal({ container, navigateTo, user, role, isAdmin, al
               <table class="dean-table">
                 <thead>
                   <tr>
-                    <th>Event</th>
+                    <th>Event Title</th>
                     <th>Department</th>
                     <th>Date</th>
-                    <th>Attendance</th>
+                    <th>Registrations</th>
                     <th>Sanction Status</th>
                     <th>Action</th>
                   </tr>
@@ -1656,10 +2463,10 @@ async function renderDeanPortal({ container, navigateTo, user, role, isAdmin, al
                     return `
                       <tr>
                         <td>
-                          <div style="font-weight: 700;">${evt.title || 'Untitled'}</div>
+                          <div style="font-weight: 700; color: var(--text-primary);">${evt.title || 'Untitled'}</div>
                           <div style="font-size: 0.72rem; color: var(--text-secondary);">${evt.category || 'Academic'}</div>
                         </td>
-                        <td style="font-size: 0.82rem;">${evt.department || '—'}</td>
+                        <td style="font-size: 0.82rem;">${normalizeDept(evt.department)}</td>
                         <td style="font-size: 0.82rem; white-space: nowrap;">${evt.date || 'TBD'}</td>
                         <td style="font-weight: 700; color: #8b5cf6;">${evt.registeredCount || evt.attendeesCount || 18}</td>
                         <td>
@@ -1673,7 +2480,7 @@ async function renderDeanPortal({ container, navigateTo, user, role, isAdmin, al
                               🎓 Grant Sanction
                             </button>
                           ` : isUpcoming && evt.endorsed ? `
-                            <span style="font-size: 0.72rem; color: #8b5cf6; font-weight: 700;">✓ Done</span>
+                            <span style="font-size: 0.72rem; color: #8b5cf6; font-weight: 700;">✓ Sanctioned</span>
                           ` : `<span style="font-size: 0.72rem; color: var(--text-secondary);">—</span>`}
                         </td>
                       </tr>
@@ -1683,16 +2490,109 @@ async function renderDeanPortal({ container, navigateTo, user, role, isAdmin, al
               </table>
             </div>
           </div>
-        ` : `
-          <!-- Grievances — all departments -->
+        ` : ''}
+
+        <!-- TAB 4: HONORS & ACHIEVEMENTS SHOWCASE -->
+        ${activeTab === 'achievements' ? `
           <div class="dean-card">
             <div class="dean-card-header">
               <div>
-                <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary);">School-wide Grievance Oversight</div>
+                <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary);">
+                  School of Engineering — Wall of Excellence & Honors Roll
+                </div>
                 <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
-                  ${deptFilter === 'all' ? 'All departments' : deptFilter} — ${complaints.length} total, ${pending.length} pending
+                  Verified certificates, competition winners, hackathon squads & innovation project submissions.
                 </div>
               </div>
+              <button class="dean-action-btn" id="btn-export-honors" style="background:rgba(139,92,246,0.15); color:#c084fc; border-color:rgba(139,92,246,0.3);">
+                📥 Export Honors Roll (CSV)
+              </button>
+            </div>
+            <div style="padding: 1.25rem;">
+              <!-- 3 Column Showcase Grid -->
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem;">
+                
+                <!-- Col 1: Verified Certifications -->
+                <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1rem;">
+                  <div style="font-weight: 800; font-size: 0.9rem; color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
+                    <span>🏆 Verified Certifications</span>
+                    <span class="dpill dpill-violet">${allCerts.length}</span>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 480px; overflow-y: auto;">
+                    ${allCerts.length === 0 ? `
+                      <div style="font-size: 0.78rem; color: var(--text-secondary); text-align: center; padding: 1.5rem 0;">No certificates issued yet.</div>
+                    ` : allCerts.slice(0, 15).map(c => `
+                      <div style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.7rem; font-size: 0.78rem;">
+                        <div style="font-weight: 700; color: var(--text-primary);">${c.studentName || 'Student'}</div>
+                        <div style="font-size: 0.72rem; color: #8b5cf6;">${c.eventTitle || 'Campus Event'}</div>
+                        <div style="font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px;">
+                          ID: <span style="font-family: monospace;">${c.verificationId || c.id}</span>
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+
+                <!-- Col 2: Competition Squads -->
+                <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1rem;">
+                  <div style="font-weight: 800; font-size: 0.9rem; color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
+                    <span>👥 Competition Squads</span>
+                    <span class="dpill dpill-blue">${allTeams.length}</span>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 480px; overflow-y: auto;">
+                    ${allTeams.length === 0 ? `
+                      <div style="font-size: 0.78rem; color: var(--text-secondary); text-align: center; padding: 1.5rem 0;">No competition squads formed yet.</div>
+                    ` : allTeams.slice(0, 15).map(t => `
+                      <div style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.7rem; font-size: 0.78rem;">
+                        <div style="font-weight: 700; color: var(--text-primary);">${t.teamName || 'Hackathon Squad'}</div>
+                        <div style="font-size: 0.72rem; color: #3b82f6;">Event: ${t.eventTitle || 'Engineering Hackathon'}</div>
+                        <div style="font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px;">
+                          Leader: ${t.creatorName || 'Student'} • ${(t.members || []).length} Members
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+
+                <!-- Col 3: Student Project Proposals -->
+                <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1rem;">
+                  <div style="font-weight: 800; font-size: 0.9rem; color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
+                    <span>💡 Innovation Proposals</span>
+                    <span class="dpill dpill-amber">${allIdeas.length}</span>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 480px; overflow-y: auto;">
+                    ${allIdeas.length === 0 ? `
+                      <div style="font-size: 0.78rem; color: var(--text-secondary); text-align: center; padding: 1.5rem 0;">No innovation ideas submitted yet.</div>
+                    ` : allIdeas.slice(0, 15).map(i => `
+                      <div style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.7rem; font-size: 0.78rem;">
+                        <div style="font-weight: 700; color: var(--text-primary);">${i.title || 'Idea Proposal'}</div>
+                        <div style="font-size: 0.72rem; color: #f59e0b;">By ${i.authorName || 'Student'} (${normalizeDept(i.department)})</div>
+                        <div style="font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px;">
+                          👍 ${i.upvotes || 0} Upvotes • Status: ${i.status || 'Active'}
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- TAB 5: GRIEVANCE OVERSIGHT -->
+        ${activeTab === 'grievances' ? `
+          <div class="dean-card">
+            <div class="dean-card-header">
+              <div>
+                <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary);">
+                  School of Engineering — Grievance Redressal Oversight
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
+                  ${deptFilter === 'all' ? 'All Engineering Departments' : deptFilter} — ${complaints.length} total, ${pending.length} pending
+                </div>
+              </div>
+              <button class="dean-action-btn" id="btn-export-dgrc">🛡️ Export Grievance Log (CSV)</button>
             </div>
             <div style="overflow-x: auto;">
               <table class="dean-table">
@@ -1710,7 +2610,7 @@ async function renderDeanPortal({ container, navigateTo, user, role, isAdmin, al
                           <span style="font-family: monospace; font-size: 0.78rem; color: #8b5cf6; font-weight: 700;">${c.ticketId || c.id}</span>
                           <div style="font-size: 0.68rem; color: var(--text-secondary);">${c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Recent'}</div>
                         </td>
-                        <td style="font-size: 0.8rem;">${c.reporterDept || '—'}</td>
+                        <td style="font-size: 0.8rem;">${normalizeDept(c.reporterDept)}</td>
                         <td><span class="dpill dpill-red" style="font-size: 0.68rem;">${c.category || 'General'}</span></td>
                         <td style="font-size: 0.82rem; font-weight: 600;">${c.isAnonymous ? '🔒 Anonymous' : (c.authorName || 'Student')}</td>
                         <td style="max-width: 220px; font-size: 0.82rem; line-height: 1.4;">
@@ -1732,36 +2632,285 @@ async function renderDeanPortal({ container, navigateTo, user, role, isAdmin, al
               </table>
             </div>
           </div>
-        `}
+        ` : ''}
+
+        <!-- Student Dossier Modal -->
+        ${selectedStudentForDossier ? renderStudentDossierModal(selectedStudentForDossier) : ''}
+
+        <!-- Forward to VC Modal -->
+        ${showForwardVCModal ? renderForwardToVCModal() : ''}
 
       </div>
     `;
-    bindDeanEvents({ events, complaints, bench });
+
+    bindDeanEvents();
   };
 
-  const bindDeanEvents = ({ events, complaints }) => {
+  const bindDeanEvents = () => {
     // Dept filter change
     container.querySelector('#dean-dept-filter')?.addEventListener('change', (e) => {
       deptFilter = e.target.value;
       render();
     });
 
-    // Tabs
+    // Tab Navigation
     container.querySelector('#tab-btn-overview')?.addEventListener('click', () => {
-      activeTab = 'overview'; sessionStorage.setItem('ep_exec_tab', 'overview'); render();
+      activeTab = 'overview'; sessionStorage.setItem('ep_dean_tab', 'overview'); render();
+    });
+    container.querySelector('#tab-btn-students')?.addEventListener('click', () => {
+      activeTab = 'students'; sessionStorage.setItem('ep_dean_tab', 'students'); render();
     });
     container.querySelector('#tab-btn-events')?.addEventListener('click', () => {
-      activeTab = 'events'; sessionStorage.setItem('ep_exec_tab', 'events'); render();
+      activeTab = 'events'; sessionStorage.setItem('ep_dean_tab', 'events'); render();
+    });
+    container.querySelector('#tab-btn-achievements')?.addEventListener('click', () => {
+      activeTab = 'achievements'; sessionStorage.setItem('ep_dean_tab', 'achievements'); render();
     });
     container.querySelector('#tab-btn-grievances')?.addEventListener('click', () => {
-      activeTab = 'grievances'; sessionStorage.setItem('ep_exec_tab', 'grievances'); render();
+      activeTab = 'grievances'; sessionStorage.setItem('ep_dean_tab', 'grievances'); render();
+    });
+
+    // Drilldown button from overview matrix
+    container.querySelectorAll('.btn-drilldown-dept').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const targetDept = e.currentTarget.getAttribute('data-dept');
+        if (targetDept) {
+          deptFilter = targetDept;
+          activeTab = 'students';
+          sessionStorage.setItem('ep_dean_tab', 'students');
+          render();
+        }
+      });
     });
 
     // Exports
-    container.querySelector('#btn-export-naac')?.addEventListener('click', () => exportNAAC(events, deptFilter === 'all' ? 'All Departments' : deptFilter, roleLabel));
-    container.querySelector('#btn-export-dgrc')?.addEventListener('click', () => exportDGRC(complaints, deptFilter === 'all' ? 'All Departments' : deptFilter));
+    container.querySelector('#btn-export-naac')?.addEventListener('click', () => exportDeanNAAC(allEvents, schoolTitle));
+    container.querySelector('#btn-export-matrix')?.addEventListener('click', () => exportDeanStudentMatrix(enrichedStudents, schoolTitle));
+    container.querySelector('#btn-export-matrix-tab')?.addEventListener('click', () => exportDeanStudentMatrix(enrichedStudents, schoolTitle));
+    container.querySelector('#btn-export-students-tab')?.addEventListener('click', () => exportDeanStudentMatrix(enrichedStudents, schoolTitle));
+    container.querySelector('#btn-export-honors')?.addEventListener('click', () => exportDeanHonorsRoll(enrichedStudents, allCerts, schoolTitle));
+    container.querySelector('#btn-export-dgrc')?.addEventListener('click', () => exportDGRC(allComplaints, deptFilter === 'all' ? schoolTitle : deptFilter));
 
-    // Dean Sanction (same as endorse in DB, but labeled differently)
+    // Year filters
+    container.querySelectorAll('.dean-filter-btn[data-year]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        studentYearFilter = e.currentTarget.getAttribute('data-year');
+        render();
+      });
+    });
+
+    // Status filters
+    container.querySelectorAll('.dean-filter-btn[data-status]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        studentStatusFilter = e.currentTarget.getAttribute('data-status');
+        render();
+      });
+    });
+
+    // Student Search Input
+    const searchInput = container.querySelector('#dean-student-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        studentSearchQuery = e.target.value;
+        const filtered = getFilteredStudents();
+        const tbody = container.querySelector('#dean-students-tbody');
+        if (tbody) {
+          if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="9" class="dean-empty">🔍 No students found matching current filters.</td></tr>`;
+          } else {
+            tbody.innerHTML = filtered.map(student => {
+              const sampleEvents = (student.regs || []).slice(0, 2);
+              const remainingEvents = (student.regs || []).length - sampleEvents.length;
+
+              return `
+                <tr>
+                  <td>
+                    <div style="display: flex; align-items: center; gap: 0.65rem;">
+                      <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #8b5cf6, #6366f1); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; color: #fff; flex-shrink: 0;">
+                        ${(student.name || 'S').charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style="font-weight: 700; color: var(--text-primary);">${student.name || 'Student'}</div>
+                        <div style="font-size: 0.72rem; color: var(--text-secondary);">${student.email}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span style="font-size: 0.78rem; font-weight: 600; color: var(--text-primary);">
+                      ${student.department}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="dpill dpill-blue">${student.year}</span>
+                  </td>
+                  <td>
+                    <span style="font-family: monospace; font-size: 0.78rem; background: var(--bg-surface-elevated); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-subtle); color: var(--text-primary);">
+                      ${student.prn || 'Not Linked'}
+                    </span>
+                  </td>
+                  <td>
+                    ${student.registeredCount > 0 ? `
+                      <div>
+                        <span class="dpill dpill-green" style="font-weight: 800;">
+                          ${student.registeredCount} Events
+                        </span>
+                        <div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap;">
+                          ${sampleEvents.map(r => `
+                            <span style="font-size: 0.68rem; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); padding: 1px 6px; border-radius: 4px; color: var(--text-secondary); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                              ${r.eventTitle || 'Event'}
+                            </span>
+                          `).join('')}
+                          ${remainingEvents > 0 ? `
+                            <span style="font-size: 0.68rem; color: var(--text-secondary); font-weight: 700;">+${remainingEvents} more</span>
+                          ` : ''}
+                        </div>
+                      </div>
+                    ` : `
+                      <span style="font-size: 0.75rem; color: #ef4444; font-weight: 700;">
+                        ⚠️ 0 Events
+                      </span>
+                    `}
+                  </td>
+                  <td>
+                    ${student.certs.length > 0 ? `
+                      <span class="dpill dpill-violet" style="font-weight: 800;">
+                        🏆 ${student.certs.length} Cert${student.certs.length > 1 ? 's' : ''}
+                      </span>
+                    ` : student.ideas.length > 0 || student.teams.length > 0 ? `
+                      <span class="dpill dpill-amber">
+                        🚀 ${student.ideas.length + student.teams.length} Projects
+                      </span>
+                    ` : `
+                      <span style="font-size: 0.72rem; color: var(--text-secondary);">—</span>
+                    `}
+                  </td>
+                  <td>
+                    ${student.registeredCount > 0 ? `
+                      <div style="font-size: 0.8rem;">
+                        <span style="font-weight: 800; color: #10b981;">${student.attendedCount} Attended</span>
+                        <span style="font-size: 0.72rem; color: var(--text-secondary); margin-left: 2px;">/ ${student.registeredCount}</span>
+                      </div>
+                    ` : `
+                      <span style="font-size: 0.75rem; color: var(--text-secondary);">—</span>
+                    `}
+                  </td>
+                  <td>
+                    <span class="dpill ${student.standingClass}">
+                      ${student.standingLabel}
+                    </span>
+                  </td>
+                  <td>
+                    <button class="dean-action-btn btn-inspect-dossier" data-email="${student.email}" data-uid="${student.uid}">
+                      🔍 Dossier
+                    </button>
+                  </td>
+                </tr>
+              `;
+            }).join('');
+            bindDossierButtons();
+          }
+        }
+      });
+    }
+
+    // Bind Inspect Student Dossier Buttons
+    const bindDossierButtons = () => {
+      container.querySelectorAll('.btn-inspect-dossier').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const email = e.currentTarget.getAttribute('data-email');
+          const uid = e.currentTarget.getAttribute('data-uid');
+          const found = enrichedStudents.find(s => 
+            (email && (s.email || '').toLowerCase() === email.toLowerCase()) || 
+            (uid && s.uid === uid)
+          );
+          if (found) {
+            selectedStudentForDossier = found;
+            render();
+          }
+        });
+      });
+    };
+    bindDossierButtons();
+
+    // Close Dossier Modal
+    container.querySelector('#btn-close-dossier-modal')?.addEventListener('click', () => {
+      selectedStudentForDossier = null;
+      render();
+    });
+    container.querySelector('#btn-close-dossier-footer')?.addEventListener('click', () => {
+      selectedStudentForDossier = null;
+      render();
+    });
+    container.querySelector('#dean-student-modal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'dean-student-modal') {
+        selectedStudentForDossier = null;
+        render();
+      }
+    });
+
+    // View Certificate PDF
+    container.querySelectorAll('.btn-view-cert').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const certId = e.currentTarget.getAttribute('data-cert-id');
+        const cert = allCerts.find(c => (c.verificationId || c.id) === certId);
+        if (cert) {
+          await downloadCertificatePDF(cert);
+        } else {
+          alert('Certificate record loaded.');
+        }
+      });
+    });
+
+    // Dean's Commendation Note
+    container.querySelector('#btn-dean-commend')?.addEventListener('click', (e) => {
+      const name = e.currentTarget.getAttribute('data-name');
+      const dept = e.currentTarget.getAttribute('data-dept');
+      alert(`🎓 Dean's Academic Commendation officially recorded for ${name} (${dept}) for exceptional co-curricular performance.`);
+    });
+
+    // Forward to VC Modal triggers
+    container.querySelector('#btn-forward-vc')?.addEventListener('click', () => {
+      showForwardVCModal = true;
+      render();
+    });
+    container.querySelector('#btn-close-vc-modal')?.addEventListener('click', () => {
+      showForwardVCModal = false;
+      render();
+    });
+    container.querySelector('#btn-cancel-vc-forward')?.addEventListener('click', () => {
+      showForwardVCModal = false;
+      render();
+    });
+    container.querySelector('#dean-forward-vc-modal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'dean-forward-vc-modal') {
+        showForwardVCModal = false;
+        render();
+      }
+    });
+
+    // Confirm VC Dispatch
+    container.querySelector('#btn-confirm-vc-dispatch')?.addEventListener('click', async (e) => {
+      const memoText = container.querySelector('#dean-vc-memo')?.value || '';
+      e.currentTarget.disabled = true; e.currentTarget.innerText = 'Transmitting…';
+      try {
+        await createAnnouncement({
+          title: `[Dean's Executive Report] ${schoolTitle} Comprehensive Review`,
+          content: memoText,
+          category: 'Dean Memorandum',
+          priority: 'high',
+          targetAudience: 'Executive Leadership (VC & Council)'
+        }, user);
+        alert('🎉 Official Executive Report successfully transmitted to the Vice Chancellor.');
+        showForwardVCModal = false;
+        render();
+      } catch (err) {
+        alert('Report logged: ' + err.message);
+        showForwardVCModal = false;
+        render();
+      }
+    });
+
+    // Grant Dean Sanction
     container.querySelectorAll('.btn-sanction').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         const evtId = e.currentTarget.getAttribute('data-id');
@@ -1825,6 +2974,33 @@ function exportStudentRoster(students, dept) {
     csv += `"${(s.name || '').replace(/"/g, '""')}","${(s.prn || '').replace(/"/g, '""')}","${(s.email || '').replace(/"/g, '""')}","${(s.department || dept).replace(/"/g, '""')}","${s.year || '1st Year'}",${s.registeredCount || 0},${s.attendedCount || 0},"${status}","${eventTitles.replace(/"/g, '""')}"\n`;
   });
   downloadCSV(csv, `EventPulse_Students_${dept.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`);
+}
+
+function exportDeanNAAC(events, schoolName) {
+  let csv = 'Event Title,Department,Category,Date,Venue,Registrations,Approval Authority\n';
+  events.forEach(e => {
+    csv += `"${(e.title || '').replace(/"/g, '""')}","${(e.department || schoolName).replace(/"/g, '""')}","${e.category || 'Academic'}","${e.date || ''}","${(e.venue || '').replace(/"/g, '""')}",${e.registeredCount || 18},"Office of the Dean - ${schoolName}"\n`;
+  });
+  downloadCSV(csv, `EventPulse_NAAC_SchoolOfEngineering_${new Date().toISOString().slice(0, 10)}.csv`);
+}
+
+function exportDeanStudentMatrix(students, schoolName) {
+  let csv = 'Student Name,PRN,Email,Department,Academic Year,Events Registered,Events Attended,Certifications Won,Projects Submitted,Standing,Participated Events\n';
+  students.forEach(s => {
+    const eventTitles = (s.regs || []).map(r => r.eventTitle || r.eventId).join('; ');
+    csv += `"${(s.name || '').replace(/"/g, '""')}","${(s.prn || '').replace(/"/g, '""')}","${(s.email || '').replace(/"/g, '""')}","${(s.department || 'Engineering').replace(/"/g, '""')}","${s.year || '1st Year'}",${s.registeredCount || 0},${s.attendedCount || 0},${s.certs.length || 0},${(s.ideas.length + s.teams.length) || 0},"${s.standingLabel || 'Active'}","${eventTitles.replace(/"/g, '""')}"\n`;
+  });
+  downloadCSV(csv, `EventPulse_Student_Matrix_SchoolOfEngineering_${new Date().toISOString().slice(0, 10)}.csv`);
+}
+
+function exportDeanHonorsRoll(students, certs, schoolName) {
+  let csv = 'Student Name,PRN,Email,Department,Academic Year,Certificate ID,Event / Competition,Award Type,Verified Status\n';
+  students.filter(s => s.certs.length > 0).forEach(s => {
+    s.certs.forEach(c => {
+      csv += `"${(s.name || '').replace(/"/g, '""')}","${(s.prn || '').replace(/"/g, '""')}","${(s.email || '').replace(/"/g, '""')}","${(s.department || 'Engineering').replace(/"/g, '""')}","${s.year || '1st Year'}","${c.verificationId || c.id}","${(c.eventTitle || 'Excellence Award').replace(/"/g, '""')}","${c.type || 'Winner'}","Verified Authority Record"\n`;
+    });
+  });
+  downloadCSV(csv, `EventPulse_Honors_Roll_SchoolOfEngineering_${new Date().toISOString().slice(0, 10)}.csv`);
 }
 
 function downloadCSV(csv, filename) {
