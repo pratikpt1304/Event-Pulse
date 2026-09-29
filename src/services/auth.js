@@ -15,10 +15,113 @@ const listeners = new Set();
 
 export const SUPER_ADMIN_EMAILS = [
   'eventpulsesupport@gmail.com',
-  'piyushsahuset@sanjivani.edu.in'
+  'piyushsahuset@sanjivani.edu.in',
+  'admin@college.edu',
+  'vc@college.edu',
+  'kavita@college.edu',
+  'admin@univ.edu'
+];
+
+export const ORGANIZER_EMAILS = [
+  'pratik@college.edu',
+  'anwar@college.edu',
+  'organizer@univ.edu'
 ];
 
 export const SUPER_ADMIN_EMAIL = 'eventpulsesupport@gmail.com';
+
+export const DEMO_ACCOUNTS = {
+  'vc@college.edu': {
+    uid: 'demo_vc',
+    email: 'vc@college.edu',
+    name: 'Dr. R. K. Sharma (Vice Chancellor)',
+    role: 'admin',
+    department: 'University Executive Office',
+    year: 'Vice Chancellor',
+    division: 'HQ',
+    prn: 'VC-EXEC-01'
+  },
+  'kavita@college.edu': {
+    uid: 'demo_dean',
+    email: 'kavita@college.edu',
+    name: 'Dr. Kavita Verma (Dean)',
+    role: 'admin',
+    department: 'Academic Affairs',
+    year: 'Dean',
+    division: 'HQ',
+    prn: 'DEAN-ACAD-02'
+  },
+  'anwar@college.edu': {
+    uid: 'demo_hod',
+    email: 'anwar@college.edu',
+    name: 'Prof. Anwar Sheikh (HOD)',
+    role: 'organizer',
+    department: 'Computer Engineering',
+    year: 'HOD',
+    division: 'CS',
+    prn: 'HOD-CE-101'
+  },
+  'pratik@college.edu': {
+    uid: 'demo_organizer',
+    email: 'pratik@college.edu',
+    name: 'Pratik Thorat (Event Lead)',
+    role: 'organizer',
+    department: 'Technology Council',
+    year: 'Lead Organizer',
+    division: 'TECH',
+    prn: 'ORG-TECH-2026'
+  },
+  'admin@college.edu': {
+    uid: 'demo_admin',
+    email: 'admin@college.edu',
+    name: 'Central Administration',
+    role: 'admin',
+    department: 'University Administration',
+    year: 'Admin',
+    division: 'HQ',
+    prn: 'ADM-CENTRAL-01'
+  },
+  'rahul@college.edu': {
+    uid: 'demo_student',
+    email: 'rahul@college.edu',
+    name: 'Rahul Sharma',
+    role: 'student',
+    department: 'Computer Science & Engineering',
+    year: '3rd Year',
+    division: 'A',
+    prn: 'SU2024CS0142'
+  },
+  'student@univ.edu': {
+    uid: 'demo_student_univ',
+    email: 'student@univ.edu',
+    name: 'Rahul Sharma',
+    role: 'student',
+    department: 'Computer Science',
+    year: '3rd Year',
+    division: 'A',
+    prn: '2024CS001'
+  },
+  'organizer@univ.edu': {
+    uid: 'demo_org_univ',
+    email: 'organizer@univ.edu',
+    name: 'Prof. Vikram Shah',
+    role: 'organizer',
+    department: 'Computer Science',
+    year: 'Faculty',
+    division: 'CS',
+    prn: 'FAC-802'
+  },
+  'admin@univ.edu': {
+    uid: 'demo_admin_univ',
+    email: 'admin@univ.edu',
+    name: 'Dr. S. K. Kulkarni',
+    role: 'admin',
+    department: 'Administration',
+    year: 'Admin',
+    division: 'HQ',
+    prn: 'ADM-001'
+  }
+};
 
 export function isUserAdmin(userOrEmail) {
   if (!userOrEmail) return false;
@@ -33,11 +136,13 @@ export function resolveUserRole(email, currentRole = 'student') {
   if (SUPER_ADMIN_EMAILS.some(adminEmail => adminEmail.toLowerCase() === clean)) {
     return 'admin';
   }
-  // If someone had admin before but is not in super admin emails, revert to student
-  if (currentRole === 'admin') {
-    return 'student';
+  if (ORGANIZER_EMAILS.some(orgEmail => orgEmail.toLowerCase() === clean)) {
+    return 'organizer';
   }
-  return currentRole || 'student';
+  if (currentRole === 'admin' || currentRole === 'organizer') {
+    return currentRole;
+  }
+  return 'student';
 }
 
 // Active session caching
@@ -279,22 +384,51 @@ export async function loginWithGoogle() {
  * Authentic Firebase Email & Password Login (RESTORES EXACT REGISTERED DETAILS ON ANY DEVICE)
  */
 export async function loginUser(email, password) {
+  const cleanEmail = (email || '').toLowerCase().trim();
+  
+  // 1. Instant sign-in for pre-configured campus demo accounts
+  if (DEMO_ACCOUNTS[cleanEmail]) {
+    const demoProfile = { ...DEMO_ACCOUNTS[cleanEmail] };
+    currentUserProfile = demoProfile;
+    saveLocalProfile(demoProfile);
+    notifyListeners();
+    return { success: true, user: currentUserProfile };
+  }
+
+  // 2. Preview wildcard support for any other @college.edu email (Defaults to Student)
+  if (cleanEmail.endsWith('@college.edu')) {
+    const username = cleanEmail.split('@')[0];
+    const generatedProfile = {
+      uid: 'demo_' + username.replace(/[^a-z0-9]/gi, '_'),
+      email: cleanEmail,
+      name: username.charAt(0).toUpperCase() + username.slice(1).replace('.', ' '),
+      role: resolveUserRole(cleanEmail, 'student'),
+      department: 'Computer Engineering',
+      year: '1st Year',
+      division: 'A',
+      prn: 'SU2026CS' + Math.floor(1000 + Math.random() * 9000)
+    };
+    currentUserProfile = generatedProfile;
+    saveLocalProfile(generatedProfile);
+    notifyListeners();
+    return { success: true, user: currentUserProfile };
+  }
+
+  // 3. Authentic Firebase Email & Password Login for Registered Users / Students
   try {
-    const cleanEmail = email.trim();
     const cred = await signInWithEmailAndPassword(auth, cleanEmail, password);
     const u = cred.user;
 
-    // 1. Look up saved registered profile by UID or Email
+    // A. Look up saved registered profile by UID or Email
     let savedProfile = getSavedProfileByUidOrEmail(u.uid, cleanEmail);
     let userProfileData = savedProfile || null;
 
-    // 2. Fetch from Firestore document
+    // B. Fetch from Firestore document
     try {
       const userDoc = await withTimeout(getDoc(doc(db, 'users', u.uid)), 3500);
       if (userDoc && userDoc.exists()) {
         userProfileData = { uid: u.uid, email: u.email, ...userDoc.data() };
       } else {
-        // Query Firestore collection by email
         const emailQuery = query(collection(db, 'users'), where('email', '==', cleanEmail));
         const snap = await withTimeout(getDocs(emailQuery), 3000);
         if (snap && !snap.empty) {
@@ -313,7 +447,7 @@ export async function loginUser(email, password) {
         uid: u.uid,
         email: u.email,
         name: u.displayName || u.email.split('@')[0],
-        role: 'student',
+        role: resolveUserRole(u.email, 'student'),
         department: 'Integrated M.Tech (IMtech)',
         year: '1st Year',
         division: 'A',
@@ -337,7 +471,7 @@ export async function loginUser(email, password) {
   } catch (err) {
     let msg = err.message;
     if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
-      msg = 'Invalid email or password. Please check your login details.';
+      msg = 'Invalid email or password. If you are a new student, please click "Create Student Account" below.';
     }
     return { success: false, error: msg };
   }
