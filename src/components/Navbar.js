@@ -166,40 +166,59 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
                 <div style="padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border-subtle); margin-bottom: 0.35rem;">
                   <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary);">${user.name}</div>
                   <div style="font-size: 0.75rem; color: var(--text-tertiary); word-break: break-all;">${user.email}</div>
-                  <div style="font-size: 0.75rem; color: var(--primary); font-family: monospace; margin-top: 0.2rem;">PRN: ${user.prn || 'Not Set'}</div>
+                  <div style="font-size: 0.75rem; color: var(--primary); font-family: monospace; margin-top: 0.2rem;">
+                    ${['hod', 'dean', 'vc'].includes(user.role) ? `Scope: ${user.department || 'Executive'}` : `PRN: ${user.prn || 'Not Set'}`}
+                  </div>
                 </div>
 
-                ${['hod', 'dean', 'vc'].includes(user.role) || isUserAdmin(user) ? `
+                ${['hod', 'dean', 'vc'].includes(user.role) ? `
+                  <!-- EXECUTIVE SPECIFIC MENU -->
                   <button class="nav-dropdown-item" id="btn-menu-executive" style="color: #3b82f6; font-weight: 700; background: rgba(59, 130, 246, 0.08); margin-bottom: 0.25rem;">
-                    🏛️ Executive Hub (${(user.role || '').toUpperCase()})
+                    🏛️ Executive Academic Hub
                   </button>
-                ` : ''}
-                ${user.role === 'organizer' || isUserAdmin(user) ? `
+                  <button class="nav-dropdown-item" id="btn-menu-ideas">
+                    💡 Campus Ideas & Proposals
+                  </button>
+                ` : user.role === 'organizer' ? `
+                  <!-- ORGANIZER SPECIFIC MENU -->
                   <button class="nav-dropdown-item" id="btn-menu-organizer" style="color: var(--primary); font-weight: 700; background: rgba(124, 58, 237, 0.08); margin-bottom: 0.25rem;">
                     ⚡ Organizer Hub
                   </button>
-                ` : ''}
-                ${isUserAdmin(user) ? `
+                  <button class="nav-dropdown-item" id="btn-menu-events">
+                    🎉 Campus Events
+                  </button>
+                  <button class="nav-dropdown-item" id="btn-menu-ideas">
+                    💡 Campus Wishlist & Ideas
+                  </button>
+                ` : isUserAdmin(user) ? `
+                  <!-- ADMIN SPECIFIC MENU -->
                   <button class="nav-dropdown-item" id="btn-menu-admin" style="color: #ef4444; font-weight: 700; background: rgba(239, 68, 68, 0.08); margin-bottom: 0.25rem;">
                     🛡️ Admin Console
                   </button>
-                ` : ''}
-
-                <button class="nav-dropdown-item" id="btn-menu-events">
-                  🎉 Campus Events
-                </button>
-
-                <button class="nav-dropdown-item" id="btn-menu-passes">
-                  🎫 My Passes & Certs
-                </button>
-
-                <button class="nav-dropdown-item" id="btn-menu-teams">
-                  🤝 Teammate & Squad Hub
-                </button>
-
-                <button class="nav-dropdown-item" id="btn-menu-ideas">
-                  💡 Campus Wishlist & Ideas
-                </button>
+                  <button class="nav-dropdown-item" id="btn-menu-executive" style="color: #3b82f6; font-weight: 700;">
+                    🏛️ Executive Hub
+                  </button>
+                  <button class="nav-dropdown-item" id="btn-menu-organizer" style="color: var(--primary); font-weight: 700;">
+                    ⚡ Organizer Hub
+                  </button>
+                  <button class="nav-dropdown-item" id="btn-menu-events">
+                    🎉 Campus Events Feed
+                  </button>
+                ` : `
+                  <!-- STUDENT SPECIFIC MENU -->
+                  <button class="nav-dropdown-item" id="btn-menu-events">
+                    🎉 Campus Events
+                  </button>
+                  <button class="nav-dropdown-item" id="btn-menu-passes">
+                    🎫 My Passes & Certs
+                  </button>
+                  <button class="nav-dropdown-item" id="btn-menu-teams">
+                    🤝 Teammate & Squad Hub
+                  </button>
+                  <button class="nav-dropdown-item" id="btn-menu-ideas">
+                    💡 Campus Wishlist & Ideas
+                  </button>
+                `}
 
                 <button class="nav-dropdown-item" id="btn-menu-profile">
                   ✏️ Edit Profile
@@ -230,34 +249,54 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
     <!-- MOBILE BOTTOM NAVIGATION BAR (Fixed on Mobile Screens <= 768px) -->
     ${user ? `
       <nav class="mobile-bottom-nav">
-        <button class="mobile-nav-btn ${activeRoute === 'events' ? 'active' : ''}" id="mob-nav-events">
-          <span class="mob-icon">🎪</span>
-          <span class="mob-label">Events</span>
-        </button>
-        <button class="mobile-nav-btn ${activeRoute === 'my-passes' ? 'active' : ''}" id="mob-nav-passes">
-          <span class="mob-icon">🎫</span>
-          <span class="mob-label">Passes</span>
-        </button>
-        <button class="mobile-nav-btn ${activeRoute === 'ideas' ? 'active' : ''}" id="mob-nav-ideas">
-          <span class="mob-icon">💡</span>
-          <span class="mob-label">Ideas</span>
-        </button>
-        ${isUserAdmin(user) ? `
-          <button class="mobile-nav-btn ${activeRoute === 'admin' ? 'active' : ''}" id="mob-nav-admin">
-            <span class="mob-icon">🛡️</span>
-            <span class="mob-label">Admin</span>
-          </button>
-        ` : user && ['hod', 'dean', 'vc'].includes(user.role) ? `
+        ${['hod', 'dean', 'vc'].includes(user.role) ? `
           <button class="mobile-nav-btn ${activeRoute === 'executive' ? 'active' : ''}" id="mob-nav-executive">
             <span class="mob-icon">🏛️</span>
             <span class="mob-label">Executive</span>
+          </button>
+          <button class="mobile-nav-btn ${activeRoute === 'ideas' ? 'active' : ''}" id="mob-nav-ideas">
+            <span class="mob-icon">💡</span>
+            <span class="mob-label">Ideas</span>
           </button>
         ` : user.role === 'organizer' ? `
           <button class="mobile-nav-btn ${activeRoute === 'organizer' ? 'active' : ''}" id="mob-nav-organizer">
             <span class="mob-icon">⚡</span>
             <span class="mob-label">Org Hub</span>
           </button>
+          <button class="mobile-nav-btn ${activeRoute === 'events' ? 'active' : ''}" id="mob-nav-events">
+            <span class="mob-icon">🎪</span>
+            <span class="mob-label">Events</span>
+          </button>
+          <button class="mobile-nav-btn ${activeRoute === 'ideas' ? 'active' : ''}" id="mob-nav-ideas">
+            <span class="mob-icon">💡</span>
+            <span class="mob-label">Ideas</span>
+          </button>
+        ` : isUserAdmin(user) ? `
+          <button class="mobile-nav-btn ${activeRoute === 'admin' ? 'active' : ''}" id="mob-nav-admin">
+            <span class="mob-icon">🛡️</span>
+            <span class="mob-label">Admin</span>
+          </button>
+          <button class="mobile-nav-btn ${activeRoute === 'executive' ? 'active' : ''}" id="mob-nav-executive">
+            <span class="mob-icon">🏛️</span>
+            <span class="mob-label">Executive</span>
+          </button>
+          <button class="mobile-nav-btn ${activeRoute === 'events' ? 'active' : ''}" id="mob-nav-events">
+            <span class="mob-icon">🎪</span>
+            <span class="mob-label">Events</span>
+          </button>
         ` : `
+          <button class="mobile-nav-btn ${activeRoute === 'events' ? 'active' : ''}" id="mob-nav-events">
+            <span class="mob-icon">🎪</span>
+            <span class="mob-label">Events</span>
+          </button>
+          <button class="mobile-nav-btn ${activeRoute === 'my-passes' ? 'active' : ''}" id="mob-nav-passes">
+            <span class="mob-icon">🎫</span>
+            <span class="mob-label">Passes</span>
+          </button>
+          <button class="mobile-nav-btn ${activeRoute === 'ideas' ? 'active' : ''}" id="mob-nav-ideas">
+            <span class="mob-icon">💡</span>
+            <span class="mob-label">Ideas</span>
+          </button>
           <button class="mobile-nav-btn" id="mob-nav-teams">
             <span class="mob-icon">🤝</span>
             <span class="mob-label">Teams</span>
@@ -274,7 +313,17 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
   container.innerHTML = navHtml;
 
   // Navigation Links
-  container.querySelector('#nav-brand')?.addEventListener('click', () => navigateTo('events'));
+  container.querySelector('#nav-brand')?.addEventListener('click', () => {
+    if (user && ['hod', 'dean', 'vc'].includes(user.role)) {
+      navigateTo('executive');
+    } else if (user && user.role === 'organizer') {
+      navigateTo('organizer');
+    } else if (user && (isUserAdmin(user) || user.role === 'admin')) {
+      navigateTo('admin');
+    } else {
+      navigateTo('events');
+    }
+  });
   container.querySelector('#nav-events-link')?.addEventListener('click', () => navigateTo('events'));
   container.querySelector('#nav-ideas')?.addEventListener('click', () => navigateTo('ideas'));
   container.querySelector('#nav-organizer')?.addEventListener('click', () => navigateTo('organizer'));

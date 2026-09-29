@@ -13,12 +13,12 @@ export const ROUTES_CONFIG = {
   events: {
     title: 'Campus Events & Announcements - EventPulse',
     public: false,
-    allowedRoles: ['student', 'organizer', 'hod', 'dean', 'vc', 'admin']
+    allowedRoles: ['student', 'organizer', 'admin']
   },
   'my-passes': {
     title: 'Digital QR Passes - EventPulse',
     public: false,
-    allowedRoles: ['student', 'organizer', 'hod', 'dean', 'vc', 'admin']
+    allowedRoles: ['student', 'admin']
   },
   organizer: {
     title: 'Organizer Hub & Gate Scanner - EventPulse',
