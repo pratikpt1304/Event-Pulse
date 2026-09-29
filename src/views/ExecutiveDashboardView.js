@@ -92,7 +92,7 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
 
   const pending = deptComplaints.filter(c => c.status !== 'resolved');
   const upcoming = deptEvents.filter(e => new Date(e.date || e.startDate) >= new Date());
-  const needsEndorsement = upcoming.filter(e => !e.endorsed);
+  const needsEndorsement = upcoming.filter(e => !e.endorsed || e.status === 'pending_approval');
 
   // Helper to match student department
   const isDeptMatch = (dept) => {
@@ -646,10 +646,15 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
           </div>
         </div>
 
-        <!-- Alert if events need endorsement -->
+        <!-- Alert if events need approval -->
         ${needsEndorsement.length > 0 ? `
-          <div class="hod-alert">
-            ⚠️ <span>${needsEndorsement.length} upcoming event${needsEndorsement.length > 1 ? 's' : ''} in <strong>${userDept}</strong> are awaiting your endorsement.</span>
+          <div class="hod-alert" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.6rem;">
+            <div>
+              ⚠️ <span><strong>${needsEndorsement.length} upcoming event${needsEndorsement.length > 1 ? 's' : ''}</strong> in <strong>${userDept}</strong> are awaiting your official HOD Approval.</span>
+            </div>
+            <button class="hod-btn-sm" id="btn-hod-review-events" style="background:#10b981; color:#fff; border:none; font-weight:800; cursor:pointer;">
+              Review & Approve Now →
+            </button>
           </div>
         ` : ''}
 
@@ -659,9 +664,9 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
             <div class="hod-stat-val" style="color: #6366f1;">${deptEvents.length}</div>
             <div class="hod-stat-label">Dept Events</div>
           </div>
-          <div class="hod-stat">
-            <div class="hod-stat-val" style="color: #3b82f6;">${upcoming.length}</div>
-            <div class="hod-stat-label">Upcoming Events</div>
+          <div class="hod-stat" style="border-left: 3px solid ${needsEndorsement.length > 0 ? '#10b981' : '#3b82f6'};">
+            <div class="hod-stat-val" style="color: ${needsEndorsement.length > 0 ? '#10b981' : '#3b82f6'};">${needsEndorsement.length}</div>
+            <div class="hod-stat-label">${needsEndorsement.length > 0 ? 'Pending HOD Approval' : 'Upcoming Events'}</div>
           </div>
           <div class="hod-stat" style="border-left: 3px solid ${activeRatePct >= 50 ? '#10b981' : '#f59e0b'};">
             <div class="hod-stat-val" style="color: #3b82f6;">${totalDeptStudents}</div>
@@ -673,10 +678,11 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
           </div>
         </div>
 
-        <!-- Tabs: Events, Students, Grievances -->
+        <!-- Tabs: Events & Approvals, Students, Grievances -->
         <div class="hod-tabs">
           <button class="hod-tab ${activeTab === 'events' ? 'active' : ''}" id="tab-btn-events">
-            🎪 Events (${deptEvents.length})
+            🎪 Events & Approvals (${deptEvents.length})
+            ${needsEndorsement.length > 0 ? `<span class="hod-badge" style="background: #10b981;">${needsEndorsement.length} to approve</span>` : ''}
           </button>
           <button class="hod-tab ${activeTab === 'students' ? 'active' : ''}" id="tab-btn-students">
             👨‍🎓 Students (${totalDeptStudents})
@@ -688,16 +694,27 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
           </button>
         </div>
 
-        <!-- TAB 1: EVENTS -->
+        <!-- TAB 1: EVENTS & APPROVALS -->
         ${activeTab === 'events' ? `
           <div class="hod-card">
-            <div style="padding: 0.85rem 1.1rem; border-bottom: 1px solid var(--border-subtle);">
-              <div style="font-size: 0.9rem; font-weight: 700; color: var(--text-primary);">
-                ${userDept} — Events & Endorsements
+            <div style="padding: 0.85rem 1.1rem; border-bottom: 1px solid var(--border-subtle); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+              <div>
+                <div style="font-size: 0.9rem; font-weight: 700; color: var(--text-primary);">
+                  ${userDept} — Events & Official Approvals
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
+                  Review and grant HOD approvals to publish departmental events live for students
+                </div>
               </div>
-              <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
-                Only events mapped to your department are shown
-              </div>
+              ${needsEndorsement.length > 0 ? `
+                <span class="pill pill-amber" style="font-weight:700;">
+                  ⚠️ ${needsEndorsement.length} Event${needsEndorsement.length > 1 ? 's' : ''} Awaiting Approval
+                </span>
+              ` : `
+                <span class="pill pill-green" style="font-weight:700;">
+                  ✓ All Events Approved
+                </span>
+              `}
             </div>
             <div style="overflow-x: auto;">
               <table class="hod-table">
@@ -706,8 +723,8 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
                     <th>Event</th>
                     <th>Date</th>
                     <th>Attendance</th>
-                    <th>Status</th>
-                    <th>Endorsement</th>
+                    <th>Approval Status</th>
+                    <th>HOD Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -715,6 +732,7 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
                     <tr><td colspan="5" class="hod-empty">📭 No events for ${userDept} yet.</td></tr>
                   ` : deptEvents.map(evt => {
                     const isUpcoming = new Date(evt.date || evt.startDate) >= new Date();
+                    const isApproved = evt.status === 'approved' || evt.endorsed;
                     return `
                       <tr>
                         <td>
@@ -724,17 +742,17 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
                         <td style="font-size: 0.82rem; white-space: nowrap;">${evt.date || 'TBD'}</td>
                         <td style="font-weight: 700; color: #6366f1;">${evt.registeredCount || evt.attendeesCount || 18}</td>
                         <td>
-                          <span class="pill ${isUpcoming ? 'pill-amber' : 'pill-gray'}">
-                            ${isUpcoming ? 'Upcoming' : 'Completed'}
+                          <span class="pill ${!isUpcoming ? 'pill-gray' : isApproved ? 'pill-green' : 'pill-amber'}">
+                            ${!isUpcoming ? 'Completed' : isApproved ? '✓ Approved & Live' : '⏳ Pending Approval'}
                           </span>
                         </td>
                         <td>
                           ${!evt.endorsed && isUpcoming ? `
-                            <button class="hod-action-btn btn-endorse-style btn-endorse" data-id="${evt.id}">
-                              ✍️ Endorse
+                            <button class="hod-action-btn btn-endorse" data-id="${evt.id}" style="background:#10b981; color:#fff; font-weight:800; border:none; padding:6px 14px; box-shadow:0 2px 5px rgba(16,185,129,0.3);">
+                              ✅ Approve Event
                             </button>
                           ` : isUpcoming ? `
-                            <span class="pill pill-green">✓ Endorsed</span>
+                            <span class="pill pill-green" style="font-weight:700;">✓ HOD Approved</span>
                           ` : `
                             <span style="font-size: 0.75rem; color: var(--text-secondary);">—</span>
                           `}
@@ -1170,24 +1188,31 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
       }
     });
 
-    // Endorse event
+    // Approve departmental event
     container.querySelectorAll('.btn-endorse').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         const evtId = e.currentTarget.getAttribute('data-id');
         if (!evtId) return;
-        e.currentTarget.disabled = true; e.currentTarget.innerText = '…';
+        e.currentTarget.disabled = true; e.currentTarget.innerText = 'Approving…';
         try {
           await updateDoc(doc(db, 'events', evtId), {
             endorsed: true, endorsedBy: user.email,
-            endorsedRole: 'hod', endorsedAt: new Date().toISOString()
+            endorsedRole: 'hod', endorsedAt: new Date().toISOString(),
+            status: 'approved'
           });
-          alert('✅ Event endorsed by HOD — ' + userDept);
+          alert('✅ Event approved by HOD! It is now officially live for students.');
           renderExecutiveDashboardView(container, navigateTo);
         } catch (err) {
           alert('Error: ' + err.message);
-          e.currentTarget.disabled = false; e.currentTarget.innerText = '✍️ Endorse';
+          e.currentTarget.disabled = false; e.currentTarget.innerText = '✅ Approve Event';
         }
       });
+    });
+
+    container.querySelector('#btn-hod-review-events')?.addEventListener('click', () => {
+      activeTab = 'events';
+      sessionStorage.setItem('ep_exec_tab', 'events');
+      render();
     });
 
     // Resolve grievance
@@ -1741,6 +1766,10 @@ Prof. (Dr.) Dean — School of Engineering</textarea>
     const { events, complaints, students } = getFilteredData();
     const pending = complaints.filter(c => c.status !== 'resolved');
     const upcoming = events.filter(e => new Date(e.date || e.startDate) >= new Date());
+    const pendingApprovals = events.filter(e => {
+      const isUpcoming = new Date(e.date || e.startDate) >= new Date();
+      return isUpcoming && (!e.endorsed || e.status === 'pending_approval');
+    });
     const totalRegs = events.reduce((a, e) => a + (e.registeredCount || e.attendeesCount || 18), 0);
     const bench = getBenchmark();
     const filteredStudents = getFilteredStudents();
@@ -2109,6 +2138,18 @@ Prof. (Dr.) Dean — School of Engineering</textarea>
           </div>
         </div>
 
+        <!-- Alert if events need Dean Approval -->
+        ${pendingApprovals.length > 0 ? `
+          <div style="background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.3); border-radius:12px; padding:0.85rem 1.2rem; display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap; gap:0.6rem;">
+            <div style="color:#c084fc; font-size:0.85rem; font-weight:700;">
+              ⚠️ <span><strong>${pendingApprovals.length} upcoming event${pendingApprovals.length > 1 ? 's' : ''}</strong> across ${schoolTitle} are awaiting your official Dean's Approval.</span>
+            </div>
+            <button class="dean-action-btn" id="btn-dean-review-events" style="background:#8b5cf6; color:#fff; border:none; font-weight:800; cursor:pointer;">
+              Review & Approve Now →
+            </button>
+          </div>
+        ` : ''}
+
         <!-- 5-Metric School Overview Strip -->
         <div class="dean-stats">
           <div class="dean-stat">
@@ -2129,13 +2170,13 @@ Prof. (Dr.) Dean — School of Engineering</textarea>
             <div class="dean-stat-sub">${activeRatePct}% active in co-curriculars</div>
           </div>
 
-          <div class="dean-stat">
+          <div class="dean-stat" style="border-left: 3px solid ${pendingApprovals.length > 0 ? '#8b5cf6' : 'transparent'};">
             <div class="dean-stat-top">
               <div class="dean-stat-label">School Events</div>
               <span style="font-size: 1.1rem;">📅</span>
             </div>
             <div class="dean-stat-val" style="color: #6366f1;">${events.length}</div>
-            <div class="dean-stat-sub">${upcoming.length} upcoming scheduled</div>
+            <div class="dean-stat-sub">${pendingApprovals.length > 0 ? `<strong style="color:#a78bfa;">${pendingApprovals.length} awaiting approval</strong>` : `${upcoming.length} upcoming scheduled`}</div>
           </div>
 
           <div class="dean-stat">
@@ -2166,7 +2207,8 @@ Prof. (Dr.) Dean — School of Engineering</textarea>
             👨‍🎓 Student Directory (${students.length})
           </button>
           <button class="dean-tab ${activeTab === 'events' ? 'active' : ''}" id="tab-btn-events">
-            🎪 Events & Sanctions (${events.length})
+            🎪 Events & Approvals (${events.length})
+            ${pendingApprovals.length > 0 ? `<span class="dean-tab-count" style="background:#8b5cf6;">${pendingApprovals.length} to approve</span>` : ''}
           </button>
           <button class="dean-tab ${activeTab === 'achievements' ? 'active' : ''}" id="tab-btn-achievements">
             🏆 Honors & Achievements (${starAchieversCount})
@@ -2434,18 +2476,27 @@ Prof. (Dr.) Dean — School of Engineering</textarea>
           </div>
         ` : ''}
 
-        <!-- TAB 3: EVENTS & SANCTIONS -->
+        <!-- TAB 3: EVENTS & APPROVALS -->
         ${activeTab === 'events' ? `
           <div class="dean-card">
             <div class="dean-card-header">
               <div>
                 <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary);">
-                  School of Engineering — Events & Academic Sanctions
+                  School of Engineering — Events & Official Dean Approvals
                 </div>
                 <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
                   ${deptFilter === 'all' ? 'Showing events across all engineering departments' : `Filtered: ${deptFilter}`}
                 </div>
               </div>
+              ${pendingApprovals.length > 0 ? `
+                <span class="dpill dpill-amber" style="font-weight:700;">
+                  ⚠️ ${pendingApprovals.length} Event${pendingApprovals.length > 1 ? 's' : ''} Awaiting Approval
+                </span>
+              ` : `
+                <span class="dpill dpill-violet" style="font-weight:700;">
+                  ✓ All School Events Approved
+                </span>
+              `}
             </div>
             <div style="overflow-x: auto;">
               <table class="dean-table">
@@ -2455,8 +2506,8 @@ Prof. (Dr.) Dean — School of Engineering</textarea>
                     <th>Department</th>
                     <th>Date</th>
                     <th>Registrations</th>
-                    <th>Sanction Status</th>
-                    <th>Action</th>
+                    <th>Approval Status</th>
+                    <th>Dean Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2464,6 +2515,7 @@ Prof. (Dr.) Dean — School of Engineering</textarea>
                     <tr><td colspan="6" class="dean-empty">📭 No events found.</td></tr>
                   ` : events.map(evt => {
                     const isUpcoming = new Date(evt.date || evt.startDate) >= new Date();
+                    const isApproved = evt.status === 'approved' || evt.endorsed;
                     return `
                       <tr>
                         <td>
@@ -2475,16 +2527,16 @@ Prof. (Dr.) Dean — School of Engineering</textarea>
                         <td style="font-weight: 700; color: #8b5cf6;">${evt.registeredCount || evt.attendeesCount || 18}</td>
                         <td>
                           ${!isUpcoming ? `<span class="dpill dpill-gray">Completed</span>`
-                          : evt.endorsed ? `<span class="dpill dpill-violet">✓ Sanctioned</span>`
-                          : `<span class="dpill dpill-amber">Awaiting</span>`}
+                          : isApproved ? `<span class="dpill dpill-violet">✓ Approved & Live</span>`
+                          : `<span class="dpill dpill-amber">⏳ Pending Approval</span>`}
                         </td>
                         <td>
                           ${isUpcoming && !evt.endorsed ? `
-                            <button class="dean-sanction-btn btn-sanction" data-id="${evt.id}">
-                              🎓 Grant Sanction
+                            <button class="dean-sanction-btn btn-sanction" data-id="${evt.id}" style="background:#8b5cf6; color:#fff; font-weight:800; border:none; padding:6px 14px; box-shadow:0 2px 5px rgba(139,92,246,0.3);">
+                              🎓 Approve Event
                             </button>
-                          ` : isUpcoming && evt.endorsed ? `
-                            <span style="font-size: 0.72rem; color: #8b5cf6; font-weight: 700;">✓ Sanctioned</span>
+                          ` : isUpcoming ? `
+                            <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: 700;">✓ Dean Approved</span>
                           ` : `<span style="font-size: 0.72rem; color: var(--text-secondary);">—</span>`}
                         </td>
                       </tr>
@@ -2914,24 +2966,31 @@ Prof. (Dr.) Dean — School of Engineering</textarea>
       }
     });
 
-    // Grant Dean Sanction
+    // Grant Dean Approval
     container.querySelectorAll('.btn-sanction').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         const evtId = e.currentTarget.getAttribute('data-id');
         if (!evtId) return;
-        e.currentTarget.disabled = true; e.currentTarget.innerText = '…';
+        e.currentTarget.disabled = true; e.currentTarget.innerText = 'Approving…';
         try {
           await updateDoc(doc(db, 'events', evtId), {
             endorsed: true, endorsedBy: user.email,
-            endorsedRole: role, endorsedAt: new Date().toISOString()
+            endorsedRole: role || 'dean', endorsedAt: new Date().toISOString(),
+            status: 'approved'
           });
-          alert(`✅ Dean's Sanction granted.`);
+          alert(`✅ Dean's Official Approval granted! Event is now live for all students.`);
           renderExecutiveDashboardView(container, navigateTo);
         } catch (err) {
           alert('Error: ' + err.message);
-          e.currentTarget.disabled = false; e.currentTarget.innerText = '🎓 Grant Sanction';
+          e.currentTarget.disabled = false; e.currentTarget.innerText = '🎓 Approve Event';
         }
       });
+    });
+
+    container.querySelector('#btn-dean-review-events')?.addEventListener('click', () => {
+      activeTab = 'events';
+      sessionStorage.setItem('ep_dean_tab', 'events');
+      render();
     });
 
     // Resolve grievance
