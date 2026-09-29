@@ -2,6 +2,7 @@ import { getApprovedEvents, getCachedEventsSync } from '../services/events';
 import { getAnnouncements, getCachedAnnouncementsSync, getFileFromIndexedDB, fetchNoticeAttachmentData } from '../services/announcements';
 import { getCurrentUser } from '../services/auth';
 import { registerForEvent, getStudentRegistrations } from '../services/registrations';
+import { isStudentAllowed } from '../services/participants';
 import { createEventCardHtml } from '../components/EventCard';
 import { openTeamFinderModal } from '../components/TeamFinderModal';
 import { openVolunteerModal } from '../components/VolunteerModal';
@@ -36,6 +37,30 @@ export async function renderEventsView(container, navigateTo) {
   let searchTerm = '';
   let selectedDept = 'all';
   let selectedCategory = 'all';
+
+  let allowedClosedEventIds = new Set();
+  const isStaffOrAdmin = user && ['admin', 'organizer', 'hod', 'dean', 'vc'].includes(user.role);
+
+  async function refreshAllowedClosedEvents(eventsList) {
+    if (isStaffOrAdmin || !user || !user.email) return;
+    const closedList = eventsList.filter(e => e.visibility === 'closed');
+    if (closedList.length === 0) return;
+
+    await Promise.all(
+      closedList.map(async (e) => {
+        try {
+          const allowed = await isStudentAllowed(e.id, user.email);
+          if (allowed) {
+            allowedClosedEventIds.add(e.id);
+          } else {
+            allowedClosedEventIds.delete(e.id);
+          }
+        } catch (err) {
+          console.warn('Error checking participant allowance:', err);
+        }
+      })
+    );
+  }
 
   const renderNoticeCard = (n) => {
     const isEmergency = (n.priority || '').includes('Emergency');
@@ -315,6 +340,13 @@ export async function renderEventsView(container, navigateTo) {
 
     // Standard Events Filtering
     const filteredEvents = events.filter(e => {
+      // Closed event security: hide from non-staff students unless they are in allowed roster
+      if (e.visibility === 'closed' && !isStaffOrAdmin) {
+        if (!user || !user.email || !allowedClosedEventIds.has(e.id)) {
+          return false;
+        }
+      }
+
       const q = searchTerm.toLowerCase().trim();
       const matchesSearch = !q || 
                             (e.title || '').toLowerCase().includes(q) || 
@@ -392,7 +424,8 @@ export async function renderEventsView(container, navigateTo) {
         }
       }
 
-      return createEventCardHtml(e, regStatus, isEligible);
+      const isAllowed = e.visibility !== 'closed' || isStaffOrAdmin || (user && allowedClosedEventIds.has(e.id));
+      return createEventCardHtml(e, regStatus, isEligible, isAllowed);
     }).join('');
 
     eventsContainer.innerHTML = noticesSection + eventsHtml;
@@ -540,7 +573,8 @@ export async function renderEventsView(container, navigateTo) {
     });
   }
 
-  // Initial Grid Render
+  // Initial Grid Render & Closed Events Resolution
+  refreshAllowedClosedEvents(events).then(() => updateGrid()).catch(() => {});
   updateGrid();
 
   // Background Async Refresh (Syncs live database seamlessly)
@@ -548,8 +582,11 @@ export async function renderEventsView(container, navigateTo) {
     getApprovedEvents(),
     getAnnouncements(),
     user ? getStudentRegistrations(user.uid) : Promise.resolve([])
-  ]).then(([freshEvents, freshNotices, freshRegs]) => {
-    if (freshEvents) events = freshEvents;
+  ]).then(async ([freshEvents, freshNotices, freshRegs]) => {
+    if (freshEvents) {
+      events = freshEvents;
+      await refreshAllowedClosedEvents(events);
+    }
     if (freshNotices) announcements = freshNotices;
     if (freshRegs) registrations = freshRegs;
 

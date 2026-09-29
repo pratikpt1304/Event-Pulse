@@ -2,116 +2,287 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
+    // =========================================================================
+    // HELPER FUNCTIONS & ROLE-BASED ACCESS CONTROL (RBAC)
+    // =========================================================================
+
+    // 1. Verify caller has an active authenticated session
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
+    // 2. Identity match: caller UID matches the target userId
     function isUser(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Helper: Safely verify whether caller's profile document exists
+    function userDocExists() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // 3. Retrieve caller's user document data from /databases/$(database)/documents/users/$(request.auth.uid)
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    function hasRole(role) {
-      return isAuthenticated() && (
-        request.auth.token.role == role || 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData().role == role)
-      );
-    }
-
-    function isOrganizer() {
-      return hasRole('organizer') || hasRole('admin');
-    }
-
+    // 4. Admin authorization check:
+    //    - Custom token claim role == 'admin'
+    //    - Or bootstrap super admin email list ('eventpulsesupport@gmail.com', 'admin@college.edu', 'admin@univ.edu', 'piyushsahuset@sanjivani.edu.in')
+    //    - Or Firestore user profile role == 'admin' / email in super admin list
     function isAdmin() {
       return isAuthenticated() && (
-        request.auth.token.email == 'eventpulsesupport@gmail.com' ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData().email == 'eventpulsesupport@gmail.com')
+        (('role' in request.auth.token) && request.auth.token.role == 'admin') ||
+        (('email' in request.auth.token) && (
+          request.auth.token.email.lower() in [
+            'eventpulsesupport@gmail.com',
+            'admin@college.edu',
+            'admin@univ.edu',
+            'piyushsahuset@sanjivani.edu.in'
+          ]
+        )) ||
+        (userDocExists() && (
+          (('role' in getUserData()) && getUserData().role == 'admin') ||
+          (('email' in getUserData()) && getUserData().email.lower() in [
+            'eventpulsesupport@gmail.com',
+            'admin@college.edu',
+            'admin@univ.edu',
+            'piyushsahuset@sanjivani.edu.in'
+          ])
+        ))
       );
     }
 
-    // 1. User Profiles (Public read allowed for PRN uniqueness check during signup)
+    // 5. Resolve user role:
+    //    Returns 'admin', token claim role, Firestore user doc role, or defaults to 'student'
+    function getUserRole() {
+      return !isAuthenticated() ? 'student' : (
+        isAdmin() ? 'admin' : (
+          ('role' in request.auth.token) ? request.auth.token.role : (
+            userDocExists() && ('role' in getUserData()) ? getUserData().role : 'student'
+          )
+        )
+      );
+    }
+
+    // 6. Resolve user department
+    function getUserDept() {
+      return !isAuthenticated() ? '' : (
+        ('department' in request.auth.token) ? request.auth.token.department : (
+          userDocExists() && ('department' in getUserData()) ? getUserData().department : ''
+        )
+      );
+    }
+
+    // =========================================================================
+    // COLLECTION SECURITY RULES
+    // =========================================================================
+
+    // 1. User Profiles
+    // Read: allow if isUser(userId) || isAdmin() || isAuthenticated()
+    // Create: allow if isUser(userId) && (request.resource.data.role == 'student' || isAdmin())
+    // Update: allow if isUser(userId) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) || isAdmin()) || isAdmin()
+    // Delete: allow if isAdmin()
     match /users/{userId} {
-      allow read: if true;
-      allow create, update: if isUser(userId);
+      allow read: if isUser(userId) || isAdmin() || isAuthenticated();
+      allow create: if (isUser(userId) && (request.resource.data.role == 'student' || isAdmin())) || isAdmin();
+      allow update: if (isUser(userId) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) || isAdmin())) || isAdmin();
       allow delete: if isAdmin();
     }
 
-    // 2. Events
+    // 2. Staff Invites
+    // Read: allow if isAdmin() || (isAuthenticated() && request.auth.token.email.lower() == email.lower())
+    // Create, Update, Delete: allow if isAdmin()
+    match /staffInvites/{email} {
+      allow read: if isAdmin() || (
+        isAuthenticated() && 
+        ('email' in request.auth.token) && 
+        request.auth.token.email.lower() == email.lower()
+      );
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 3. Events & Allowed Participants Subcollection
+    // Open events: readable by all.
+    // Closed events: readable only by event owner, staff/admin, or invited participants in allowedParticipants.
     match /events/{eventId} {
-      allow read, create, update, delete: if true;
+      function isClosedEvent() {
+        return ('visibility' in resource.data) && resource.data.visibility == 'closed';
+      }
+
+      function isStudentAllowed() {
+        return isAuthenticated() && 
+          ('email' in request.auth.token) && 
+          exists(/databases/$(database)/documents/events/$(eventId)/allowedParticipants/$(request.auth.token.email.lower()));
+      }
+
+      function isEventOwner() {
+        return isAuthenticated() && (
+          (('organizerId' in resource.data) && resource.data.organizerId == request.auth.uid) ||
+          (('organizerUid' in resource.data) && resource.data.organizerUid == request.auth.uid)
+        );
+      }
+
+      allow get: if !isClosedEvent() || isAdmin() || isEventOwner() || getUserRole() in ['organizer', 'hod', 'dean', 'vc'] || isStudentAllowed();
+      allow list: if true;
+      allow create: if isAuthenticated() && (isAdmin() || getUserRole() in ['organizer', 'hod', 'dean', 'vc']);
+      allow update: if isAuthenticated() && (isAdmin() || isEventOwner() || getUserRole() in ['organizer', 'hod', 'dean', 'vc']);
+      allow delete: if isAdmin();
+
+      // Subcollection: Allowed Participants for Closed Events
+      // Storage: events/{eventId}/allowedParticipants/{emailLower}
+      match /allowedParticipants/{participantEmail} {
+        // Individual participant can only verify their own email document, NEVER list the full collection
+        allow get: if isAdmin() || 
+                      (isAuthenticated() && request.auth.uid == get(/databases/$(database)/documents/events/$(eventId)).data.organizerId) ||
+                      (isAuthenticated() && ('email' in request.auth.token) && request.auth.token.email.lower() == participantEmail.lower());
+        // Only the event owner or admin can list participants
+        allow list: if isAdmin() || (isAuthenticated() && request.auth.uid == get(/databases/$(database)/documents/events/$(eventId)).data.organizerId);
+        // Only the event owner or admin can add, edit, or delete participants
+        allow create, update, delete: if isAdmin() || (isAuthenticated() && request.auth.uid == get(/databases/$(database)/documents/events/$(eventId)).data.organizerId);
+      }
     }
 
-    // 3. Registrations (Deterministic ID: {eventId}_{userId})
+    // 4. Registrations (Deterministic ID: {eventId}_{userId})
+    // For closed events: registration is allowed ONLY if the student's email exists in allowedParticipants
     match /registrations/{registrationId} {
-      allow read, create, update, delete: if true;
+      function targetEventIsClosed() {
+        return exists(/databases/$(database)/documents/events/$(request.resource.data.eventId)) &&
+               (('visibility' in get(/databases/$(database)/documents/events/$(request.resource.data.eventId)).data) &&
+                get(/databases/$(database)/documents/events/$(request.resource.data.eventId)).data.visibility == 'closed');
+      }
+
+      function isCallerAllowedForClosedEvent() {
+        return isAuthenticated() && 
+          ('email' in request.auth.token) && 
+          exists(/databases/$(database)/documents/events/$(request.resource.data.eventId)/allowedParticipants/$(request.auth.token.email.lower()));
+      }
+
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+        (request.resource.data.userId == request.auth.uid || isAdmin()) &&
+        (!targetEventIsClosed() || isAdmin() || isCallerAllowedForClosedEvent());
+      allow update: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid || 
+        isAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        isAdmin()
+      );
     }
 
-    // 4. Attendance
-    match /attendance/{attendanceId} {
-      allow read, create, update, delete: if true;
-    }
-
-    // 5. Certificates (Public read for verification)
-    match /certificates/{certificateId} {
-      allow read, create, update, delete: if true;
-    }
-
-    // 6. Audit Logs
-    match /auditLogs/{logId} {
-      allow read, create, update, delete: if true;
-    }
-
-    // 7. Teammate & Squad Hub
-    match /teams/{teamId} {
-      allow read, create, update, delete: if true;
-    }
-
-    // 8. Volunteer Applications
-    match /volunteers/{volunteerId} {
-      allow read, create, update, delete: if true;
-    }
-
-    // 9. Confidential Grievances & Incident Reports
+    // 5. Confidential Grievances & Incident Reports
+    // Read: allow if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid)
+    // Create: allow if isAuthenticated()
+    // Update: allow if isAdmin()
+    // Delete: allow if isAdmin()
     match /complaints/{complaintId} {
-      allow read, create, update, delete: if true;
+      allow read: if isAdmin() || (
+        isAuthenticated() && (
+          resource.data.userId == request.auth.uid || 
+          (('ownerUid' in resource.data) && resource.data.ownerUid == request.auth.uid)
+        )
+      );
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
-    // 10. Event Reviews & Ratings
-    match /reviews/{reviewId} {
-      allow read, create, update, delete: if true;
-    }
-
-    // 11. Campus Ideas & Event Wishlist
-    match /ideas/{ideaId} {
-      allow read, create, update, delete: if true;
-    }
-
-    // 11b. Idea Comments (subcollection)
-    match /ideas/{ideaId}/comments/{commentId} {
-      allow read, create, update, delete: if true;
-    }
-
-    // 12. Campus Announcements & Notices
+    // 6. Campus Announcements & Notices
+    // Read: allow if true
+    // Create, Update, Delete: allow if isAdmin()
     match /announcements/{noticeId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
 
-    // 13. FCM Push Notification Tokens (authenticated users can save their own token)
-    match /fcm_tokens/{tokenId} {
-      allow read: if isAdmin();
-      allow create, update: if isAuthenticated();
+    // 7. Campus Ideas & Event Wishlist
+    match /ideas/{ideaId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      // Idea Comments Subcollection
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create, update: if isAuthenticated();
+        allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      }
+    }
+
+    // 8. Event Reviews & Ratings
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // 9. Teammate & Squad Hub
+    match /teams/{teamId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated() && (request.resource.data.leaderId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (resource.data.leaderId == request.auth.uid || isAdmin());
+    }
+
+    // 10. Volunteer Applications
+    match /volunteers/{volunteerId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid || 
+        isAdmin() || 
+        getUserRole() in ['organizer', 'hod', 'dean', 'vc']
+      );
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // 11. Attendance Records (QR Scanner Check-in)
+    match /attendance/{id} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        isAdmin() || 
+        getUserRole() in ['organizer', 'hod', 'dean', 'vc']
+      );
+      allow create, update: if isAuthenticated() && (
+        isAdmin() || 
+        getUserRole() in ['organizer', 'hod', 'dean', 'vc']
+      );
       allow delete: if isAdmin();
     }
 
-    // 14. Notification Send Logs (admin only)
-    match /notification_logs/{logId} {
+    // 12. FCM Push Notification Tokens (authenticated user saves their own token)
+    match /fcm_tokens/{tokenId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create, update: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // 13. Cryptographically Verified Certificates (Public read for instant verification)
+    match /certificates/{certId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated() && (
+        isAdmin() || 
+        getUserRole() in ['organizer', 'hod', 'dean', 'vc']
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 14. Audit Logs (Admin only)
+    match /auditLogs/{logId} {
       allow read: if isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // 15. Notification Send Logs (Admin only)
+    match /notification_logs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Default Deny for any unlisted collections
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

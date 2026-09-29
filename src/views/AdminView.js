@@ -1,4 +1,14 @@
-import { getCurrentUser, isUserAdmin } from '../services/auth';
+import { 
+  getCurrentUser, 
+  isUserAdmin, 
+  createStaffInvite, 
+  getStaffInvites, 
+  deleteStaffInvite, 
+  batchCreateStaffInvites, 
+  updateUserRoleByAdmin, 
+  VALID_ROLES, 
+  STAFF_ROLES 
+} from '../services/auth';
 import { getAllEvents, getCompletedEvents, getPendingEvents, getApprovedEvents, updateEventStatus, createEvent, reopenEvent, deleteEvent, getCachedEventsSync } from '../services/events';
 import { getEventRegistrations, getStudentRegistrations } from '../services/registrations';
 import { getAnnouncements, createAnnouncement, deleteAnnouncement, getCachedAnnouncementsSync, uploadNoticeAttachment, fetchNoticeAttachmentData, getFileFromIndexedDB } from '../services/announcements';
@@ -26,10 +36,13 @@ export async function renderAdminView(container, navigateTo) {
   let usersList = getCachedUsersSync() || [];
   let complaints = getCachedComplaintsSync() || [];
   let ideas = getCachedIdeasSync() || [];
+  let staffInvitesList = await getStaffInvites();
 
   const hash = (window.location.hash || '').toLowerCase();
-  let activeTab = 'queue'; // 'queue' | 'notices' | 'create_event' | 'users' | 'grievances' | 'wishlist' | 'archives'
-  if (hash.includes('grievance') || hash.includes('support') || hash.includes('helpdesk') || hash.includes('ticket')) {
+  let activeTab = 'queue'; // 'queue' | 'staff_invites' | 'notices' | 'create_event' | 'users' | 'grievances' | 'wishlist' | 'archives'
+  if (hash.includes('invite') || hash.includes('staff')) {
+    activeTab = 'staff_invites';
+  } else if (hash.includes('grievance') || hash.includes('support') || hash.includes('helpdesk') || hash.includes('ticket')) {
     activeTab = 'grievances';
   } else if (hash.includes('wishlist') || hash.includes('idea')) {
     activeTab = 'wishlist';
@@ -130,12 +143,144 @@ export async function renderAdminView(container, navigateTo) {
         <div style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-subtle); white-space: nowrap;">
           <button class="cat-tab ${activeTab === 'queue' ? 'active' : ''}" data-tab="queue">⏳ Event Queue (${pendingEvents.length})</button>
           <button class="cat-tab ${activeTab === 'archives' ? 'active' : ''}" data-tab="archives">📚 Event Archives (${completedEvents.length})</button>
+          <button class="cat-tab ${activeTab === 'staff_invites' ? 'active' : ''}" data-tab="staff_invites">✉️ Staff Invites (${staffInvitesList.length})</button>
+          <button class="cat-tab ${activeTab === 'users' ? 'active' : ''}" data-tab="users">👥 User Directory (${usersList.length})</button>
           <button class="cat-tab ${activeTab === 'notices' ? 'active' : ''}" data-tab="notices">📢 Campus Notices (${announcements.length})</button>
           <button class="cat-tab ${activeTab === 'create_event' ? 'active' : ''}" data-tab="create_event">➕ Direct Publish Event</button>
-          <button class="cat-tab ${activeTab === 'users' ? 'active' : ''}" data-tab="users">👥 Student Directory (${usersList.length})</button>
           <button class="cat-tab ${activeTab === 'grievances' ? 'active' : ''}" data-tab="grievances">🚨 Grievance Center (${complaints.length})</button>
           <button class="cat-tab ${activeTab === 'wishlist' ? 'active' : ''}" data-tab="wishlist">💡 Wishlist Approvals (${ideas.length})</button>
         </div>
+
+        <!-- ========================================== -->
+        <!-- TAB: STAFF ROLE INVITES & CSV BULK IMPORT -->
+        <!-- ========================================== -->
+        ${activeTab === 'staff_invites' ? `
+          <div>
+            <!-- Single Staff Invite Card -->
+            <div class="card" style="margin-bottom: 1.5rem; background: #ffffff; padding: 1.5rem; border: 1px solid var(--border-subtle);">
+              <h3 style="font-size: 1.2rem; font-weight: 800; color: #1e293b; margin-top: 0; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span>✉️</span> Issue Staff Role Invite
+              </h3>
+              <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 1.25rem 0;">
+                Staff (organizers, HODs, Deans, VC, admins) cannot sign up themselves. Once invited, their assigned role and department are automatically applied on their first login.
+              </p>
+
+              <form id="form-single-staff-invite" style="display: grid; grid-template-columns: 1.5fr 1fr 1.5fr auto; gap: 0.75rem; align-items: end;">
+                <div>
+                  <label style="display: block; font-size: 0.775rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.35rem;">Staff University Email</label>
+                  <input type="email" id="input-invite-email" class="form-control" placeholder="faculty@college.edu" required style="font-size: 0.85rem;" />
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.775rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.35rem;">Staff Role</label>
+                  <select id="select-invite-role" class="form-control" required style="font-size: 0.85rem; cursor: pointer;">
+                    <option value="organizer">⚡ Organizer</option>
+                    <option value="hod">📚 HOD (Head of Department)</option>
+                    <option value="dean">🎓 Dean (Academic Affairs)</option>
+                    <option value="vc">👑 VC (Vice Chancellor)</option>
+                    <option value="admin">🛡️ Administrator</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.775rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.35rem;">Department / Unit</label>
+                  <input type="text" id="input-invite-dept" class="form-control" placeholder="e.g. Computer Engineering" required style="font-size: 0.85rem;" />
+                </div>
+                <div>
+                  <button type="submit" class="btn btn-primary" id="btn-submit-single-invite" style="font-weight: 700; white-space: nowrap; height: 38px;">
+                    Issue Invite
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <!-- CSV Bulk Import Section -->
+            <div class="card" style="margin-bottom: 1.5rem; background: #ffffff; padding: 1.5rem; border: 1px solid var(--border-subtle); border-left: 4.5px solid #6366f1;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                  <h3 style="font-size: 1.15rem; font-weight: 800; color: #1e293b; margin: 0 0 0.25rem 0; display: flex; align-items: center; gap: 0.4rem;">
+                    <span>📊</span> CSV Bulk Import of Staff Invites
+                  </h3>
+                  <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 0.5rem 0;">
+                    Import multiple staff invites at once using a CSV file. Expected header: <code>email, role, department</code>.
+                  </p>
+                  <div style="font-size: 0.775rem; color: #64748b;">
+                    Allowed roles: <code>organizer</code>, <code>hod</code>, <code>dean</code>, <code>vc</code>, <code>admin</code>
+                  </div>
+                </div>
+
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <input type="file" id="input-csv-staff-file" accept=".csv,text/csv" style="display: none;" />
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-trigger-csv-file" style="font-weight: 700; display: inline-flex; align-items: center; gap: 0.4rem; background: #0f172a; color: #ffffff;">
+                    <span>📁</span> Choose CSV File...
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline" id="btn-download-sample-csv" style="font-size: 0.75rem;">
+                    📥 Download Sample CSV
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Active Staff Invites List -->
+            <div class="card" style="background: #ffffff; padding: 1.5rem; border: 1px solid var(--border-subtle);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+                <h3 style="font-size: 1.15rem; font-weight: 800; color: #1e293b; margin: 0;">
+                  📋 Active Staff Invites in Firestore (${staffInvitesList.length})
+                </h3>
+                <span style="font-size: 0.8rem; color: var(--text-secondary);">
+                  Collection: <code>staffInvites/{email}</code>
+                </span>
+              </div>
+
+              ${staffInvitesList.length === 0 ? `
+                <div style="text-align: center; padding: 2.5rem; color: var(--text-secondary); background: #f8fafc; border-radius: var(--radius-sm); border: 1px dashed var(--border-subtle);">
+                  <div style="font-size: 2rem; margin-bottom: 0.35rem;">✉️</div>
+                  <div style="font-weight: 700; color: var(--text-primary);">No Staff Invites Recorded Yet</div>
+                  <div style="font-size: 0.825rem; margin-top: 0.2rem;">Create an invite using the form above or import a CSV file to pre-assign staff roles.</div>
+                </div>
+              ` : `
+                <div style="overflow-x: auto;">
+                  <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem;">
+                    <thead>
+                      <tr style="background: #f8fafc; border-bottom: 1.5px solid var(--border-subtle);">
+                        <th style="padding: 0.75rem 1rem; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Staff Email</th>
+                        <th style="padding: 0.75rem 1rem; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Assigned Role</th>
+                        <th style="padding: 0.75rem 1rem; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Department</th>
+                        <th style="padding: 0.75rem 1rem; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Invite Status</th>
+                        <th style="padding: 0.75rem 1rem; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Invited By</th>
+                        <th style="padding: 0.75rem 1rem; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; text-align: right;">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${staffInvitesList.map(inv => `
+                        <tr style="border-bottom: 1px solid var(--border-subtle);">
+                          <td style="padding: 0.85rem 1rem; font-weight: 600; color: var(--text-primary);">${inv.email}</td>
+                          <td style="padding: 0.85rem 1rem;">
+                            <span style="font-size: 0.725rem; font-weight: 800; text-transform: uppercase; padding: 0.2rem 0.6rem; border-radius: var(--radius-full); background: ${inv.role === 'admin' ? '#fef2f2' : inv.role === 'vc' ? '#ecfdf5' : inv.role === 'dean' ? '#f5f3ff' : inv.role === 'hod' ? '#eff6ff' : '#faf5ff'}; color: ${inv.role === 'admin' ? '#dc2626' : inv.role === 'vc' ? '#059669' : inv.role === 'dean' ? '#7c3aed' : inv.role === 'hod' ? '#2563eb' : '#9333ea'}; border: 1px solid rgba(0,0,0,0.06);">
+                              ${inv.role}
+                            </span>
+                          </td>
+                          <td style="padding: 0.85rem 1rem; color: var(--text-secondary);">${inv.department || '—'}</td>
+                          <td style="padding: 0.85rem 1rem;">
+                            ${inv.redeemed ? `
+                              <span style="font-size: 0.75rem; font-weight: 700; color: #10b981;">✓ Redeemed / Active</span>
+                            ` : `
+                              <span style="font-size: 0.75rem; font-weight: 700; color: #f59e0b;">⏳ Pending First Login</span>
+                            `}
+                          </td>
+                          <td style="padding: 0.85rem 1rem; font-size: 0.775rem; color: var(--text-tertiary);">${inv.invitedBy || 'Admin'}</td>
+                          <td style="padding: 0.85rem 1rem; text-align: right;">
+                            <button class="btn btn-sm btn-delete-staff-invite" data-email="${inv.email}" style="padding: 0.25rem 0.65rem; font-size: 0.75rem; border-radius: 4px; background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; cursor: pointer;" title="Revoke Invite">
+                              🗑️ Revoke
+                            </button>
+                          </td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              `}
+            </div>
+          </div>
+        ` : ''}
 
         <!-- ========================================== -->
         <!-- TAB 1: PENDING APPROVAL & ACTIVE EVENTS   -->
@@ -704,14 +849,16 @@ export async function renderAdminView(container, navigateTo) {
                         <td>
                           ${u.department ? `${u.department} ${u.year ? `(${u.year})` : ''}` : `<span style="color: #94a3b8; font-size: 0.775rem; font-style: italic;">Not Set</span>`}
                         </td>
-                        <td style="color: var(--text-tertiary); font-size: 0.8rem;">${u.email}</td>
                         <td>
-                          <span style="font-size: 0.725rem; font-weight: 800; text-transform: uppercase; padding: 0.2rem 0.55rem; border-radius: var(--radius-full); background: ${u.role === 'admin' ? '#fef2f2' : u.role === 'organizer' ? '#ede9fe' : '#f1f5f9'}; color: ${u.role === 'admin' ? '#dc2626' : u.role === 'organizer' ? '#7c3aed' : '#475569'};">
+                          <span style="font-size: 0.725rem; font-weight: 800; text-transform: uppercase; padding: 0.2rem 0.55rem; border-radius: var(--radius-full); background: ${u.role === 'admin' ? '#fef2f2' : u.role === 'vc' ? '#ecfdf5' : u.role === 'dean' ? '#f5f3ff' : u.role === 'hod' ? '#eff6ff' : u.role === 'organizer' ? '#ede9fe' : '#f1f5f9'}; color: ${u.role === 'admin' ? '#dc2626' : u.role === 'vc' ? '#059669' : u.role === 'dean' ? '#7c3aed' : u.role === 'hod' ? '#2563eb' : u.role === 'organizer' ? '#7c3aed' : '#475569'};">
                             ${u.role || 'student'}
                           </span>
                         </td>
                         <td>
                           <div style="display: flex; gap: 0.4rem; align-items: center;">
+                            <button class="btn btn-sm btn-outline btn-change-user-role" data-uid="${u.uid}" data-email="${u.email}" data-name="${u.name || 'User'}" data-role="${u.role || 'student'}" style="font-size: 0.75rem; padding: 0.25rem 0.65rem; font-weight: 700; border-radius: 6px;" title="Change User Role">
+                              ✏️ Role
+                            </button>
                             <button class="btn btn-primary btn-sm btn-view-user-activity" data-uid="${u.uid}" data-email="${u.email}" style="font-size: 0.75rem; padding: 0.25rem 0.75rem; font-weight: 700; background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none; color: #fff; border-radius: 6px; box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25); cursor: pointer;">
                               👁️ View Activity
                             </button>
@@ -1093,6 +1240,26 @@ export async function renderAdminView(container, navigateTo) {
           </div>
         ` : ''}
 
+        <!-- CSV Staff Invites Preview Modal -->
+        <div id="modal-csv-preview" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 9999; align-items: center; justify-content: center; padding: 1.5rem;">
+          <div style="background: #ffffff; border-radius: 16px; width: 100%; max-width: 760px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+            <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h3 style="margin: 0 0 0.2rem 0; font-size: 1.2rem; font-weight: 800; color: #1e293b;">CSV Staff Invites Preview</h3>
+                <p style="margin: 0; font-size: 0.825rem; color: var(--text-secondary);" id="csv-preview-summary">Validating rows...</p>
+              </div>
+              <button id="btn-close-csv-modal" style="background: none; border: none; font-size: 1.35rem; color: #94a3b8; cursor: pointer;">×</button>
+            </div>
+            <div style="padding: 1rem 1.5rem; overflow-y: auto; flex: 1;" id="csv-preview-table-container">
+              <!-- Injected dynamically -->
+            </div>
+            <div style="padding: 1rem 1.5rem; border-top: 1px solid var(--border-subtle); display: flex; justify-content: flex-end; gap: 0.75rem; background: #f8fafc;">
+              <button id="btn-cancel-csv-import" class="btn btn-secondary btn-sm" style="font-weight: 700;">Cancel</button>
+              <button id="btn-confirm-csv-import" class="btn btn-primary btn-sm" style="font-weight: 700;">Confirm & Import Valid Invites</button>
+            </div>
+          </div>
+        </div>
+
       </div>
     `;
 
@@ -1105,6 +1272,224 @@ export async function renderAdminView(container, navigateTo) {
       tab.addEventListener('click', (e) => {
         activeTab = e.currentTarget.getAttribute('data-tab');
         render();
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // STAFF INVITES LISTENERS
+    // -------------------------------------------------------------------------
+    let pendingValidCsvInvites = [];
+
+    // Single Staff Invite Form
+    container.querySelector('#form-single-staff-invite')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = container.querySelector('#input-invite-email')?.value.trim();
+      const role = container.querySelector('#select-invite-role')?.value;
+      const department = container.querySelector('#input-invite-dept')?.value.trim();
+
+      const btn = container.querySelector('#btn-submit-single-invite');
+      if (btn) { btn.disabled = true; btn.innerText = 'Issuing...'; }
+
+      const res = await createStaffInvite({ email, role, department }, user);
+      if (res.success) {
+        alert(`✅ Staff invite successfully created for ${email} with role: ${role.toUpperCase()}`);
+        staffInvitesList = await getStaffInvites();
+        render();
+      } else {
+        alert(`Failed to issue invite: ${res.error}`);
+        if (btn) { btn.disabled = false; btn.innerText = 'Issue Invite'; }
+      }
+    });
+
+    // Delete / Revoke Staff Invite
+    container.querySelectorAll('.btn-delete-staff-invite').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const email = e.currentTarget.getAttribute('data-email');
+        if (!confirm(`Are you sure you want to revoke the staff invite for ${email}?`)) return;
+
+        const res = await deleteStaffInvite(email);
+        if (res.success) {
+          staffInvitesList = await getStaffInvites();
+          render();
+        } else {
+          alert(`Failed to revoke invite: ${res.error}`);
+        }
+      });
+    });
+
+    // Trigger CSV File Picker
+    container.querySelector('#btn-trigger-csv-file')?.addEventListener('click', () => {
+      container.querySelector('#input-csv-staff-file')?.click();
+    });
+
+    // Download Sample CSV
+    container.querySelector('#btn-download-sample-csv')?.addEventListener('click', () => {
+      const sample = `email,role,department\nprof.anwar@college.edu,hod,Computer Engineering\nkavita@college.edu,dean,Academic Affairs\npratik@college.edu,organizer,Technology Council\nadmin.support@college.edu,admin,Central Administration`;
+      const blob = new Blob([sample], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sample_staff_invites.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // CSV File Upload & Validation Preview Modal
+    container.querySelector('#input-csv-staff-file')?.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target.result;
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        if (lines.length < 2) {
+          alert('CSV file is empty or missing data rows.');
+          return;
+        }
+
+        const header = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+        const emailIdx = header.findIndex(h => h.includes('email'));
+        const roleIdx = header.findIndex(h => h.includes('role'));
+        const deptIdx = header.findIndex(h => h.includes('dept') || h.includes('department'));
+
+        const parsedRows = [];
+        pendingValidCsvInvites = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(',').map(c => c.trim().replace(/^["']|["']$/g, ''));
+          if (cols.length < 2) continue;
+
+          const email = emailIdx !== -1 ? cols[emailIdx] : cols[0];
+          const role = (roleIdx !== -1 ? cols[roleIdx] : cols[1] || '').toLowerCase();
+          const department = deptIdx !== -1 ? cols[deptIdx] : cols[2] || '';
+
+          const errors = [];
+          if (!email || !email.includes('@')) errors.push('Invalid email address');
+          if (!STAFF_ROLES.includes(role)) errors.push(`Invalid role "${role}". Allowed: ${STAFF_ROLES.join(', ')}`);
+          if (!department) errors.push('Missing department');
+
+          const isValid = errors.length === 0;
+          if (isValid) {
+            pendingValidCsvInvites.push({ email, role, department });
+          }
+
+          parsedRows.push({ row: i, email, role, department, isValid, errors });
+        }
+
+        // Render Preview Table
+        const modal = container.querySelector('#modal-csv-preview');
+        const summary = container.querySelector('#csv-preview-summary');
+        const containerTable = container.querySelector('#csv-preview-table-container');
+
+        if (summary) {
+          summary.innerHTML = `Found <strong style="color: #10b981;">${pendingValidCsvInvites.length} valid invites</strong> out of <strong>${parsedRows.length} total rows</strong>.`;
+        }
+
+        if (containerTable) {
+          containerTable.innerHTML = `
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left;">
+              <thead>
+                <tr style="background: #f8fafc; border-bottom: 1.5px solid var(--border-subtle);">
+                  <th style="padding: 0.6rem 0.75rem;">Row</th>
+                  <th style="padding: 0.6rem 0.75rem;">Email</th>
+                  <th style="padding: 0.6rem 0.75rem;">Role</th>
+                  <th style="padding: 0.6rem 0.75rem;">Department</th>
+                  <th style="padding: 0.6rem 0.75rem;">Validation Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${parsedRows.map(r => `
+                  <tr style="border-bottom: 1px solid var(--border-subtle); background: ${r.isValid ? '#ffffff' : '#fef2f2'};">
+                    <td style="padding: 0.6rem 0.75rem; color: var(--text-tertiary);">${r.row}</td>
+                    <td style="padding: 0.6rem 0.75rem; font-weight: 600;">${r.email}</td>
+                    <td style="padding: 0.6rem 0.75rem; text-transform: uppercase; font-size: 0.75rem; font-weight: 700;">${r.role}</td>
+                    <td style="padding: 0.6rem 0.75rem;">${r.department || '—'}</td>
+                    <td style="padding: 0.6rem 0.75rem;">
+                      ${r.isValid ? `
+                        <span style="color: #10b981; font-weight: 700;">✓ Valid</span>
+                      ` : `
+                        <span style="color: #dc2626; font-size: 0.75rem; font-weight: 700;">✕ ${r.errors.join('; ')}</span>
+                      `}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        }
+
+        if (modal) modal.style.display = 'flex';
+      };
+      reader.readAsText(file);
+    });
+
+    // Close CSV Modal
+    container.querySelector('#btn-close-csv-modal')?.addEventListener('click', () => {
+      const modal = container.querySelector('#modal-csv-preview');
+      if (modal) modal.style.display = 'none';
+      const fileInput = container.querySelector('#input-csv-staff-file');
+      if (fileInput) fileInput.value = '';
+    });
+    container.querySelector('#btn-cancel-csv-import')?.addEventListener('click', () => {
+      const modal = container.querySelector('#modal-csv-preview');
+      if (modal) modal.style.display = 'none';
+      const fileInput = container.querySelector('#input-csv-staff-file');
+      if (fileInput) fileInput.value = '';
+    });
+
+    // Confirm & Import Valid Invites
+    container.querySelector('#btn-confirm-csv-import')?.addEventListener('click', async (e) => {
+      if (pendingValidCsvInvites.length === 0) {
+        alert('No valid invites found in CSV to import.');
+        return;
+      }
+
+      e.currentTarget.disabled = true;
+      e.currentTarget.innerText = 'Importing...';
+
+      const res = await batchCreateStaffInvites(pendingValidCsvInvites, user);
+      if (res.success) {
+        alert(`✅ Successfully imported ${res.count} staff invites to Firestore!`);
+        const modal = container.querySelector('#modal-csv-preview');
+        if (modal) modal.style.display = 'none';
+        staffInvitesList = await getStaffInvites();
+        render();
+      } else {
+        alert(`Failed to import invites: ${res.error}`);
+        e.currentTarget.disabled = false;
+        e.currentTarget.innerText = 'Confirm & Import Valid Invites';
+      }
+    });
+
+    // Change User Role Listener
+    container.querySelectorAll('.btn-change-user-role').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const uid = e.currentTarget.getAttribute('data-uid');
+        const email = e.currentTarget.getAttribute('data-email');
+        const name = e.currentTarget.getAttribute('data-name');
+        const currentRole = e.currentTarget.getAttribute('data-role');
+
+        const newRole = prompt(
+          `Assign new role to ${name} (${email}):\n\nAllowed options:\n- student\n- organizer\n- hod\n- dean\n- vc\n- admin`,
+          currentRole
+        );
+
+        if (newRole && VALID_ROLES.includes(newRole.trim().toLowerCase())) {
+          const selected = newRole.trim().toLowerCase();
+          if (selected === currentRole) return;
+
+          const res = await updateUserRoleByAdmin(uid, selected, user);
+          if (res.success) {
+            alert(`✅ Role updated to "${selected.toUpperCase()}" for ${name}!`);
+            usersList = getCachedUsersSync() || [];
+            render();
+          } else {
+            alert(`Failed to update role: ${res.error}`);
+          }
+        } else if (newRole) {
+          alert(`Invalid role entered. Must be one of: ${VALID_ROLES.join(', ')}`);
+        }
       });
     });
 

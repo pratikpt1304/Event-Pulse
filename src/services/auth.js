@@ -5,65 +5,56 @@ import {
   signOut, 
   onAuthStateChanged,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  sendPasswordResetEmail,
+  sendEmailVerification
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { 
+  doc, 
+  getDoc, 
+  setDoc, 
+  deleteDoc,
+  collection, 
+  query, 
+  where, 
+  getDocs,
+  writeBatch
+} from 'firebase/firestore';
 
 let currentUserProfile = null;
 let inFlightRegistration = null;
 const listeners = new Set();
 
+export const VALID_ROLES = ['student', 'organizer', 'hod', 'dean', 'vc', 'admin'];
+export const STAFF_ROLES = ['organizer', 'hod', 'dean', 'vc', 'admin'];
+
 export const SUPER_ADMIN_EMAILS = [
   'eventpulsesupport@gmail.com',
   'piyushsahuset@sanjivani.edu.in',
   'admin@college.edu',
-  'vc@college.edu',
-  'kavita@college.edu',
   'admin@univ.edu'
-];
-
-export const ORGANIZER_EMAILS = [
-  'pratik@college.edu',
-  'anwar@college.edu',
-  'organizer@univ.edu'
 ];
 
 export const SUPER_ADMIN_EMAIL = 'eventpulsesupport@gmail.com';
 
+export function isDemoModeEnabled() {
+  return import.meta.env.VITE_DEMO_MODE === 'true';
+}
+
 export const DEMO_ACCOUNTS = {
-  'vc@college.edu': {
-    uid: 'demo_vc',
-    email: 'vc@college.edu',
-    name: 'Dr. R. K. Sharma (Vice Chancellor)',
-    role: 'admin',
-    department: 'University Executive Office',
-    year: 'Vice Chancellor',
-    division: 'HQ',
-    prn: 'VC-EXEC-01'
+  'student@college.edu': {
+    uid: 'demo_student',
+    email: 'student@college.edu',
+    name: 'Rahul Sharma (Student)',
+    role: 'student',
+    department: 'Computer Science & Engineering',
+    year: '3rd Year',
+    division: 'A',
+    prn: 'SU2024CS0142'
   },
-  'kavita@college.edu': {
-    uid: 'demo_dean',
-    email: 'kavita@college.edu',
-    name: 'Dr. Kavita Verma (Dean)',
-    role: 'admin',
-    department: 'Academic Affairs',
-    year: 'Dean',
-    division: 'HQ',
-    prn: 'DEAN-ACAD-02'
-  },
-  'anwar@college.edu': {
-    uid: 'demo_hod',
-    email: 'anwar@college.edu',
-    name: 'Prof. Anwar Sheikh (HOD)',
-    role: 'organizer',
-    department: 'Computer Engineering',
-    year: 'HOD',
-    division: 'CS',
-    prn: 'HOD-CE-101'
-  },
-  'pratik@college.edu': {
+  'organizer@college.edu': {
     uid: 'demo_organizer',
-    email: 'pratik@college.edu',
+    email: 'organizer@college.edu',
     name: 'Pratik Thorat (Event Lead)',
     role: 'organizer',
     department: 'Technology Council',
@@ -71,55 +62,45 @@ export const DEMO_ACCOUNTS = {
     division: 'TECH',
     prn: 'ORG-TECH-2026'
   },
+  'hod@college.edu': {
+    uid: 'demo_hod',
+    email: 'hod@college.edu',
+    name: 'Prof. Anwar Sheikh (HOD)',
+    role: 'hod',
+    department: 'Computer Science & Engineering',
+    year: 'HOD',
+    division: 'CS',
+    prn: 'HOD-CE-101'
+  },
+  'dean@college.edu': {
+    uid: 'demo_dean',
+    email: 'dean@college.edu',
+    name: 'Dr. Kavita Verma (Dean)',
+    role: 'dean',
+    department: 'Faculty of Engineering & Technology',
+    year: 'Dean',
+    division: 'HQ',
+    prn: 'DEAN-ACAD-02'
+  },
+  'vc@college.edu': {
+    uid: 'demo_vc',
+    email: 'vc@college.edu',
+    name: 'Dr. R. K. Sharma (Vice Chancellor)',
+    role: 'vc',
+    department: 'University Executive Office',
+    year: 'Vice Chancellor',
+    division: 'HQ',
+    prn: 'VC-EXEC-01'
+  },
   'admin@college.edu': {
     uid: 'demo_admin',
     email: 'admin@college.edu',
     name: 'Central Administration',
     role: 'admin',
-    department: 'University Administration',
+    department: 'Central Administration',
     year: 'Admin',
     division: 'HQ',
     prn: 'ADM-CENTRAL-01'
-  },
-  'rahul@college.edu': {
-    uid: 'demo_student',
-    email: 'rahul@college.edu',
-    name: 'Rahul Sharma',
-    role: 'student',
-    department: 'Computer Science & Engineering',
-    year: '3rd Year',
-    division: 'A',
-    prn: 'SU2024CS0142'
-  },
-  'student@univ.edu': {
-    uid: 'demo_student_univ',
-    email: 'student@univ.edu',
-    name: 'Rahul Sharma',
-    role: 'student',
-    department: 'Computer Science',
-    year: '3rd Year',
-    division: 'A',
-    prn: '2024CS001'
-  },
-  'organizer@univ.edu': {
-    uid: 'demo_org_univ',
-    email: 'organizer@univ.edu',
-    name: 'Prof. Vikram Shah',
-    role: 'organizer',
-    department: 'Computer Science',
-    year: 'Faculty',
-    division: 'CS',
-    prn: 'FAC-802'
-  },
-  'admin@univ.edu': {
-    uid: 'demo_admin_univ',
-    email: 'admin@univ.edu',
-    name: 'Dr. S. K. Kulkarni',
-    role: 'admin',
-    department: 'Administration',
-    year: 'Admin',
-    division: 'HQ',
-    prn: 'ADM-001'
   }
 };
 
@@ -131,15 +112,18 @@ export function isUserAdmin(userOrEmail) {
   return SUPER_ADMIN_EMAILS.some(adminEmail => adminEmail.toLowerCase() === clean) || role === 'admin';
 }
 
+export function isUserStaff(userOrEmail) {
+  if (!userOrEmail) return false;
+  const role = typeof userOrEmail === 'object' ? userOrEmail.role : null;
+  return isUserAdmin(userOrEmail) || STAFF_ROLES.includes(role);
+}
+
 export function resolveUserRole(email, currentRole = 'student') {
   const clean = (email || '').toLowerCase().trim();
   if (SUPER_ADMIN_EMAILS.some(adminEmail => adminEmail.toLowerCase() === clean)) {
     return 'admin';
   }
-  if (ORGANIZER_EMAILS.some(orgEmail => orgEmail.toLowerCase() === clean)) {
-    return 'organizer';
-  }
-  if (currentRole === 'admin' || currentRole === 'organizer') {
+  if (VALID_ROLES.includes(currentRole)) {
     return currentRole;
   }
   return 'student';
@@ -152,7 +136,6 @@ function saveLocalProfile(profile) {
   } else {
     profile.role = resolveUserRole(profile.email, profile.role);
     localStorage.setItem('ep_user_profile', JSON.stringify(profile));
-    // Save to permanent user registry keyed by UID and Email
     if (profile.uid) {
       localStorage.setItem('ep_user_db_' + profile.uid, JSON.stringify(profile));
     }
@@ -217,7 +200,6 @@ export function getCurrentUser() {
   return profile;
 }
 
-// Timeout helper to prevent Firestore query hanging
 function withTimeout(promise, ms = 3500, fallback = null) {
   return Promise.race([
     promise,
@@ -225,10 +207,48 @@ function withTimeout(promise, ms = 3500, fallback = null) {
   ]);
 }
 
+/**
+ * Checks staffInvites collection for an active invite. If present, applies role and department.
+ */
+async function applyStaffInviteIfPending(uid, email, currentProfile) {
+  if (!email) return currentProfile;
+  const cleanEmail = email.toLowerCase().trim();
+  try {
+    const inviteRef = doc(db, 'staffInvites', cleanEmail);
+    const inviteSnap = await withTimeout(getDoc(inviteRef), 2500);
+    if (inviteSnap && inviteSnap.exists()) {
+      const inv = inviteSnap.data();
+      if (inv && inv.role && STAFF_ROLES.includes(inv.role)) {
+        const updated = {
+          ...currentProfile,
+          role: inv.role,
+          department: inv.department || currentProfile.department || ''
+        };
+        // Persist to users/{uid}
+        await withTimeout(setDoc(doc(db, 'users', uid), { 
+          role: inv.role, 
+          department: inv.department || '' 
+        }, { merge: true }), 3000);
+
+        // Mark staff invite as redeemed
+        setDoc(inviteRef, { 
+          redeemed: true, 
+          redeemedBy: uid, 
+          redeemedAt: new Date().toISOString() 
+        }, { merge: true }).catch(() => {});
+
+        return updated;
+      }
+    }
+  } catch (err) {
+    console.warn('Staff invite lookup notice:', err.message);
+  }
+  return currentProfile;
+}
+
 export function initAuthListener() {
   onAuthStateChanged(auth, async (user) => {
     if (user) {
-      // 1. Check if there is an in-flight registration from the signup form
       let pendingSignup = inFlightRegistration;
       if (!pendingSignup) {
         try {
@@ -247,6 +267,7 @@ export function initAuthListener() {
           year: pendingSignup.year,
           division: pendingSignup.division,
           role: 'student',
+          emailVerified: user.emailVerified || false,
           createdAt: new Date().toISOString()
         };
 
@@ -259,7 +280,6 @@ export function initAuthListener() {
         return;
       }
 
-      // 2. Check active in-memory or cached profile
       let profile = getLocalProfile();
       if (!profile || profile.uid !== user.uid) {
         profile = getSavedProfileByUidOrEmail(user.uid, user.email);
@@ -270,27 +290,34 @@ export function initAuthListener() {
         notifyListeners();
       }
 
-      // 3. Fetch from Firestore Document or Query by Email (Works across all devices!)
       try {
         const userDoc = await withTimeout(getDoc(doc(db, 'users', user.uid)), 3500);
         if (userDoc && userDoc.exists()) {
-          currentUserProfile = { uid: user.uid, email: user.email, ...userDoc.data() };
-          saveLocalProfile(currentUserProfile);
+          currentUserProfile = { uid: user.uid, email: user.email, emailVerified: user.emailVerified, ...userDoc.data() };
         } else {
-          // Check if profile exists by email in Firestore
           const emailQuery = query(collection(db, 'users'), where('email', '==', user.email));
           const snap = await withTimeout(getDocs(emailQuery), 3000);
           if (snap && !snap.empty) {
-            const foundDoc = snap.docs[0].data();
-            currentUserProfile = { uid: user.uid, ...foundDoc };
-            saveLocalProfile(currentUserProfile);
+            currentUserProfile = { uid: user.uid, emailVerified: user.emailVerified, ...snap.docs[0].data() };
             setDoc(doc(db, 'users', user.uid), currentUserProfile, { merge: true }).catch(() => {});
           } else if (profile && profile.name) {
             setDoc(doc(db, 'users', user.uid), profile, { merge: true }).catch(() => {});
             currentUserProfile = profile;
-            saveLocalProfile(profile);
           }
         }
+
+        // Apply staff invite if this is first login or pending invite exists
+        currentUserProfile = await applyStaffInviteIfPending(user.uid, user.email, currentUserProfile || {
+          uid: user.uid,
+          email: user.email,
+          name: user.displayName || user.email.split('@')[0],
+          role: 'student',
+          department: '',
+          prn: ''
+        });
+
+        saveLocalProfile(currentUserProfile);
+
         if (currentUserProfile && currentUserProfile.status === 'banned') {
           const reason = currentUserProfile.bannedReason || 'Violation of university code of conduct.';
           await auth.signOut();
@@ -314,9 +341,6 @@ export function initAuthListener() {
   });
 }
 
-/**
- * Update current user profile in Firestore & local permanent storage (MERGE TRUE)
- */
 export async function updateUserProfile({ name, department, year, division }) {
   if (!currentUserProfile) return { success: false, error: 'Not logged in' };
   
@@ -327,12 +351,10 @@ export async function updateUserProfile({ name, department, year, division }) {
     division: division.trim()
   };
 
-  // Immediate local state & permanent cache update
   currentUserProfile = { ...currentUserProfile, ...updates };
   saveLocalProfile(currentUserProfile);
   notifyListeners();
 
-  // Guaranteed Persist to Firestore with setDoc merge: true
   try {
     await withTimeout(setDoc(doc(db, 'users', currentUserProfile.uid), updates, { merge: true }), 3500);
   } catch (err) {
@@ -342,9 +364,39 @@ export async function updateUserProfile({ name, department, year, division }) {
   return { success: true, user: currentUserProfile };
 }
 
-/**
- * Sign In with Google Provider
- */
+export async function sendPasswordReset(email) {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail) {
+    return { success: false, error: 'Please enter your registered email address.' };
+  }
+  try {
+    await sendPasswordResetEmail(auth, cleanEmail);
+    return { success: true };
+  } catch (err) {
+    let msg = 'Failed to send password reset email.';
+    if (err.code === 'auth/user-not-found') {
+      msg = 'No user account found with this email.';
+    } else if (err.code === 'auth/invalid-email') {
+      msg = 'Please enter a valid email address.';
+    } else if (err.code === 'auth/too-many-requests') {
+      msg = 'Too many requests. Please try again after a few minutes.';
+    }
+    return { success: false, error: msg };
+  }
+}
+
+export async function sendStudentEmailVerification() {
+  if (auth.currentUser) {
+    try {
+      await sendEmailVerification(auth.currentUser);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+  return { success: false, error: 'No active user session found.' };
+}
+
 export async function loginWithGoogle() {
   try {
     const provider = new GoogleAuthProvider();
@@ -358,7 +410,7 @@ export async function loginWithGoogle() {
       if (userDoc && userDoc.exists()) existingData = userDoc.data();
     } catch (e) {}
 
-    const profile = {
+    let profile = {
       uid: u.uid,
       name: existingData.name || u.displayName || u.email.split('@')[0],
       email: u.email,
@@ -366,9 +418,12 @@ export async function loginWithGoogle() {
       department: existingData.department || 'Integrated M.Tech (IMtech)',
       year: existingData.year || '1st Year',
       division: existingData.division || 'A',
-      role: existingData.role || 'student',
+      role: existingData.role || resolveUserRole(u.email, 'student'),
+      emailVerified: u.emailVerified || false,
       createdAt: existingData.createdAt || new Date().toISOString()
     };
+
+    profile = await applyStaffInviteIfPending(u.uid, u.email, profile);
 
     setDoc(userRef, profile, { merge: true }).catch(e => console.warn(e));
     currentUserProfile = profile;
@@ -380,14 +435,11 @@ export async function loginWithGoogle() {
   }
 }
 
-/**
- * Authentic Firebase Email & Password Login (RESTORES EXACT REGISTERED DETAILS ON ANY DEVICE)
- */
 export async function loginUser(email, password) {
   const cleanEmail = (email || '').toLowerCase().trim();
   
-  // 1. Instant sign-in for pre-configured campus demo accounts
-  if (DEMO_ACCOUNTS[cleanEmail]) {
+  // Demo Mode check: instant local sign-in only if VITE_DEMO_MODE is true
+  if (isDemoModeEnabled() && DEMO_ACCOUNTS[cleanEmail]) {
     const demoProfile = { ...DEMO_ACCOUNTS[cleanEmail] };
     currentUserProfile = demoProfile;
     saveLocalProfile(demoProfile);
@@ -395,35 +447,14 @@ export async function loginUser(email, password) {
     return { success: true, user: currentUserProfile };
   }
 
-  // 2. Preview wildcard support for any other @college.edu email (Defaults to Student)
-  if (cleanEmail.endsWith('@college.edu')) {
-    const username = cleanEmail.split('@')[0];
-    const generatedProfile = {
-      uid: 'demo_' + username.replace(/[^a-z0-9]/gi, '_'),
-      email: cleanEmail,
-      name: username.charAt(0).toUpperCase() + username.slice(1).replace('.', ' '),
-      role: resolveUserRole(cleanEmail, 'student'),
-      department: 'Computer Engineering',
-      year: '1st Year',
-      division: 'A',
-      prn: 'SU2026CS' + Math.floor(1000 + Math.random() * 9000)
-    };
-    currentUserProfile = generatedProfile;
-    saveLocalProfile(generatedProfile);
-    notifyListeners();
-    return { success: true, user: currentUserProfile };
-  }
-
-  // 3. Authentic Firebase Email & Password Login for Registered Users / Students
+  // Authentic Firebase Login
   try {
     const cred = await signInWithEmailAndPassword(auth, cleanEmail, password);
     const u = cred.user;
 
-    // A. Look up saved registered profile by UID or Email
     let savedProfile = getSavedProfileByUidOrEmail(u.uid, cleanEmail);
     let userProfileData = savedProfile || null;
 
-    // B. Fetch from Firestore document
     try {
       const userDoc = await withTimeout(getDoc(doc(db, 'users', u.uid)), 3500);
       if (userDoc && userDoc.exists()) {
@@ -448,12 +479,15 @@ export async function loginUser(email, password) {
         email: u.email,
         name: u.displayName || u.email.split('@')[0],
         role: resolveUserRole(u.email, 'student'),
-        department: 'Integrated M.Tech (IMtech)',
-        year: '1st Year',
-        division: 'A',
-        prn: 'SU2026CS' + u.uid.slice(0, 4).toUpperCase()
+        department: '',
+        year: '',
+        division: '',
+        prn: ''
       };
     }
+
+    // Apply any pending staff invite (organizer, hod, dean, vc, admin)
+    userProfileData = await applyStaffInviteIfPending(u.uid, cleanEmail, userProfileData);
 
     if (userProfileData && userProfileData.status === 'banned') {
       await auth.signOut();
@@ -471,45 +505,50 @@ export async function loginUser(email, password) {
   } catch (err) {
     let msg = err.message;
     if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
-      msg = 'Invalid email or password. If you are a new student, please click "Create Student Account" below.';
+      msg = 'Invalid email or password. If you are a student, please sign up using the Student Sign Up tab.';
+    } else if (err.code === 'auth/too-many-requests') {
+      msg = 'Access temporarily disabled due to many failed attempts. Try again later or reset password.';
     }
     return { success: false, error: msg };
   }
 }
 
-/**
- * Register new student account & create user doc in Firestore (GUARANTEED MULTI-DEVICE PERSISTENCE)
- */
 export async function registerStudent({ email, password, name, prn, department, year, division }) {
   const cleanPrn = (prn || '').trim().toUpperCase();
-  const cleanEmail = (email || '').trim();
+  const cleanEmail = (email || '').trim().toLowerCase();
   const cleanName = (name || '').trim();
 
-  if (cleanPrn.length !== 12) {
+  // 1. Optional Allowed Domain Check
+  const allowedDomain = (import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || '').trim().toLowerCase();
+  if (allowedDomain && !cleanEmail.endsWith('@' + allowedDomain)) {
     return {
       success: false,
-      error: `PRN must be exactly 12 characters long (Current length: ${cleanPrn.length}). Example: SU2026CS0417`
+      error: `Student registration is restricted to official college email addresses ending with @${allowedDomain}`
     };
   }
 
-  // 1. Quick PRN Uniqueness check (Max 2s timeout)
+  // 2. PRN validation
+  if (cleanPrn.length < 6 || cleanPrn.length > 16) {
+    return {
+      success: false,
+      error: `Please enter a valid student PRN / Roll Number (6-16 characters).`
+    };
+  }
+
+  // 3. PRN Uniqueness check
   try {
-    const q = query(
-      collection(db, 'users'),
-      where('prn', '==', cleanPrn)
-    );
+    const q = query(collection(db, 'users'), where('prn', '==', cleanPrn));
     const snap = await withTimeout(getDocs(q), 2000);
     if (snap && !snap.empty) {
       return {
         success: false,
-        error: `PRN "${cleanPrn}" is already registered by another student. Please enter your unique PRN.`
+        error: `PRN "${cleanPrn}" is already registered. Please enter your own PRN or sign in.`
       };
     }
   } catch (err) {
-    console.warn('PRN query check notice:', err.message);
+    console.warn('PRN uniqueness check notice:', err.message);
   }
 
-  // 2. Pre-set in-flight registration to prevent auth state change race condition!
   const pendingData = {
     name: cleanName,
     email: cleanEmail,
@@ -523,10 +562,16 @@ export async function registerStudent({ email, password, name, prn, department, 
     localStorage.setItem('ep_pending_signup', JSON.stringify(pendingData));
   } catch (e) {}
 
-  // 3. Authentic Firebase Auth Account Creation
   try {
     const cred = await createUserWithEmailAndPassword(auth, cleanEmail, password);
     const uid = cred.user.uid;
+
+    // Send verification email
+    try {
+      await sendEmailVerification(cred.user);
+    } catch (e) {
+      console.warn('Email verification send notice:', e.message);
+    }
 
     const profile = {
       uid,
@@ -536,19 +581,18 @@ export async function registerStudent({ email, password, name, prn, department, 
       department,
       year,
       division: division.trim(),
-      role: 'student',
+      role: 'student', // Students strictly receive 'student' role
+      emailVerified: cred.user.emailVerified || false,
       createdAt: new Date().toISOString()
     };
 
-    // Save profile to permanent local database and current profile
     currentUserProfile = profile;
     saveLocalProfile(profile);
 
-    // Confirmed Write to Firestore with setDoc merge: true
     try {
       await withTimeout(setDoc(doc(db, 'users', uid), profile, { merge: true }), 3500);
     } catch (e) {
-      console.warn('Firestore doc write warning:', e.message);
+      console.warn('Firestore user write warning:', e.message);
     }
 
     localStorage.removeItem('ep_pending_signup');
@@ -561,13 +605,121 @@ export async function registerStudent({ email, password, name, prn, department, 
 
     let friendlyMessage = err.message;
     if (err.code === 'auth/email-already-in-use') {
-      friendlyMessage = 'This email address is already registered. Please click "Sign in" below to log in.';
+      friendlyMessage = 'This email is already registered. Please switch to the Sign In tab.';
     } else if (err.code === 'auth/weak-password') {
-      friendlyMessage = 'Password is too weak. Please use at least 6 characters.';
+      friendlyMessage = 'Password should be at least 6 characters.';
     } else if (err.code === 'auth/invalid-email') {
       friendlyMessage = 'Please enter a valid email address.';
     }
     return { success: false, error: friendlyMessage };
+  }
+}
+
+/**
+ * Admin: Create single staff invite in staffInvites/{email}
+ */
+export async function createStaffInvite({ email, role, department }, adminUser) {
+  if (!isUserAdmin(adminUser)) {
+    return { success: false, error: 'Unauthorized: Only administrators can invite staff.' };
+  }
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    return { success: false, error: 'Invalid email address.' };
+  }
+  if (!STAFF_ROLES.includes(role)) {
+    return { success: false, error: `Invalid staff role. Must be one of: ${STAFF_ROLES.join(', ')}` };
+  }
+
+  const inviteDoc = {
+    email: cleanEmail,
+    role,
+    department: (department || '').trim(),
+    invitedBy: adminUser.email,
+    createdAt: new Date().toISOString(),
+    redeemed: false
+  };
+
+  try {
+    await setDoc(doc(db, 'staffInvites', cleanEmail), inviteDoc, { merge: true });
+    return { success: true, invite: inviteDoc };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Admin: Fetch all staff invites
+ */
+export async function getStaffInvites() {
+  try {
+    const snap = await getDocs(collection(db, 'staffInvites'));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.warn('Get staff invites notice:', err.message);
+    return [];
+  }
+}
+
+/**
+ * Admin: Delete a staff invite
+ */
+export async function deleteStaffInvite(email) {
+  try {
+    await deleteDoc(doc(db, 'staffInvites', email.toLowerCase().trim()));
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Admin: Batch create staff invites from CSV import
+ */
+export async function batchCreateStaffInvites(invitesList, adminUser) {
+  if (!isUserAdmin(adminUser)) {
+    return { success: false, error: 'Unauthorized: Admin privileges required.' };
+  }
+  if (!Array.isArray(invitesList) || invitesList.length === 0) {
+    return { success: false, error: 'No invites to process.' };
+  }
+
+  try {
+    const batch = writeBatch(db);
+    invitesList.forEach(item => {
+      const cleanEmail = item.email.toLowerCase().trim();
+      const ref = doc(db, 'staffInvites', cleanEmail);
+      batch.set(ref, {
+        email: cleanEmail,
+        role: item.role,
+        department: item.department || '',
+        invitedBy: adminUser.email,
+        createdAt: new Date().toISOString(),
+        redeemed: false
+      }, { merge: true });
+    });
+    await batch.commit();
+    return { success: true, count: invitesList.length };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Admin: Change role of an existing user
+ */
+export async function updateUserRoleByAdmin(targetUid, newRole, adminUser) {
+  if (!isUserAdmin(adminUser)) {
+    return { success: false, error: 'Unauthorized: Admin privileges required.' };
+  }
+  if (!VALID_ROLES.includes(newRole)) {
+    return { success: false, error: `Invalid role: ${newRole}` };
+  }
+
+  try {
+    await setDoc(doc(db, 'users', targetUid), { role: newRole }, { merge: true });
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
   }
 }
 

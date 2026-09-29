@@ -1,12 +1,15 @@
 import { getEventRatingStats } from '../services/reviews';
 
-export function createEventCardHtml(event, registrationStatus = null, isEligible = true) {
+export function createEventCardHtml(event, registrationStatus = null, isEligible = true, isAllowed = true) {
   const isPastDeadline = new Date(event.registrationDeadline) < new Date();
   const ratingStats = getEventRatingStats(event.id);
+  const isClosed = event.visibility === 'closed';
   
   let actionButton = '';
   if (registrationStatus) {
     actionButton = `<span class="badge badge-${registrationStatus}">Status: ${registrationStatus}</span>`;
+  } else if (isClosed && !isAllowed) {
+    actionButton = `<button class="btn btn-secondary btn-sm" disabled style="opacity: 0.75; cursor: not-allowed;" title="Registration is restricted to invited participants">🔒 Invite Only</button>`;
   } else if (isPastDeadline) {
     actionButton = `<button class="btn btn-secondary btn-sm" disabled>Deadline Passed</button>`;
   } else {
@@ -22,6 +25,11 @@ export function createEventCardHtml(event, registrationStatus = null, isEligible
 
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
           <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
+            ${isClosed ? `
+              <span style="font-size: 0.725rem; font-weight: 800; color: #7c3aed; background: #ede9fe; border: 1px solid #ddd6fe; padding: 0.25rem 0.65rem; border-radius: var(--radius-full); display: inline-flex; align-items: center; gap: 0.25rem;" title="Closed event: Visible to listed participants only">
+                🔒 Closed Roster
+              </span>
+            ` : ''}
             <span style="font-size: 0.725rem; font-weight: 700; color: var(--primary); background: var(--primary-light); padding: 0.25rem 0.65rem; border-radius: var(--radius-full);">
               ${event.department}
             </span>

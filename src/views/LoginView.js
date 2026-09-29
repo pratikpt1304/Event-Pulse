@@ -1,11 +1,23 @@
-import { loginUser, registerStudent, loginWithGoogle, DEMO_ACCOUNTS, resolveUserRole, isUserAdmin } from '../services/auth';
+import { 
+  loginUser, 
+  registerStudent, 
+  loginWithGoogle, 
+  sendPasswordReset,
+  isDemoModeEnabled, 
+  DEMO_ACCOUNTS, 
+  isUserAdmin 
+} from '../services/auth';
+import { getRoleDefaultRoute } from '../router';
 
 export function renderLoginView(container, navigateTo) {
-  let isSignUpMode = false;
-  let showPassword = false;
+  let activeTab = 'signin'; // 'signin' | 'signup'
+  let showLoginPassword = false;
+  let showSignupPassword = false;
   let isLoading = false;
   let errorMessage = '';
-  let selectedDemoKey = null;
+  let successMessage = '';
+  let showForgotModal = false;
+  let forgotEmail = '';
 
   // Sign in form state
   let loginEmail = '';
@@ -22,25 +34,49 @@ export function renderLoginView(container, navigateTo) {
     password: ''
   };
 
-  function detectRoleText(email) {
-    if (!email) return null;
-    const clean = email.toLowerCase().trim();
-    if (DEMO_ACCOUNTS[clean]) {
-      const acc = DEMO_ACCOUNTS[clean];
-      return { title: acc.name, role: acc.role };
+  const allowedDomain = (import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || '').trim().toLowerCase();
+  const demoModeActive = isDemoModeEnabled();
+
+  // Password strength calculator
+  function computePasswordStrength(pwd) {
+    if (!pwd) return { score: 0, label: 'Empty', color: '#64748b', percent: 0, checks: { length: false, upper: false, number: false, symbol: false } };
+    
+    const checks = {
+      length: pwd.length >= 8,
+      upper: /[A-Z]/.test(pwd) && /[a-z]/.test(pwd),
+      number: /[0-9]/.test(pwd),
+      symbol: /[^A-Za-z0-9]/.test(pwd)
+    };
+
+    let score = 0;
+    if (checks.length) score++;
+    if (checks.upper) score++;
+    if (checks.number) score++;
+    if (checks.symbol) score++;
+
+    let label = 'Weak';
+    let color = '#ef4444';
+    let percent = 25;
+
+    if (score === 2) {
+      label = 'Fair';
+      color = '#f59e0b';
+      percent = 50;
+    } else if (score === 3) {
+      label = 'Good';
+      color = '#3b82f6';
+      percent = 75;
+    } else if (score === 4) {
+      label = 'Strong';
+      color = '#10b981';
+      percent = 100;
     }
-    if (isUserAdmin(clean)) {
-      return { title: 'Executive Administrator', role: 'admin' };
-    }
-    const role = resolveUserRole(clean, 'student');
-    if (role === 'organizer') {
-      return { title: 'Event Organizer', role: 'organizer' };
-    }
-    return { title: 'Campus Student', role: 'student' };
+
+    return { score, label, color, percent, checks };
   }
 
   const render = () => {
-    const roleInfo = detectRoleText(loginEmail);
+    const strength = computePasswordStrength(signupData.password);
 
     container.innerHTML = `
       <style>
@@ -50,11 +86,11 @@ export function renderLoginView(container, navigateTo) {
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 1.5rem 1rem;
+          padding: 2rem 1rem;
           background: #090d16;
           background-image: 
-            radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.18) 0px, transparent 50%),
-            radial-gradient(at 100% 100%, rgba(124, 58, 237, 0.15) 0px, transparent 50%),
+            radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.16) 0px, transparent 50%),
+            radial-gradient(at 100% 100%, rgba(124, 58, 237, 0.14) 0px, transparent 50%),
             radial-gradient(at 50% 50%, rgba(15, 23, 42, 0.8) 0px, transparent 100%);
           font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           color: #f8fafc;
@@ -63,14 +99,15 @@ export function renderLoginView(container, navigateTo) {
 
         .ep-auth-card {
           width: 100%;
-          max-width: ${isSignUpMode ? '580px' : '470px'};
+          max-width: ${activeTab === 'signup' ? '580px' : '470px'};
           background: #111827;
           border: 1px solid rgba(255, 255, 255, 0.08);
           border-radius: 20px;
           padding: 2.25rem 2rem;
-          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.65), 0 0 35px rgba(99, 102, 241, 0.08);
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 40px rgba(99, 102, 241, 0.08);
           transition: max-width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
           box-sizing: border-box;
+          position: relative;
         }
 
         @media (max-width: 480px) {
@@ -81,6 +118,7 @@ export function renderLoginView(container, navigateTo) {
         }
 
         .ep-brand-header {
+          text-align: center;
           margin-bottom: 1.5rem;
         }
 
@@ -89,10 +127,10 @@ export function renderLoginView(container, navigateTo) {
           font-weight: 800;
           color: #ffffff;
           letter-spacing: -0.025em;
-          margin: 0 0 0.4rem 0;
-          display: flex;
+          margin: 0 0 0.35rem 0;
+          display: inline-flex;
           align-items: center;
-          gap: 0.6rem;
+          gap: 0.5rem;
         }
 
         .ep-brand-dot {
@@ -105,10 +143,45 @@ export function renderLoginView(container, navigateTo) {
         }
 
         .ep-brand-subtitle {
-          font-size: 0.95rem;
+          font-size: 0.925rem;
           line-height: 1.45;
           color: #94a3b8;
           margin: 0;
+        }
+
+        /* Modern Tabs Header */
+        .ep-tabs-nav {
+          display: flex;
+          background: #0f172a;
+          border: 1px solid #1e293b;
+          border-radius: 12px;
+          padding: 4px;
+          margin-bottom: 1.5rem;
+          gap: 4px;
+        }
+
+        .ep-tab-btn {
+          flex: 1;
+          background: transparent;
+          border: none;
+          color: #94a3b8;
+          padding: 9px 12px;
+          font-size: 0.875rem;
+          font-weight: 700;
+          font-family: inherit;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.18s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.4rem;
+        }
+
+        .ep-tab-btn.active {
+          background: #1e293b;
+          color: #ffffff;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.25);
         }
 
         .ep-form-group {
@@ -117,8 +190,8 @@ export function renderLoginView(container, navigateTo) {
 
         .ep-label {
           display: block;
-          font-size: 0.8rem;
-          font-weight: 600;
+          font-size: 0.775rem;
+          font-weight: 700;
           color: #cbd5e1;
           margin-bottom: 0.4rem;
           text-transform: uppercase;
@@ -137,7 +210,7 @@ export function renderLoginView(container, navigateTo) {
           border: 1.5px solid #334155;
           color: #ffffff;
           border-radius: 10px;
-          padding: 13px 16px;
+          padding: 12px 14px;
           font-size: 0.95rem;
           font-family: inherit;
           outline: none;
@@ -157,34 +230,17 @@ export function renderLoginView(container, navigateTo) {
 
         .ep-input-toggle-btn {
           position: absolute;
-          right: 12px;
+          right: 10px;
           background: transparent;
           border: none;
           color: #94a3b8;
           cursor: pointer;
           font-size: 0.9rem;
-          padding: 4px 6px;
+          padding: 4px;
           border-radius: 6px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
         }
         .ep-input-toggle-btn:hover {
           color: #ffffff;
-        }
-
-        .ep-role-indicator {
-          margin-top: -0.4rem;
-          margin-bottom: 1rem;
-          padding: 0.45rem 0.75rem;
-          background: rgba(99, 102, 241, 0.1);
-          border: 1px solid rgba(99, 102, 241, 0.25);
-          border-radius: 8px;
-          font-size: 0.8rem;
-          color: #c7d2fe;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
         }
 
         .ep-btn-primary {
@@ -193,8 +249,8 @@ export function renderLoginView(container, navigateTo) {
           color: #ffffff;
           border: none;
           border-radius: 10px;
-          padding: 13px 16px;
-          font-size: 1rem;
+          padding: 12px 16px;
+          font-size: 0.975rem;
           font-weight: 700;
           font-family: inherit;
           cursor: pointer;
@@ -212,10 +268,6 @@ export function renderLoginView(container, navigateTo) {
           box-shadow: 0 6px 18px rgba(99, 102, 241, 0.45);
         }
 
-        .ep-btn-primary:active:not(:disabled) {
-          transform: translateY(0);
-        }
-
         .ep-btn-primary:disabled {
           opacity: 0.65;
           cursor: not-allowed;
@@ -228,8 +280,8 @@ export function renderLoginView(container, navigateTo) {
           border: 1.5px solid #334155;
           color: #f1f5f9;
           border-radius: 10px;
-          padding: 12px 16px;
-          font-size: 0.95rem;
+          padding: 11px 16px;
+          font-size: 0.925rem;
           font-weight: 600;
           font-family: inherit;
           cursor: pointer;
@@ -246,102 +298,91 @@ export function renderLoginView(container, navigateTo) {
           color: #ffffff;
         }
 
-        /* Demo Accounts Box */
+        /* Password Strength UI */
+        .ep-strength-meter {
+          margin-top: 0.4rem;
+        }
+        .ep-strength-bar {
+          height: 4px;
+          width: 100%;
+          background: #334155;
+          border-radius: 4px;
+          overflow: hidden;
+          margin-bottom: 0.35rem;
+        }
+        .ep-strength-fill {
+          height: 100%;
+          transition: width 0.3s ease, background 0.3s ease;
+        }
+        .ep-strength-row {
+          display: flex;
+          justify-content: space-between;
+          font-size: 0.75rem;
+          color: #94a3b8;
+        }
+
+        /* Demo Mode Box */
         .ep-demo-box {
           margin-top: 1.35rem;
           background: #0f172a;
-          border: 1px solid #1e293b;
-          border-radius: 12px;
+          border: 1px dashed #6366f1;
+          border-radius: 14px;
           padding: 1rem;
         }
 
         .ep-demo-title {
-          font-size: 0.85rem;
-          color: #94a3b8;
+          font-size: 0.8rem;
+          font-weight: 700;
+          color: #818cf8;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
           margin-bottom: 0.65rem;
           display: flex;
           align-items: center;
-          gap: 0.35rem;
+          justify-content: space-between;
         }
 
-        .ep-pills-wrap {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.45rem;
+        .ep-demo-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+          gap: 0.5rem;
           margin-bottom: 0.65rem;
         }
 
-        .ep-pill {
-          background: rgba(30, 41, 59, 0.85);
+        .ep-demo-btn {
+          background: rgba(30, 41, 59, 0.9);
           border: 1px solid #334155;
           color: #e2e8f0;
           border-radius: 8px;
-          padding: 6px 11px;
-          font-size: 0.8rem;
-          font-family: monospace;
+          padding: 7px 10px;
+          font-size: 0.775rem;
+          font-weight: 600;
           cursor: pointer;
           transition: all 0.15s ease;
-          user-select: none;
+          text-align: left;
+          display: flex;
+          flex-direction: column;
         }
 
-        .ep-pill:hover {
+        .ep-demo-btn:hover {
           border-color: #6366f1;
           color: #ffffff;
           background: #1e293b;
+          transform: translateY(-1px);
         }
 
-        .ep-pill.active {
-          border-color: #6366f1;
-          background: rgba(99, 102, 241, 0.25);
-          color: #ffffff;
-          box-shadow: 0 0 0 1px #6366f1;
-        }
-
-        .ep-demo-hint {
-          font-size: 0.78rem;
-          color: #64748b;
-          margin: 0;
-          line-height: 1.4;
-        }
-
-        .ep-demo-hint strong {
-          color: #cbd5e1;
-        }
-
-        /* Switch Card Footer */
-        .ep-switch-box {
-          margin-top: 1.5rem;
-          padding-top: 1.25rem;
-          border-top: 1px solid rgba(255, 255, 255, 0.08);
-          text-align: center;
-          font-size: 0.9rem;
+        .ep-demo-btn small {
+          font-size: 0.65rem;
           color: #94a3b8;
         }
 
-        .ep-link-btn {
-          background: none;
-          border: none;
-          color: #818cf8;
-          font-weight: 700;
-          font-family: inherit;
-          cursor: pointer;
-          padding: 0;
-          text-decoration: underline;
-          text-underline-offset: 3px;
-        }
-
-        .ep-link-btn:hover {
-          color: #a5b4fc;
-        }
-
-        /* Grid for Student Signup */
         .ep-grid-2 {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 0.85rem;
         }
 
-        @media (max-width: 540px) {
+        @media (max-width: 520px) {
           .ep-grid-2 {
             grid-template-columns: 1fr;
             gap: 0;
@@ -359,9 +400,22 @@ export function renderLoginView(container, navigateTo) {
         }
 
         .ep-alert-error {
-          background: rgba(239, 68, 68, 0.12);
-          border: 1px solid rgba(239, 68, 68, 0.35);
+          background: rgba(239, 68, 68, 0.14);
+          border: 1px solid rgba(239, 68, 68, 0.4);
           color: #fca5a5;
+          padding: 0.75rem 1rem;
+          border-radius: 10px;
+          font-size: 0.85rem;
+          margin-bottom: 1.25rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .ep-alert-success {
+          background: rgba(16, 185, 129, 0.14);
+          border: 1px solid rgba(16, 185, 129, 0.4);
+          color: #6ee7b7;
           padding: 0.75rem 1rem;
           border-radius: 10px;
           font-size: 0.85rem;
@@ -383,37 +437,82 @@ export function renderLoginView(container, navigateTo) {
         @keyframes ep-spin {
           to { transform: rotate(360deg); }
         }
+
+        /* Modal Overlay */
+        .ep-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.75);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1rem;
+          z-index: 9999;
+        }
+        .ep-modal-card {
+          width: 100%;
+          max-width: 420px;
+          background: #111827;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 16px;
+          padding: 1.75rem;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+        }
       </style>
 
       <div class="ep-auth-page">
         <div class="ep-auth-card">
+          <!-- Brand Header -->
+          <div class="ep-brand-header">
+            <h1 class="ep-brand-title">
+              <span class="ep-brand-dot"></span>
+              EventPulse
+            </h1>
+            <p class="ep-brand-subtitle">
+              ${activeTab === 'signin' 
+                ? 'Ek hi login page sabke liye. Role invite aur account se decide hota hai.'
+                : 'Student account creation with university PRN verification.'}
+            </p>
+          </div>
+
+          <!-- Tabs Navigation -->
+          <div class="ep-tabs-nav">
+            <button type="button" class="ep-tab-btn ${activeTab === 'signin' ? 'active' : ''}" id="tab-btn-signin">
+              <span>🔐</span> Sign In
+            </button>
+            <button type="button" class="ep-tab-btn ${activeTab === 'signup' ? 'active' : ''}" id="tab-btn-signup">
+              <span>👨‍🎓</span> Student Sign Up
+            </button>
+          </div>
+
+          <!-- Alert Banners -->
           ${errorMessage ? `
             <div class="ep-alert-error">
               <span>⚠️</span>
               <div style="flex: 1;">${errorMessage}</div>
-              <button id="ep-dismiss-error" style="background: none; border: none; color: #fca5a5; cursor: pointer; font-size: 1rem;">×</button>
+              <button id="ep-dismiss-error" style="background: none; border: none; color: #fca5a5; cursor: pointer; font-size: 1.1rem; line-height: 1;">×</button>
             </div>
           ` : ''}
 
-          ${!isSignUpMode ? `
-            <!-- UNIFIED SIGN IN VIEW (Exact mockup style) -->
-            <div class="ep-brand-header">
-              <h1 class="ep-brand-title">
-                <span class="ep-brand-dot"></span>
-                EventPulse
-              </h1>
-              <p class="ep-brand-subtitle">
-                Ek hi login page sabke liye. Role email se apne aap decide hota hai.
-              </p>
+          ${successMessage ? `
+            <div class="ep-alert-success">
+              <span>✅</span>
+              <div style="flex: 1;">${successMessage}</div>
+              <button id="ep-dismiss-success" style="background: none; border: none; color: #6ee7b7; cursor: pointer; font-size: 1.1rem; line-height: 1;">×</button>
             </div>
+          ` : ''}
 
+          ${activeTab === 'signin' ? `
+            <!-- TAB 1: UNIFIED SIGN IN -->
             <form id="ep-login-form">
               <div class="ep-form-group">
+                <label class="ep-label">Email Address</label>
                 <input 
                   type="email" 
                   id="ep-login-email" 
                   class="ep-input" 
-                  placeholder="Email" 
+                  placeholder="name@college.edu" 
                   value="${loginEmail}" 
                   required 
                   autocomplete="username"
@@ -421,30 +520,27 @@ export function renderLoginView(container, navigateTo) {
               </div>
 
               <div class="ep-form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                  <label class="ep-label" style="margin-bottom: 0;">Password</label>
+                  <button type="button" id="ep-btn-forgot" style="background: none; border: none; color: #818cf8; font-size: 0.775rem; font-weight: 600; cursor: pointer; padding: 0;">
+                    Forgot Password?
+                  </button>
+                </div>
                 <div class="ep-input-wrap">
                   <input 
-                    type="${showPassword ? 'text' : 'password'}" 
+                    type="${showLoginPassword ? 'text' : 'password'}" 
                     id="ep-login-password" 
                     class="ep-input" 
-                    placeholder="Password (preview me kuch bhi)" 
+                    placeholder="Enter your password" 
                     value="${loginPassword}" 
                     required 
                     autocomplete="current-password"
                   />
-                  <button type="button" class="ep-input-toggle-btn" id="ep-btn-toggle-pwd" title="Toggle password visibility">
-                    ${showPassword ? '👁️' : '🙈'}
+                  <button type="button" class="ep-input-toggle-btn" id="ep-btn-toggle-login-pwd" title="Toggle password visibility">
+                    ${showLoginPassword ? '👁️' : '🙈'}
                   </button>
                 </div>
               </div>
-
-              ${roleInfo ? `
-                <div class="ep-role-indicator">
-                  <span>✨ <strong>Detected Role:</strong> ${roleInfo.title}</span>
-                  <span style="text-transform: uppercase; font-size: 0.7rem; font-weight: 800; background: #6366f1; color: #fff; padding: 2px 7px; border-radius: 4px;">
-                    ${roleInfo.role}
-                  </span>
-                </div>
-              ` : ''}
 
               <button type="submit" class="ep-btn-primary" id="ep-btn-submit" ${isLoading ? 'disabled' : ''}>
                 ${isLoading ? '<div class="ep-spinner"></div> Signing in...' : 'Sign in'}
@@ -461,61 +557,53 @@ export function renderLoginView(container, navigateTo) {
               </button>
             </form>
 
-            <!-- Quick Tap Demo Accounts -->
-            <div class="ep-demo-box">
-              <div class="ep-demo-title">
-                <span>⚡ Demo accounts try karo (tap karo):</span>
+            <!-- DEMO MODE SECTION (Only rendered when VITE_DEMO_MODE=true) -->
+            ${demoModeActive ? `
+              <div class="ep-demo-box">
+                <div class="ep-demo-title">
+                  <span>⚡ Try Demo Accounts</span>
+                  <span style="font-size: 0.65rem; background: #3730a3; color: #c7d2fe; padding: 2px 6px; border-radius: 4px;">VITE_DEMO_MODE=true</span>
+                </div>
+                <div class="ep-demo-grid">
+                  <button type="button" class="ep-demo-btn" data-email="student@college.edu">
+                    <span>👨‍🎓 Student</span>
+                    <small>student@college.edu</small>
+                  </button>
+                  <button type="button" class="ep-demo-btn" data-email="organizer@college.edu">
+                    <span>⚡ Organizer</span>
+                    <small>organizer@college.edu</small>
+                  </button>
+                  <button type="button" class="ep-demo-btn" data-email="hod@college.edu">
+                    <span>📚 HOD</span>
+                    <small>hod@college.edu</small>
+                  </button>
+                  <button type="button" class="ep-demo-btn" data-email="dean@college.edu">
+                    <span>🎓 Dean</span>
+                    <small>dean@college.edu</small>
+                  </button>
+                  <button type="button" class="ep-demo-btn" data-email="vc@college.edu">
+                    <span>👑 VC</span>
+                    <small>vc@college.edu</small>
+                  </button>
+                  <button type="button" class="ep-demo-btn" data-email="admin@college.edu">
+                    <span>🛡️ Admin</span>
+                    <small>admin@college.edu</small>
+                  </button>
+                </div>
+                <div style="font-size: 0.725rem; color: #94a3b8; text-align: center;">
+                  Tap any card for 1-click preview authentication
+                </div>
               </div>
-              <div class="ep-pills-wrap">
-                <button type="button" class="ep-pill ${selectedDemoKey === 'vc@college.edu' ? 'active' : ''}" data-email="vc@college.edu" data-pwd="password123">
-                  vc - vc@college.edu
-                </button>
-                <button type="button" class="ep-pill ${selectedDemoKey === 'kavita@college.edu' ? 'active' : ''}" data-email="kavita@college.edu" data-pwd="password123">
-                  dean - kavita@college.edu
-                </button>
-                <button type="button" class="ep-pill ${selectedDemoKey === 'anwar@college.edu' ? 'active' : ''}" data-email="anwar@college.edu" data-pwd="password123">
-                  hod - anwar@college.edu
-                </button>
-                <button type="button" class="ep-pill ${selectedDemoKey === 'pratik@college.edu' ? 'active' : ''}" data-email="pratik@college.edu" data-pwd="password123">
-                  organizer - pratik@college.edu
-                </button>
-                <button type="button" class="ep-pill ${selectedDemoKey === 'admin@college.edu' ? 'active' : ''}" data-email="admin@college.edu" data-pwd="password123">
-                  admin - admin@college.edu
-                </button>
-                <button type="button" class="ep-pill ${selectedDemoKey === 'rahul@college.edu' ? 'active' : ''}" data-email="rahul@college.edu" data-pwd="password123">
-                  student - rahul@college.edu
-                </button>
-              </div>
-              <p class="ep-demo-hint">
-                Koi naya email daaloge to default me <strong>student</strong> banega.
-              </p>
-            </div>
+            ` : ''}
 
-            <!-- Footer: Only Students Need Registration -->
-            <div class="ep-switch-box">
-              Are you a new student?
-              <button type="button" class="ep-link-btn" id="ep-btn-goto-signup">
-                Create Student Account (Sign Up) →
-              </button>
+            <div style="margin-top: 1.5rem; text-align: center; font-size: 0.85rem; color: #64748b;">
+              Staff (Organizer, HOD, Dean, VC, Admin) are provisioned via Admin Invites.
             </div>
           ` : `
-            <!-- STUDENT REGISTRATION VIEW ("bass students ko need hai sign up ki") -->
-            <div class="ep-brand-header">
-              <button type="button" id="ep-btn-back-signin" class="ep-link-btn" style="display: inline-flex; align-items: center; gap: 0.35rem; margin-bottom: 0.85rem; font-size: 0.85rem;">
-                ← Back to Unified Sign In
-              </button>
-              <h1 class="ep-brand-title">
-                <span class="ep-brand-dot"></span>
-                Student Registration
-              </h1>
-              <p class="ep-brand-subtitle">
-                Only students need to create an account with their university PRN. Faculty and organizers log in directly.
-              </p>
-            </div>
-
+            <!-- TAB 2: STUDENT SIGN UP -->
             <form id="ep-signup-form">
               <div class="ep-form-group">
-                <label class="ep-label">Full Student Name</label>
+                <label class="ep-label">Student Full Name</label>
                 <input 
                   type="text" 
                   id="ep-signup-name" 
@@ -528,13 +616,13 @@ export function renderLoginView(container, navigateTo) {
 
               <div class="ep-grid-2">
                 <div class="ep-form-group">
-                  <label class="ep-label">University PRN / Roll No. (12 Chars)</label>
+                  <label class="ep-label">College PRN / Roll No.</label>
                   <input 
                     type="text" 
                     id="ep-signup-prn" 
                     class="ep-input" 
                     placeholder="e.g. SU2026CS0417" 
-                    maxlength="12"
+                    maxlength="16"
                     value="${signupData.prn}" 
                     style="text-transform: uppercase; font-family: monospace;"
                     required 
@@ -556,7 +644,7 @@ export function renderLoginView(container, navigateTo) {
 
               <div class="ep-grid-2">
                 <div class="ep-form-group">
-                  <label class="ep-label">Department / Branch</label>
+                  <label class="ep-label">Department</label>
                   <select id="ep-signup-department" class="ep-input ep-select" required>
                     <option value="Computer Science & Engineering" ${signupData.department === 'Computer Science & Engineering' ? 'selected' : ''}>Computer Science & Engg</option>
                     <option value="Information Technology" ${signupData.department === 'Information Technology' ? 'selected' : ''}>Information Technology</option>
@@ -582,12 +670,15 @@ export function renderLoginView(container, navigateTo) {
               </div>
 
               <div class="ep-form-group">
-                <label class="ep-label">Email Address</label>
+                <label class="ep-label">
+                  University / College Email
+                  ${allowedDomain ? `<span style="color: #818cf8; text-transform: none;">(@${allowedDomain})</span>` : ''}
+                </label>
                 <input 
                   type="email" 
                   id="ep-signup-email" 
                   class="ep-input" 
-                  placeholder="name@college.edu or personal email" 
+                  placeholder="${allowedDomain ? `student@${allowedDomain}` : 'student@college.edu'}" 
                   value="${signupData.email}" 
                   required 
                   autocomplete="username"
@@ -595,37 +686,70 @@ export function renderLoginView(container, navigateTo) {
               </div>
 
               <div class="ep-form-group">
-                <label class="ep-label">Password (Min. 6 characters)</label>
+                <label class="ep-label">Password</label>
                 <div class="ep-input-wrap">
                   <input 
-                    type="${showPassword ? 'text' : 'password'}" 
+                    type="${showSignupPassword ? 'text' : 'password'}" 
                     id="ep-signup-password" 
                     class="ep-input" 
-                    placeholder="Create a secure password" 
+                    placeholder="Create a strong password" 
                     minlength="6"
                     value="${signupData.password}" 
                     required 
                     autocomplete="new-password"
                   />
-                  <button type="button" class="ep-input-toggle-btn" id="ep-btn-toggle-pwd">
-                    ${showPassword ? '👁️' : '🙈'}
+                  <button type="button" class="ep-input-toggle-btn" id="ep-btn-toggle-signup-pwd">
+                    ${showSignupPassword ? '👁️' : '🙈'}
                   </button>
                 </div>
+
+                <!-- Password Strength Meter -->
+                ${signupData.password ? `
+                  <div class="ep-strength-meter">
+                    <div class="ep-strength-bar">
+                      <div class="ep-strength-fill" style="width: ${strength.percent}%; background: ${strength.color};"></div>
+                    </div>
+                    <div class="ep-strength-row">
+                      <span>Strength: <strong style="color: ${strength.color};">${strength.label}</strong></span>
+                      <span>${strength.score}/4 criteria</span>
+                    </div>
+                  </div>
+                ` : ''}
               </div>
 
               <button type="submit" class="ep-btn-primary" id="ep-btn-submit-signup" ${isLoading ? 'disabled' : ''}>
-                ${isLoading ? '<div class="ep-spinner"></div> Registering Student...' : 'Create Student Account'}
+                ${isLoading ? '<div class="ep-spinner"></div> Creating Student Account...' : 'Complete Student Registration'}
               </button>
-            </form>
 
-            <div class="ep-switch-box">
-              Already have an account?
-              <button type="button" class="ep-link-btn" id="ep-btn-goto-signin">
-                Sign in directly →
-              </button>
-            </div>
+              <div style="margin-top: 1rem; text-align: center; font-size: 0.775rem; color: #94a3b8;">
+                ✉️ A verification email will be automatically sent to verify your college address.
+              </div>
+            </form>
           `}
         </div>
+
+        <!-- Forgot Password Modal -->
+        ${showForgotModal ? `
+          <div class="ep-modal-backdrop" id="forgot-modal-backdrop">
+            <div class="ep-modal-card">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: #ffffff;">Reset Password</h3>
+                <button type="button" id="btn-close-forgot" style="background: none; border: none; color: #94a3b8; font-size: 1.25rem; cursor: pointer;">×</button>
+              </div>
+              <p style="font-size: 0.85rem; color: #94a3b8; margin: 0 0 1.25rem 0;">
+                Enter your registered university email. We will send a secure password reset link to your inbox.
+              </p>
+              <div class="ep-form-group">
+                <label class="ep-label">Registered Email</label>
+                <input type="email" id="input-forgot-email" class="ep-input" placeholder="name@college.edu" value="${forgotEmail}" required />
+              </div>
+              <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
+                <button type="button" id="btn-cancel-forgot" class="btn btn-outline" style="border-radius: 8px;">Cancel</button>
+                <button type="button" id="btn-submit-forgot" class="ep-btn-primary" style="width: auto; padding: 10px 18px; border-radius: 8px;">Send Reset Link</button>
+              </div>
+            </div>
+          </div>
+        ` : ''}
       </div>
     `;
 
@@ -633,46 +757,89 @@ export function renderLoginView(container, navigateTo) {
   };
 
   const bindEvents = () => {
-    // Dismiss error banner
+    // Dismiss alert banners
     container.querySelector('#ep-dismiss-error')?.addEventListener('click', () => {
       errorMessage = '';
       render();
     });
-
-    // Toggle Password visibility
-    container.querySelector('#ep-btn-toggle-pwd')?.addEventListener('click', () => {
-      showPassword = !showPassword;
+    container.querySelector('#ep-dismiss-success')?.addEventListener('click', () => {
+      successMessage = '';
       render();
     });
 
-    if (!isSignUpMode) {
-      // Input listener on email to dynamically display detected role
-      const emailInput = container.querySelector('#ep-login-email');
-      emailInput?.addEventListener('input', (e) => {
-        loginEmail = e.target.value;
-        const currentRole = detectRoleText(loginEmail);
-        const existingIndicator = container.querySelector('.ep-role-indicator');
-        if (currentRole && !existingIndicator) {
-          render();
-        } else if (!currentRole && existingIndicator) {
-          render();
-        }
-      });
+    // Tab buttons
+    container.querySelector('#tab-btn-signin')?.addEventListener('click', () => {
+      activeTab = 'signin';
+      errorMessage = '';
+      render();
+    });
+    container.querySelector('#tab-btn-signup')?.addEventListener('click', () => {
+      activeTab = 'signup';
+      errorMessage = '';
+      render();
+    });
 
-      // Quick tap demo accounts
-      container.querySelectorAll('.ep-pill').forEach(pill => {
-        pill.addEventListener('click', (e) => {
-          const email = pill.getAttribute('data-email');
-          const pwd = pill.getAttribute('data-pwd') || 'password123';
-          loginEmail = email;
-          loginPassword = pwd;
-          selectedDemoKey = email;
+    // Toggle Password Visibility
+    container.querySelector('#ep-btn-toggle-login-pwd')?.addEventListener('click', () => {
+      showLoginPassword = !showLoginPassword;
+      render();
+    });
+    container.querySelector('#ep-btn-toggle-signup-pwd')?.addEventListener('click', () => {
+      showSignupPassword = !showSignupPassword;
+      render();
+    });
+
+    // Forgot password modal
+    container.querySelector('#ep-btn-forgot')?.addEventListener('click', () => {
+      forgotEmail = loginEmail;
+      showForgotModal = true;
+      render();
+    });
+    container.querySelector('#btn-close-forgot')?.addEventListener('click', () => {
+      showForgotModal = false;
+      render();
+    });
+    container.querySelector('#btn-cancel-forgot')?.addEventListener('click', () => {
+      showForgotModal = false;
+      render();
+    });
+    container.querySelector('#btn-submit-forgot')?.addEventListener('click', async () => {
+      const email = container.querySelector('#input-forgot-email')?.value.trim();
+      if (!email) {
+        alert('Please enter your registered email address.');
+        return;
+      }
+      const res = await sendPasswordReset(email);
+      showForgotModal = false;
+      if (res.success) {
+        successMessage = `Password reset email sent to ${email}. Please check your inbox.`;
+      } else {
+        errorMessage = res.error || 'Failed to send password reset email.';
+      }
+      render();
+    });
+
+    if (activeTab === 'signin') {
+      // Demo buttons (rendered only if VITE_DEMO_MODE=true)
+      container.querySelectorAll('.ep-demo-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const email = btn.getAttribute('data-email');
+          isLoading = true;
           errorMessage = '';
           render();
+
+          const res = await loginUser(email, 'Password@123');
+          isLoading = false;
+          if (res.success) {
+            navigateTo(getRoleDefaultRoute(res.user.role));
+          } else {
+            errorMessage = res.error || 'Failed to log into demo account.';
+            render();
+          }
         });
       });
 
-      // Google sign-in
+      // Google Sign-In
       container.querySelector('#ep-btn-google')?.addEventListener('click', async () => {
         isLoading = true;
         errorMessage = '';
@@ -681,23 +848,24 @@ export function renderLoginView(container, navigateTo) {
         const res = await loginWithGoogle();
         isLoading = false;
         if (res.success) {
-          if (res.user.role === 'admin' || isUserAdmin(res.user)) navigateTo('admin');
-          else if (res.user.role === 'organizer') navigateTo('organizer');
-          else navigateTo('events');
+          navigateTo(getRoleDefaultRoute(res.user.role));
         } else {
-          errorMessage = res.error || 'Failed to sign in with Google.';
+          errorMessage = res.error || 'Google sign in failed.';
           render();
         }
       });
 
-      // Unified Sign In Form Submit
+      // Unified Sign In Submit
       container.querySelector('#ep-login-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const email = container.querySelector('#ep-login-email')?.value.trim();
         const password = container.querySelector('#ep-login-password')?.value;
 
+        loginEmail = email;
+        loginPassword = password;
+
         if (!email || !password) {
-          errorMessage = 'Please enter both email and password.';
+          errorMessage = 'Please provide both email and password.';
           render();
           return;
         }
@@ -710,41 +878,27 @@ export function renderLoginView(container, navigateTo) {
         isLoading = false;
 
         if (res.success) {
-          if (res.user.role === 'admin' || isUserAdmin(res.user)) {
-            navigateTo('admin');
-          } else if (res.user.role === 'organizer') {
-            navigateTo('organizer');
-          } else {
-            navigateTo('events');
-          }
+          navigateTo(getRoleDefaultRoute(res.user.role));
         } else {
-          errorMessage = res.error || 'Login failed. Please check your credentials.';
+          errorMessage = res.error || 'Invalid email or password.';
           render();
         }
       });
 
-      // Switch to Student Sign Up mode
-      container.querySelector('#ep-btn-goto-signup')?.addEventListener('click', () => {
-        isSignUpMode = true;
-        errorMessage = '';
-        render();
-      });
-
     } else {
-      // Back to Sign In
-      container.querySelector('#ep-btn-back-signin')?.addEventListener('click', () => {
-        isSignUpMode = false;
-        errorMessage = '';
-        render();
+      // Real-time password strength listener
+      const pwdInput = container.querySelector('#ep-signup-password');
+      pwdInput?.addEventListener('input', (e) => {
+        signupData.password = e.target.value;
+        const bar = container.querySelector('.ep-strength-fill');
+        const st = computePasswordStrength(signupData.password);
+        if (bar) {
+          bar.style.width = st.percent + '%';
+          bar.style.background = st.color;
+        }
       });
 
-      container.querySelector('#ep-btn-goto-signin')?.addEventListener('click', () => {
-        isSignUpMode = false;
-        errorMessage = '';
-        render();
-      });
-
-      // Student Registration Form Submit
+      // Student Sign Up Submit
       container.querySelector('#ep-signup-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const name = container.querySelector('#ep-signup-name')?.value.trim();
@@ -752,19 +906,13 @@ export function renderLoginView(container, navigateTo) {
         const department = container.querySelector('#ep-signup-department')?.value;
         const year = container.querySelector('#ep-signup-year')?.value;
         const division = container.querySelector('#ep-signup-division')?.value.trim().toUpperCase();
-        const email = container.querySelector('#ep-signup-email')?.value.trim();
+        const email = container.querySelector('#ep-signup-email')?.value.trim().toLowerCase();
         const password = container.querySelector('#ep-signup-password')?.value;
 
         signupData = { name, prn, department, year, division, email, password };
 
         if (!name || !prn || !email || !password) {
-          errorMessage = 'Please fill out all required student fields.';
-          render();
-          return;
-        }
-
-        if (prn.length !== 12) {
-          errorMessage = `Student PRN must be exactly 12 characters (Current length: ${prn.length}). Example: SU2026CS0417`;
+          errorMessage = 'All fields are required for student onboarding.';
           render();
           return;
         }
@@ -788,7 +936,7 @@ export function renderLoginView(container, navigateTo) {
         if (res.success) {
           navigateTo('events');
         } else {
-          errorMessage = res.error || 'Registration failed. Please check your inputs.';
+          errorMessage = res.error || 'Registration failed. Please check your details.';
           render();
         }
       });

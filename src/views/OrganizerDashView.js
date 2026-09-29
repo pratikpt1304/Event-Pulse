@@ -1,11 +1,21 @@
 import { getCurrentUser, isUserAdmin } from '../services/auth';
-import { getOrganizerEvents, getAllEvents, createEvent, markEventCompleted, reopenEvent, getCachedEventsSync } from '../services/events';
+import { getOrganizerEvents, getAllEvents, createEvent, markEventCompleted, reopenEvent, updateEventVisibility, getCachedEventsSync } from '../services/events';
 import { getEventRegistrations, updateRegistrationStatus, bulkUpdateRegistrations, updateAttendance, bulkUpdateAttendance, awardCertificate } from '../services/registrations';
 import { getEventVolunteers, updateVolunteerStatus } from '../services/volunteers';
 import { getComplaints, updateComplaintStatus } from '../services/complaints';
 import { openQRScannerModal } from '../components/QRScannerModal';
 import { generateEventDescriptionAI } from '../services/ai';
 import { openCompletedEventModal } from '../components/CompletedEventModal';
+import {
+  getAllowedParticipants,
+  addAllowedParticipant,
+  removeAllowedParticipant,
+  batchAddAllowedParticipants,
+  clearAllowedParticipants,
+  parseParticipantsFile,
+  downloadSampleTemplate,
+  exportParticipantsCsv
+} from '../services/participants';
 
 export async function renderOrganizerDashView(container, navigateTo) {
   const user = getCurrentUser();
@@ -22,10 +32,12 @@ export async function renderOrganizerDashView(container, navigateTo) {
   let volunteers = [];
   let complaints = [];
 
-  let activeTab = 'registrations'; // 'registrations' | 'volunteers' | 'grievances' | 'history'
+  let activeTab = 'registrations'; // 'registrations' | 'participants' | 'volunteers' | 'grievances' | 'history'
   let regSubTab = 'pending'; // 'pending' | 'approved' | 'rejected'
   let searchFilter = '';
+  let participantSearchFilter = '';
   let selectedRegIds = new Set();
+  let allowedParticipantsList = [];
 
   const render = () => {
     const selectedEvent = events.find(e => e.id === selectedEventId);
@@ -50,6 +62,15 @@ export async function renderOrganizerDashView(container, navigateTo) {
     });
 
     const activeList = regSubTab === 'pending' ? filterBySearch(pendingRegs) : (regSubTab === 'approved' ? filterBySearch(approvedRegs) : filterBySearch(rejectedRegs));
+
+    // Filtered allowed participants for closed roster
+    const filteredParticipants = allowedParticipantsList.filter(p => {
+      const q = participantSearchFilter.toLowerCase().trim();
+      return !q ||
+        (p.name || '').toLowerCase().includes(q) ||
+        (p.email || p.id || '').toLowerCase().includes(q) ||
+        (p.prn || '').toLowerCase().includes(q);
+    });
 
     const filteredVolunteers = volunteers.filter(v => {
       const q = searchFilter.toLowerCase();
@@ -108,6 +129,23 @@ export async function renderOrganizerDashView(container, navigateTo) {
 
             ${selectedEvent ? `
               <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;">
+                <!-- Event Visibility Badge & Switcher -->
+                ${selectedEvent.visibility === 'closed' ? `
+                  <span class="badge" style="background: #ede9fe; color: #7c3aed; border: 1.5px solid #c4b5fd; font-weight: 800; padding: 0.35rem 0.75rem; display: inline-flex; align-items: center; gap: 0.35rem;" title="Closed event: Visible to and registerable by listed participants only">
+                    🔒 CLOSED EVENT (${allowedParticipantsList.length})
+                  </span>
+                  <button id="btn-toggle-event-visibility" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; font-weight: 700; background: #ffffff;" title="Switch event to Open (All students can register)">
+                    🌐 Switch to Open
+                  </button>
+                ` : `
+                  <span class="badge" style="background: #f0fdf4; color: #16a34a; border: 1.5px solid #bbf7d0; font-weight: 800; padding: 0.35rem 0.75rem; display: inline-flex; align-items: center; gap: 0.35rem;" title="Open event: All eligible students can register">
+                    🌐 OPEN EVENT
+                  </span>
+                  <button id="btn-toggle-event-visibility" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; font-weight: 700; background: #ffffff;" title="Switch event to Closed (Restricted to participant roster)">
+                    🔒 Switch to Closed
+                  </button>
+                `}
+
                 ${selectedEvent.status === 'completed' ? `
                   <span class="badge" style="background: #334155; color: #ffffff; font-weight: 800; padding: 0.35rem 0.75rem;">
                     🏁 COMPLETED ARCHIVE
@@ -159,6 +197,9 @@ export async function renderOrganizerDashView(container, navigateTo) {
         <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.5rem;">
           <button class="cat-tab ${activeTab === 'registrations' ? 'active' : ''}" data-tab="registrations">
             📋 Registrations & Attendance (${registrations.length})
+          </button>
+          <button class="cat-tab ${activeTab === 'participants' ? 'active' : ''}" data-tab="participants" style="${selectedEvent?.visibility === 'closed' ? 'color: #7c3aed; font-weight: 800;' : ''}">
+            👥 Allowed Participants ${selectedEvent?.visibility === 'closed' ? `🔒 (${allowedParticipantsList.length})` : `(${allowedParticipantsList.length})`}
           </button>
           <button class="cat-tab ${activeTab === 'volunteers' ? 'active' : ''}" data-tab="volunteers">
             🙋 Volunteer Crew (${volunteers.length})
@@ -548,6 +589,239 @@ export async function renderOrganizerDashView(container, navigateTo) {
           </div>
         ` : ''}
 
+        <!-- ========================================== -->
+        <!-- TAB: ALLOWED PARTICIPANTS (CLOSED EVENT)  -->
+        <!-- ========================================== -->
+        ${activeTab === 'participants' ? `
+          <div class="card" style="padding: 1.5rem; background: #ffffff;">
+            <!-- Header with Status Banner & Switcher -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--border-subtle);">
+              <div>
+                <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.35rem; flex-wrap: wrap;">
+                  <h3 style="font-size: 1.25rem; margin: 0; color: #1e293b;">
+                    👥 Allowed Participants Roster
+                  </h3>
+                  ${selectedEvent?.visibility === 'closed' ? `
+                    <span style="background: #ede9fe; color: #7c3aed; border: 1.5px solid #c4b5fd; font-weight: 800; font-size: 0.75rem; padding: 0.2rem 0.65rem; border-radius: var(--radius-full); display: inline-flex; align-items: center; gap: 0.3rem;">
+                      🔒 CLOSED EVENT (Invite-Only Roster Active)
+                    </span>
+                  ` : `
+                    <span style="background: #f0fdf4; color: #16a34a; border: 1.5px solid #bbf7d0; font-weight: 800; font-size: 0.75rem; padding: 0.2rem 0.65rem; border-radius: var(--radius-full); display: inline-flex; align-items: center; gap: 0.3rem;">
+                      🌐 OPEN EVENT (All Eligible Students Can Register)
+                    </span>
+                  `}
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; max-width: 720px; line-height: 1.45;">
+                  ${selectedEvent?.visibility === 'closed'
+                    ? 'This event is strictly <strong>Closed</strong>: only students on this list can view the event and submit registrations. Unlisted students will see an "Invite Only" access block.'
+                    : 'This event is currently <strong>Open</strong> to all campus students. You can build and upload the participant roster below, and switch the event to <strong>Closed</strong> mode when ready.'}
+                </p>
+              </div>
+
+              <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <button id="btn-toggle-vis-in-tab" class="btn btn-secondary btn-sm" style="font-weight: 800; border-color: #cbd5e1; font-size: 0.8rem; padding: 0.45rem 0.85rem;">
+                  ${selectedEvent?.visibility === 'closed' ? '🌐 Switch to Open Event' : '🔒 Switch to Closed (Invite-Only)'}
+                </button>
+              </div>
+            </div>
+
+            <!-- Action Toolbar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.25rem;">
+              <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <button id="btn-open-manual-add" class="btn btn-primary btn-sm" style="font-weight: 800; display: inline-flex; align-items: center; gap: 0.35rem;">
+                  ➕ Add Participant
+                </button>
+                <button id="btn-open-upload-modal" class="btn btn-sm" style="font-weight: 800; background: #0f172a; border: 1.5px solid #0f172a; color: #ffffff; display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; border-radius: var(--radius-sm); padding: 0.4rem 0.85rem;">
+                  📤 Upload Excel / CSV
+                </button>
+                <button id="btn-download-template-xlsx" class="btn btn-secondary btn-sm" style="font-weight: 700; display: inline-flex; align-items: center; gap: 0.35rem;" title="Download sample template for participant upload in Excel format">
+                  📥 Template (.xlsx)
+                </button>
+                <button id="btn-download-template-csv" class="btn btn-secondary btn-sm" style="font-weight: 700; display: inline-flex; align-items: center; gap: 0.35rem;" title="Download sample template in CSV format">
+                  📥 Template (.csv)
+                </button>
+              </div>
+
+              <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <button id="btn-export-roster-csv" class="btn btn-secondary btn-sm" style="font-weight: 700;" title="Export list of allowed participants to CSV">
+                  📊 Export Roster CSV
+                </button>
+                ${allowedParticipantsList.length > 0 ? `
+                  <button id="btn-clear-roster" class="btn btn-secondary btn-sm" style="color: #dc2626; border-color: #fca5a5; background: #fff5f5; font-weight: 700;" title="Permanently remove all participants from this event">
+                    🗑️ Clear List
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+
+            <!-- Search Input Filter -->
+            <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+              <input type="text" id="input-search-participants" class="form-control form-control-sm" placeholder="🔍 Search participant by name, email or PRN..." value="${participantSearchFilter}" style="max-width: 450px; font-size: 0.85rem;" />
+              <div style="font-size: 0.825rem; color: var(--text-tertiary); font-weight: 600;">
+                Showing <strong>${filteredParticipants.length}</strong> of <strong>${allowedParticipantsList.length}</strong> participants
+              </div>
+            </div>
+
+            <!-- Participants Table -->
+            ${allowedParticipantsList.length === 0 ? `
+              <div style="text-align: center; padding: 3.5rem 1rem; color: var(--text-secondary); background: #f8fafc; border-radius: var(--radius-md); border: 1px dashed var(--border-subtle);">
+                <div style="font-size: 2.75rem; margin-bottom: 0.5rem;">👥</div>
+                <div style="font-weight: 800; font-size: 1.15rem; color: var(--text-primary); margin-bottom: 0.35rem;">No Participants on Roster Yet</div>
+                <p style="font-size: 0.875rem; max-width: 500px; margin: 0 auto 1.25rem auto;">
+                  Upload an Excel (.xlsx/.xls) or CSV sheet with student details, or add participants individually to restrict event access.
+                </p>
+                <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
+                  <button id="btn-open-upload-modal-empty" class="btn btn-primary btn-sm" style="font-weight: 800;">
+                    📤 Upload Excel / CSV
+                  </button>
+                  <button id="btn-open-manual-add-empty" class="btn btn-secondary btn-sm" style="font-weight: 700;">
+                    ➕ Add Individually
+                  </button>
+                </div>
+              </div>
+            ` : filteredParticipants.length === 0 ? `
+              <div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-secondary); background: #f8fafc; border-radius: var(--radius-sm);">
+                🔍 No participants found matching "<strong>${participantSearchFilter}</strong>".
+              </div>
+            ` : `
+              <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem; text-align: left;">
+                  <thead>
+                    <tr style="background: #f8fafc; border-bottom: 1.5px solid var(--border-subtle);">
+                      <th style="padding: 0.75rem 0.85rem; width: 45px;">#</th>
+                      <th style="padding: 0.75rem 0.85rem;">Student Name</th>
+                      <th style="padding: 0.75rem 0.85rem;">College Email</th>
+                      <th style="padding: 0.75rem 0.85rem;">PRN / Roll No</th>
+                      <th style="padding: 0.75rem 0.85rem;">Added Date</th>
+                      <th style="padding: 0.75rem 0.85rem;">Added By</th>
+                      <th style="padding: 0.75rem 0.85rem; text-align: right;">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${filteredParticipants.map((p, idx) => `
+                      <tr style="border-bottom: 1px solid var(--border-subtle); transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                        <td style="padding: 0.75rem 0.85rem; color: var(--text-tertiary); font-size: 0.8rem;">${idx + 1}</td>
+                        <td style="padding: 0.75rem 0.85rem; font-weight: 700; color: #1e293b;">${p.name || '—'}</td>
+                        <td style="padding: 0.75rem 0.85rem; font-family: monospace; font-size: 0.825rem; color: #0284c7;">${p.email || p.id}</td>
+                        <td style="padding: 0.75rem 0.85rem; font-weight: 600; color: #475569;">${p.prn || '—'}</td>
+                        <td style="padding: 0.75rem 0.85rem; font-size: 0.775rem; color: #64748b;">${p.addedAt ? new Date(p.addedAt).toLocaleDateString() : '—'}</td>
+                        <td style="padding: 0.75rem 0.85rem; font-size: 0.775rem; color: #64748b;">${p.addedBy || 'Organizer'}</td>
+                        <td style="padding: 0.75rem 0.85rem; text-align: right;">
+                          <button class="btn btn-secondary btn-sm btn-remove-participant" data-email="${p.email || p.id}" data-name="${p.name || ''}" style="color: #dc2626; border-color: #fca5a5; background: #fff5f5; font-size: 0.75rem; padding: 0.25rem 0.65rem;" title="Remove student from allowed roster">
+                            🗑️ Remove
+                          </button>
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `}
+          </div>
+        ` : ''}
+
+        <!-- Manual Add Participant Modal -->
+        <div id="modal-manual-add-participant" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); z-index: 9999; align-items: center; justify-content: center; padding: 1.5rem;">
+          <div style="background: #ffffff; border-radius: 16px; width: 100%; max-width: 480px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); overflow: hidden;">
+            <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
+              <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #1e293b;">➕ Add Participant to Roster</h3>
+              <button id="btn-close-manual-add" style="background: none; border: none; font-size: 1.35rem; color: #94a3b8; cursor: pointer;">×</button>
+            </div>
+            <form id="form-manual-add-participant" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+              <div class="form-group" style="margin: 0;">
+                <label style="font-weight: 700; font-size: 0.85rem; margin-bottom: 0.35rem; display: block;">Student Full Name *</label>
+                <input type="text" id="input-manual-p-name" class="form-control" placeholder="e.g. Aditya Patil" required />
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label style="font-weight: 700; font-size: 0.85rem; margin-bottom: 0.35rem; display: block;">College Email Address *</label>
+                <input type="email" id="input-manual-p-email" class="form-control" placeholder="e.g. aditya.cs24@college.edu" required />
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label style="font-weight: 700; font-size: 0.85rem; margin-bottom: 0.35rem; display: block;">PRN / Roll Number *</label>
+                <input type="text" id="input-manual-p-prn" class="form-control" placeholder="e.g. PRN20240101" required />
+              </div>
+              <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem;">
+                <button type="button" id="btn-cancel-manual-add" class="btn btn-secondary btn-sm" style="font-weight: 700;">Cancel</button>
+                <button type="submit" id="btn-submit-manual-add" class="btn btn-primary btn-sm" style="font-weight: 700;">Add to Roster</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Excel / CSV Upload & Validation Preview Modal -->
+        <div id="modal-upload-participants" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 9999; align-items: center; justify-content: center; padding: 1.5rem;">
+          <div style="background: #ffffff; border-radius: 16px; width: 100%; max-width: 820px; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+            <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
+              <div>
+                <h3 style="margin: 0 0 0.2rem 0; font-size: 1.2rem; font-weight: 800; color: #1e293b;">📤 Upload Participant List</h3>
+                <p style="margin: 0; font-size: 0.825rem; color: var(--text-secondary);">Upload Excel (.xlsx/.xls) or CSV with columns: <strong>name, email, prn</strong>.</p>
+              </div>
+              <button id="btn-close-upload-modal" style="background: none; border: none; font-size: 1.35rem; color: #94a3b8; cursor: pointer;">×</button>
+            </div>
+
+            <div style="padding: 1.25rem 1.5rem; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 1.25rem;">
+              <!-- Drag and Drop Zone -->
+              <div id="dropzone-participants" style="border: 2px dashed #cbd5e1; border-radius: 12px; padding: 2rem 1.5rem; text-align: center; background: #f8fafc; cursor: pointer; transition: all 0.2s;">
+                <input type="file" id="input-participants-file" accept=".xlsx, .xls, .csv" style="display: none;" />
+                <div style="font-size: 2.25rem; margin-bottom: 0.5rem;">📂</div>
+                <div style="font-weight: 800; font-size: 1rem; color: #1e293b; margin-bottom: 0.25rem;">
+                  Click to select file or drag & drop here
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+                  Supports Excel (.xlsx, .xls) and CSV (.csv) files.
+                </div>
+                <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                  <button type="button" id="btn-browse-file" class="btn btn-secondary btn-sm" style="font-weight: 700; pointer-events: none;">
+                    Browse File
+                  </button>
+                </div>
+              </div>
+
+              <!-- Validation Summary Badges -->
+              <div id="upload-validation-summary" style="display: none; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 140px; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 0.75rem 1rem;">
+                  <div style="font-size: 0.75rem; font-weight: 800; color: #16a34a; text-transform: uppercase;">✅ Valid Rows</div>
+                  <div id="count-valid-rows" style="font-size: 1.5rem; font-weight: 900; color: #15803d; margin-top: 0.2rem;">0</div>
+                </div>
+                <div style="flex: 1; min-width: 140px; background: #fef2f2; border: 1.5px solid #fca5a5; border-radius: 8px; padding: 0.75rem 1rem;">
+                  <div style="font-size: 0.75rem; font-weight: 800; color: #dc2626; text-transform: uppercase;">⚠️ Invalid Rows</div>
+                  <div id="count-invalid-rows" style="font-size: 1.5rem; font-weight: 900; color: #b91c1c; margin-top: 0.2rem;">0</div>
+                </div>
+                <div style="flex: 1; min-width: 140px; background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 8px; padding: 0.75rem 1rem;">
+                  <div style="font-size: 0.75rem; font-weight: 800; color: #d97706; text-transform: uppercase;">🔁 Duplicates</div>
+                  <div id="count-duplicate-rows" style="font-size: 1.5rem; font-weight: 900; color: #b45309; margin-top: 0.2rem;">0</div>
+                </div>
+              </div>
+
+              <!-- Preview Table Container -->
+              <div id="upload-preview-container" style="display: none; border: 1px solid var(--border-subtle); border-radius: 8px; overflow: hidden;">
+                <div style="padding: 0.6rem 0.85rem; background: #f8fafc; border-bottom: 1px solid var(--border-subtle); font-size: 0.8rem; font-weight: 700; color: #475569;">
+                  Validation Preview (Only valid rows will be imported)
+                </div>
+                <div style="max-height: 260px; overflow-y: auto;" id="upload-preview-table-body">
+                  <!-- Injected dynamically -->
+                </div>
+              </div>
+
+              <!-- Progress Bar -->
+              <div id="upload-progress-container" style="display: none;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 700; margin-bottom: 0.35rem;">
+                  <span id="upload-progress-text">Saving participants to Firestore...</span>
+                  <span id="upload-progress-pct">0%</span>
+                </div>
+                <div style="width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                  <div id="upload-progress-bar" style="width: 0%; height: 100%; background: #10b981; transition: width 0.2s;"></div>
+                </div>
+              </div>
+            </div>
+
+            <div style="padding: 1rem 1.5rem; border-top: 1px solid var(--border-subtle); display: flex; justify-content: flex-end; gap: 0.75rem; background: #f8fafc;">
+              <button id="btn-cancel-upload" class="btn btn-secondary btn-sm" style="font-weight: 700;">Cancel</button>
+              <button id="btn-confirm-upload" class="btn btn-primary btn-sm" style="font-weight: 800;" disabled>Confirm & Save Participants</button>
+            </div>
+          </div>
+        </div>
+
       </div>
     `;
 
@@ -579,6 +853,7 @@ export async function renderOrganizerDashView(container, navigateTo) {
       registrations = await getEventRegistrations(selectedEventId);
       volunteers = await getEventVolunteers(selectedEventId);
       complaints = await getComplaints(selectedEventId);
+      allowedParticipantsList = await getAllowedParticipants(selectedEventId);
       render();
     });
 
@@ -950,6 +1225,328 @@ export async function renderOrganizerDashView(container, navigateTo) {
         }
       });
     });
+
+    // -------------------------------------------------------------------------
+    // ALLOWED PARTICIPANTS (CLOSED EVENT) EVENT LISTENERS
+    // -------------------------------------------------------------------------
+    
+    // Toggle Event Visibility between Open and Closed
+    const toggleEventVisibilityHandler = async () => {
+      if (!selectedEvent) return;
+      const newVis = selectedEvent.visibility === 'closed' ? 'open' : 'closed';
+      const confirmMsg = newVis === 'closed'
+        ? `Switch "${selectedEvent.title}" to CLOSED mode?\n\nOnly students on the Allowed Participants roster will be able to view and register for this event.`
+        : `Switch "${selectedEvent.title}" to OPEN mode?\n\nAll eligible campus students will be able to browse and register.`;
+      
+      if (!confirm(confirmMsg)) return;
+
+      const res = await updateEventVisibility(selectedEvent.id, newVis);
+      if (res.success) {
+        selectedEvent.visibility = newVis;
+        render();
+        alert(`✅ Event visibility changed to ${newVis.toUpperCase()}!`);
+      }
+    };
+    container.querySelector('#btn-toggle-event-visibility')?.addEventListener('click', toggleEventVisibilityHandler);
+    container.querySelector('#btn-toggle-vis-in-tab')?.addEventListener('click', toggleEventVisibilityHandler);
+
+    // Participant Search Filter (with focus preservation)
+    const pSearchInput = container.querySelector('#input-search-participants');
+    if (pSearchInput) {
+      pSearchInput.addEventListener('input', (e) => {
+        participantSearchFilter = e.target.value;
+        render();
+        const refInput = container.querySelector('#input-search-participants');
+        if (refInput) {
+          refInput.focus();
+          refInput.setSelectionRange(refInput.value.length, refInput.value.length);
+        }
+      });
+    }
+
+    // Open Manual Add Modal
+    const openManualAdd = () => {
+      const modal = container.querySelector('#modal-manual-add-participant');
+      if (modal) {
+        modal.style.display = 'flex';
+        container.querySelector('#input-manual-p-name')?.focus();
+      }
+    };
+    container.querySelector('#btn-open-manual-add')?.addEventListener('click', openManualAdd);
+    container.querySelector('#btn-open-manual-add-empty')?.addEventListener('click', openManualAdd);
+
+    // Close Manual Add Modal
+    const closeManualAdd = () => {
+      const modal = container.querySelector('#modal-manual-add-participant');
+      if (modal) modal.style.display = 'none';
+      container.querySelector('#form-manual-add-participant')?.reset();
+    };
+    container.querySelector('#btn-close-manual-add')?.addEventListener('click', closeManualAdd);
+    container.querySelector('#btn-cancel-manual-add')?.addEventListener('click', closeManualAdd);
+
+    // Submit Manual Add Form
+    container.querySelector('#form-manual-add-participant')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!selectedEventId) {
+        alert('Please select an event first.');
+        return;
+      }
+
+      const name = container.querySelector('#input-manual-p-name')?.value.trim();
+      const email = container.querySelector('#input-manual-p-email')?.value.trim();
+      const prn = container.querySelector('#input-manual-p-prn')?.value.trim();
+
+      if (!name || !email || !prn) {
+        alert('Name, email, and PRN are required.');
+        return;
+      }
+
+      try {
+        const res = await addAllowedParticipant(selectedEventId, { name, email, prn }, user);
+        if (res.success) {
+          closeManualAdd();
+          allowedParticipantsList = await getAllowedParticipants(selectedEventId);
+          render();
+          alert(`✅ Added ${name} (${email}) to allowed participants!`);
+        }
+      } catch (err) {
+        alert(`Error adding participant: ${err.message}`);
+      }
+    });
+
+    // Remove Single Participant
+    container.querySelectorAll('.btn-remove-participant').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const email = e.currentTarget.getAttribute('data-email');
+        const name = e.currentTarget.getAttribute('data-name');
+        if (!confirm(`Remove ${name || email} from the allowed participant roster?`)) return;
+
+        try {
+          await removeAllowedParticipant(selectedEventId, email);
+          allowedParticipantsList = await getAllowedParticipants(selectedEventId);
+          render();
+        } catch (err) {
+          alert(`Error removing participant: ${err.message}`);
+        }
+      });
+    });
+
+    // Clear Roster
+    container.querySelector('#btn-clear-roster')?.addEventListener('click', async () => {
+      if (!confirm(`Are you sure you want to remove all ${allowedParticipantsList.length} participants from this event roster? This cannot be undone.`)) return;
+
+      try {
+        await clearAllowedParticipants(selectedEventId);
+        allowedParticipantsList = [];
+        render();
+        alert('Cleared allowed participants roster.');
+      } catch (err) {
+        alert(`Error clearing roster: ${err.message}`);
+      }
+    });
+
+    // Download Sample Templates
+    container.querySelector('#btn-download-template-xlsx')?.addEventListener('click', () => {
+      downloadSampleTemplate('xlsx');
+    });
+    container.querySelector('#btn-download-template-csv')?.addEventListener('click', () => {
+      downloadSampleTemplate('csv');
+    });
+
+    // Export Roster CSV
+    container.querySelector('#btn-export-roster-csv')?.addEventListener('click', () => {
+      exportParticipantsCsv(allowedParticipantsList, selectedEvent?.title || 'event');
+    });
+
+    // Excel / CSV Upload Modal Logic
+    let pendingValidBatch = [];
+    const uploadModal = container.querySelector('#modal-upload-participants');
+    const dropzone = container.querySelector('#dropzone-participants');
+    const fileInput = container.querySelector('#input-participants-file');
+    const confirmUploadBtn = container.querySelector('#btn-confirm-upload');
+    const summaryBox = container.querySelector('#upload-validation-summary');
+    const previewContainer = container.querySelector('#upload-preview-container');
+    const previewBody = container.querySelector('#upload-preview-table-body');
+    const progressContainer = container.querySelector('#upload-progress-container');
+    const progressBar = container.querySelector('#upload-progress-bar');
+    const progressText = container.querySelector('#upload-progress-text');
+    const progressPct = container.querySelector('#upload-progress-pct');
+
+    const openUploadModal = () => {
+      if (uploadModal) {
+        pendingValidBatch = [];
+        if (fileInput) fileInput.value = '';
+        if (summaryBox) summaryBox.style.display = 'none';
+        if (previewContainer) previewContainer.style.display = 'none';
+        if (progressContainer) progressContainer.style.display = 'none';
+        if (confirmUploadBtn) {
+          confirmUploadBtn.disabled = true;
+          confirmUploadBtn.textContent = 'Confirm & Save Participants';
+        }
+        uploadModal.style.display = 'flex';
+      }
+    };
+    container.querySelector('#btn-open-upload-modal')?.addEventListener('click', openUploadModal);
+    container.querySelector('#btn-open-upload-modal-empty')?.addEventListener('click', openUploadModal);
+
+    const closeUploadModal = () => {
+      if (uploadModal) uploadModal.style.display = 'none';
+      pendingValidBatch = [];
+      if (fileInput) fileInput.value = '';
+    };
+    container.querySelector('#btn-close-upload-modal')?.addEventListener('click', closeUploadModal);
+    container.querySelector('#btn-cancel-upload')?.addEventListener('click', closeUploadModal);
+
+    // Dropzone Click & Drag/Drop
+    if (dropzone) {
+      dropzone.addEventListener('click', () => fileInput?.click());
+      dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = '#0284c7';
+        dropzone.style.background = '#f0f9ff';
+      });
+      dropzone.addEventListener('dragleave', () => {
+        dropzone.style.borderColor = '#cbd5e1';
+        dropzone.style.background = '#f8fafc';
+      });
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = '#cbd5e1';
+        dropzone.style.background = '#f8fafc';
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+          handleParticipantsFile(files[0]);
+        }
+      });
+    }
+
+    if (fileInput) {
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          handleParticipantsFile(e.target.files[0]);
+        }
+      });
+    }
+
+    async function handleParticipantsFile(file) {
+      if (!file) return;
+      try {
+        if (dropzone) {
+          dropzone.innerHTML = `
+            <div style="font-size: 1.75rem; margin-bottom: 0.35rem;">📄</div>
+            <div style="font-weight: 800; font-size: 0.95rem; color: #1e293b;">${file.name}</div>
+            <div style="font-size: 0.8rem; color: #0284c7; margin-top: 0.25rem;">Parsing spreadsheet with SheetJS...</div>
+          `;
+        }
+
+        const parsed = await parseParticipantsFile(file, allowedParticipantsList);
+        pendingValidBatch = parsed.valid;
+
+        // Update counts
+        container.querySelector('#count-valid-rows').textContent = parsed.valid.length;
+        container.querySelector('#count-invalid-rows').textContent = parsed.invalid.length;
+        container.querySelector('#count-duplicate-rows').textContent = parsed.duplicates.length;
+        if (summaryBox) summaryBox.style.display = 'flex';
+
+        // Render preview table
+        const allDisplayRows = [
+          ...parsed.valid.map(r => ({ ...r, statusType: 'valid' })),
+          ...parsed.invalid.map(r => ({ ...r, statusType: 'invalid' })),
+          ...parsed.duplicates.map(r => ({ ...r, statusType: 'duplicate' }))
+        ].sort((a, b) => a.rowNumber - b.rowNumber);
+
+        if (previewBody) {
+          previewBody.innerHTML = `
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.825rem; text-align: left;">
+              <thead>
+                <tr style="background: #f1f5f9; border-bottom: 1.5px solid var(--border-subtle);">
+                  <th style="padding: 0.55rem 0.75rem;">Row</th>
+                  <th style="padding: 0.55rem 0.75rem;">Name</th>
+                  <th style="padding: 0.55rem 0.75rem;">Email</th>
+                  <th style="padding: 0.55rem 0.75rem;">PRN</th>
+                  <th style="padding: 0.55rem 0.75rem;">Status / Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${allDisplayRows.slice(0, 150).map(r => `
+                  <tr style="border-bottom: 1px solid var(--border-subtle); background: ${r.statusType === 'valid' ? '#ffffff' : (r.statusType === 'invalid' ? '#fef2f2' : '#fffbeb')};">
+                    <td style="padding: 0.55rem 0.75rem; color: var(--text-tertiary);">${r.rowNumber}</td>
+                    <td style="padding: 0.55rem 0.75rem; font-weight: 700;">${r.name || '—'}</td>
+                    <td style="padding: 0.55rem 0.75rem; font-family: monospace;">${r.email || '—'}</td>
+                    <td style="padding: 0.55rem 0.75rem;">${r.prn || '—'}</td>
+                    <td style="padding: 0.55rem 0.75rem;">
+                      ${r.statusType === 'valid' ? `
+                        <span style="color: #16a34a; font-weight: 800;">✓ Ready to Save</span>
+                      ` : r.statusType === 'invalid' ? `
+                        <span style="color: #dc2626; font-weight: 700; font-size: 0.75rem;">✕ ${r.errors}</span>
+                      ` : `
+                        <span style="color: #d97706; font-weight: 700; font-size: 0.75rem;">⚠ ${r.reason}</span>
+                      `}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            ${allDisplayRows.length > 150 ? `
+              <div style="padding: 0.5rem; text-align: center; font-size: 0.75rem; color: var(--text-secondary); background: #f8fafc;">
+                Showing first 150 of ${allDisplayRows.length} rows...
+              </div>
+            ` : ''}
+          `;
+        }
+
+        if (previewContainer) previewContainer.style.display = 'block';
+
+        if (confirmUploadBtn) {
+          confirmUploadBtn.disabled = pendingValidBatch.length === 0;
+          confirmUploadBtn.textContent = `Confirm & Save (${pendingValidBatch.length}) Valid Participants`;
+        }
+      } catch (err) {
+        alert(`Failed to parse file: ${err.message}`);
+      }
+    }
+
+    // Confirm & Save Batch Upload
+    confirmUploadBtn?.addEventListener('click', async () => {
+      if (!selectedEventId || pendingValidBatch.length === 0) return;
+
+      confirmUploadBtn.disabled = true;
+      confirmUploadBtn.textContent = 'Saving...';
+      if (progressContainer) progressContainer.style.display = 'block';
+
+      try {
+        const res = await batchAddAllowedParticipants(
+          selectedEventId,
+          pendingValidBatch,
+          user,
+          (saved, total) => {
+            const pct = Math.round((saved / total) * 100);
+            if (progressBar) progressBar.style.width = `${pct}%`;
+            if (progressPct) progressPct.textContent = `${pct}%`;
+            if (progressText) progressText.textContent = `Saved ${saved} of ${total} participants...`;
+          }
+        );
+
+        if (res.success) {
+          allowedParticipantsList = await getAllowedParticipants(selectedEventId);
+          closeUploadModal();
+          alert(`🎉 Successfully saved ${res.count} participants to the allowed roster!`);
+
+          // If event was open, offer prompt to switch to closed mode
+          if (selectedEvent && selectedEvent.visibility !== 'closed') {
+            if (confirm(`Do you want to switch "${selectedEvent.title}" to CLOSED (Invite-Only) mode now?`)) {
+              await updateEventVisibility(selectedEvent.id, 'closed');
+              selectedEvent.visibility = 'closed';
+            }
+          }
+          render();
+        }
+      } catch (err) {
+        alert(`Error saving participants: ${err.message}`);
+        confirmUploadBtn.disabled = false;
+        confirmUploadBtn.textContent = `Confirm & Save (${pendingValidBatch.length}) Valid Participants`;
+      }
+    });
   };
 
   // 1. Instant 0ms Synchronous Render
@@ -966,14 +1563,16 @@ export async function renderOrganizerDashView(container, navigateTo) {
         }
       }
       if (selectedEventId) {
-        const [regs, vols, comps] = await Promise.all([
+        const [regs, vols, comps, allowed] = await Promise.all([
           getEventRegistrations(selectedEventId),
           getEventVolunteers(selectedEventId),
-          getComplaints(selectedEventId)
+          getComplaints(selectedEventId),
+          getAllowedParticipants(selectedEventId)
         ]);
         registrations = regs || [];
         volunteers = vols || [];
         complaints = comps || [];
+        allowedParticipantsList = allowed || [];
       }
       render();
     } catch (e) {
@@ -1031,6 +1630,20 @@ function openCreateEventModal(organizerUser, onSuccess) {
               <option value="Robotics & Automation">Robotics & Automation</option>
               <option value="Mechanical Engineering">Mechanical Engineering</option>
             </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label style="font-weight: 700; margin-bottom: 0.35rem; display: block;">Event Visibility & Access *</label>
+          <div style="display: flex; gap: 1.5rem; align-items: center; background: #f8fafc; border: 1.5px solid var(--border-subtle); padding: 0.85rem 1rem; border-radius: var(--radius-sm); flex-wrap: wrap;">
+            <label style="display: flex; align-items: center; gap: 0.45rem; cursor: pointer; font-weight: 700; font-size: 0.875rem; color: #16a34a;">
+              <input type="radio" name="ev-visibility" value="open" checked />
+              🌐 Open (All eligible students can browse & register)
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.45rem; cursor: pointer; font-weight: 700; font-size: 0.875rem; color: #7c3aed;">
+              <input type="radio" name="ev-visibility" value="closed" />
+              🔒 Closed (Restricted to an approved participant list)
+            </label>
           </div>
         </div>
 
@@ -1094,11 +1707,14 @@ function openCreateEventModal(organizerUser, onSuccess) {
 
   overlay.querySelector('#create-event-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const visibility = overlay.querySelector('input[name="ev-visibility"]:checked')?.value || 'open';
+
     const eventPayload = {
       title: overlay.querySelector('#ev-title').value.trim(),
       description: overlay.querySelector('#ev-desc').value.trim(),
       category: overlay.querySelector('#ev-cat').value,
       department: overlay.querySelector('#ev-dept').value,
+      visibility,
       venue: overlay.querySelector('#ev-venue').value.trim(),
       externalLink: (overlay.querySelector('#ev-link')?.value || '').trim(),
       date: overlay.querySelector('#ev-date').value,
@@ -1110,7 +1726,7 @@ function openCreateEventModal(organizerUser, onSuccess) {
     };
 
     await createEvent(eventPayload, organizerUser);
-    alert('🎉 Event submitted! Set to status: pending_approval.');
+    alert(`🎉 Event submitted! Status: pending_approval (${visibility.toUpperCase()}).`);
     close();
     if (onSuccess) onSuccess();
   });

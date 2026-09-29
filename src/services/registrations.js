@@ -10,6 +10,7 @@ import {
   query, 
   where 
 } from 'firebase/firestore';
+import { isStudentAllowed } from './participants';
 
 let inMemoryRegistrations = [];
 let inMemoryAuditLogs = [];
@@ -32,6 +33,19 @@ export async function registerForEvent(event, student) {
       code: 'ACCOUNT_BANNED',
       message: '⛔ Registration Prohibited: Your account has been suspended by University Administration.'
     };
+  }
+
+  // Closed Event check: Only invited participants can register
+  if (event && event.visibility === 'closed') {
+    const studentEmail = student?.email || '';
+    const allowed = await isStudentAllowed(event.id, studentEmail);
+    if (!allowed) {
+      return {
+        success: false,
+        code: 'CLOSED_EVENT_RESTRICTED',
+        message: '🔒 Registration Restricted: This is a closed, invite-only event. Your email is not listed on the approved participant roster.'
+      };
+    }
   }
 
   const regId = `${event.id}_${student.uid}`;

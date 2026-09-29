@@ -108,9 +108,12 @@ export async function createEvent(eventPayload, user) {
   const orgName = eventPayload.organizerName || user?.name || user?.displayName || 'Faculty / Admin';
   const finalStatus = eventPayload.status || 'pending_approval';
 
+  const visibility = eventPayload.visibility === 'closed' ? 'closed' : 'open';
+
   const newEvent = {
     id: eventId,
     ...eventPayload,
+    visibility,
     organizerId: orgId,
     organizerName: orgName,
     status: finalStatus,
@@ -135,6 +138,21 @@ export async function createEvent(eventPayload, user) {
   } catch (e) {}
 
   return { success: true, event: newEvent };
+}
+
+/**
+ * Update event visibility ('open' or 'closed')
+ */
+export async function updateEventVisibility(eventId, visibility) {
+  const finalVis = visibility === 'closed' ? 'closed' : 'open';
+  try {
+    await updateDoc(doc(db, 'events', eventId), { visibility: finalVis });
+  } catch (e) {
+    console.warn('Firestore updateEventVisibility error:', e.message);
+  }
+  const idx = inMemoryEvents.findIndex(e => e.id === eventId);
+  if (idx !== -1) inMemoryEvents[idx].visibility = finalVis;
+  return { success: true, visibility: finalVis };
 }
 
 /**
@@ -261,3 +279,5 @@ export async function deleteEvent(eventId) {
 
   return { success: true };
 }
+
+export const getEvents = getAllEvents;

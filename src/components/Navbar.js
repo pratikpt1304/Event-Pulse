@@ -59,6 +59,11 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
               <span>⚡</span> Organizer Hub
             </a>
           ` : ''}
+          ${user && (['hod', 'dean', 'vc'].includes(user.role) || isUserAdmin(user)) ? `
+            <a class="nav-link ${activeRoute === 'executive' ? 'active' : ''}" id="nav-executive" style="cursor: pointer; color: #3b82f6; font-weight: 700;">
+              <span>🏛️</span> Executive Hub
+            </a>
+          ` : ''}
           ${isUserAdmin(user) ? `
             <a class="nav-link ${activeRoute === 'admin' ? 'active' : ''}" id="nav-admin" style="cursor: pointer; color: #ef4444; font-weight: 700;">
               <span>🛡️</span> Admin Console
@@ -226,6 +231,11 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
             <span class="mob-icon">🛡️</span>
             <span class="mob-label">Admin</span>
           </button>
+        ` : user && ['hod', 'dean', 'vc'].includes(user.role) ? `
+          <button class="mobile-nav-btn ${activeRoute === 'executive' ? 'active' : ''}" id="mob-nav-executive">
+            <span class="mob-icon">🏛️</span>
+            <span class="mob-label">Executive</span>
+          </button>
         ` : user.role === 'organizer' ? `
           <button class="mobile-nav-btn ${activeRoute === 'organizer' ? 'active' : ''}" id="mob-nav-organizer">
             <span class="mob-icon">⚡</span>
@@ -252,6 +262,8 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
   container.querySelector('#nav-events-link')?.addEventListener('click', () => navigateTo('events'));
   container.querySelector('#nav-ideas')?.addEventListener('click', () => navigateTo('ideas'));
   container.querySelector('#nav-organizer')?.addEventListener('click', () => navigateTo('organizer'));
+  container.querySelector('#nav-executive')?.addEventListener('click', () => navigateTo('executive'));
+  container.querySelector('#mob-nav-executive')?.addEventListener('click', () => navigateTo('executive'));
   container.querySelector('#nav-admin')?.addEventListener('click', () => navigateTo('admin'));
 
   container.querySelector('#btn-login-nav')?.addEventListener('click', () => navigateTo('login'));

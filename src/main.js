@@ -1,10 +1,12 @@
 import './styles/main.css';
-import { initAuthListener, subscribeAuth, getCurrentUser, isUserAdmin, logoutUser } from './services/auth';
+import { initAuthListener, subscribeAuth, getCurrentUser, logoutUser } from './services/auth';
+import { getHashRoute, navigateTo, checkRouteGuard } from './router';
 import { renderNavbar } from './components/Navbar';
 import { renderLoginView } from './views/LoginView';
 import { renderEventsView } from './views/EventsView';
 import { renderStudentPassesView } from './views/StudentPassesView';
 import { renderOrganizerDashView } from './views/OrganizerDashView';
+import { renderExecutiveDashboardView } from './views/ExecutiveDashboardView';
 import { renderAdminView } from './views/AdminView';
 import { renderVerifyCertView } from './views/VerifyCertView';
 import { renderIdeaHubView } from './views/IdeaHubView';
@@ -12,21 +14,6 @@ import { initPulseAIChatWidget } from './components/PulseAIChatWidget';
 import { initForegroundNotificationListener, requestPushNotificationPermission } from './services/fcm';
 
 const appContainer = document.getElementById('app');
-
-function getHashRoute() {
-  const hash = window.location.hash.slice(1);
-  if (!hash) return { name: 'events', param: null };
-  const parts = hash.split('/');
-  return { name: parts[0], param: parts[1] || null };
-}
-
-export function navigateTo(routeName, param = null) {
-  if (param) {
-    window.location.hash = `${routeName}/${param}`;
-  } else {
-    window.location.hash = routeName;
-  }
-}
 
 async function renderApp() {
   const { name: routeName, param: routeParam } = getHashRoute();
@@ -37,6 +24,16 @@ async function renderApp() {
     alert(`⛔ ACCOUNT SUSPENDED\n\nYour EventPulse access has been revoked by University Administration.`);
     await logoutUser();
     window.location.hash = 'login';
+    return;
+  }
+
+  // Route Guard Enforcement
+  const guard = checkRouteGuard(routeName, user);
+  if (!guard.allowed) {
+    if (guard.reason && routeName !== 'login') {
+      alert(`🔒 ${guard.reason}`);
+    }
+    navigateTo(guard.redirect || 'login');
     return;
   }
 
@@ -62,34 +59,14 @@ async function renderApp() {
   if (routeName === 'verify') {
     await renderVerifyCertView(viewMount, routeParam);
   } else if (routeName === 'login') {
-    if (user) {
-      navigateTo('events');
-      return;
-    }
     renderLoginView(viewMount, navigateTo);
   } else if (routeName === 'my-passes') {
-    if (!user) {
-      navigateTo('login');
-      return;
-    }
     await renderStudentPassesView(viewMount, navigateTo);
   } else if (routeName === 'organizer') {
-    // Route Protection: Requires organizer or admin
-    const isOrganizerOrAdmin = user && (user.role === 'organizer' || isUserAdmin(user));
-    if (!isOrganizerOrAdmin) {
-      alert('⛔ Access Denied: You must have an Organizer or Admin role assigned in your profile to access this hub.');
-      navigateTo('events');
-      return;
-    }
     await renderOrganizerDashView(viewMount, navigateTo);
+  } else if (routeName === 'executive') {
+    await renderExecutiveDashboardView(viewMount, navigateTo);
   } else if (routeName === 'admin') {
-    // Route Protection: Requires admin role
-    const isAdmin = isUserAdmin(user);
-    if (!isAdmin) {
-      alert('⛔ Access Denied: Administrator privileges required.');
-      navigateTo('events');
-      return;
-    }
     await renderAdminView(viewMount, navigateTo);
   } else if (routeName === 'ideas') {
     await renderIdeaHubView(viewMount, navigateTo);
@@ -109,7 +86,6 @@ initForegroundNotificationListener();
 
 subscribeAuth((user) => {
   renderApp();
-  // If notifications were already granted, quietly register / refresh token
   if (user && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     requestPushNotificationPermission(user).catch(() => {});
   }
