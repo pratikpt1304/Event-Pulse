@@ -31,9 +31,9 @@ export const ROUTES_CONFIG = {
     allowedRoles: ['hod', 'dean', 'vc', 'admin']
   },
   admin: {
-    title: 'Administration Console & Staff Invites - EventPulse',
+    title: 'Administration Console & Institutional Oversight - EventPulse',
     public: false,
-    allowedRoles: ['admin']
+    allowedRoles: ['admin', 'vc']
   },
   ideas: {
     title: 'Campus Wishlist & Ideas - EventPulse',
@@ -50,12 +50,12 @@ export const ROUTES_CONFIG = {
 export function getRoleDefaultRoute(role) {
   switch (role) {
     case 'admin':
+    case 'vc':
       return 'admin';
     case 'organizer':
       return 'organizer';
     case 'hod':
     case 'dean':
-    case 'vc':
       return 'executive';
     case 'student':
     default:

@@ -21,7 +21,7 @@ import { openDocumentPreviewModal } from '../components/DocumentPreviewModal';
 
 export async function renderAdminView(container, navigateTo) {
   const user = getCurrentUser();
-  const isAdmin = isUserAdmin(user);
+  const isAdmin = isUserAdmin(user) || user?.role === 'vc';
   if (!isAdmin) {
     navigateTo('login');
     return;
@@ -85,13 +85,13 @@ export async function renderAdminView(container, navigateTo) {
           <div style="position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.25rem;">
             <div>
               <div style="display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.2); padding: 0.2rem 0.65rem; border-radius: var(--radius-full); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;">
-                🛡️ University Administration & Governance
+                ${user?.role === 'vc' ? '👑 Vice Chancellor Executive Console' : '🛡️ University Administration & Governance'}
               </div>
               <h1 style="font-size: 2.1rem; font-weight: 900; margin-top: 0.5rem; margin-bottom: 0.4rem; color: #ffffff; line-height: 1.2;">
-                Admin Command Center
+                ${user?.role === 'vc' ? "Vice Chancellor's Command Center" : 'Admin Command Center'}
               </h1>
               <p style="font-size: 0.95rem; color: #94a3b8; line-height: 1.5; margin: 0;">
-                Logged in as <strong>${user?.name || 'Administrator'}</strong> (${user?.department || 'Central Administration'} • Administrator)
+                Logged in as <strong>${user?.name || (user?.role === 'vc' ? 'Vice Chancellor' : 'Administrator')}</strong> (${user?.department || (user?.role === 'vc' ? 'University Executive Office' : 'Central Administration')} • ${user?.role === 'vc' ? 'Vice Chancellor' : 'Administrator'})
               </p>
             </div>
 
@@ -756,12 +756,12 @@ export async function renderAdminView(container, navigateTo) {
                     <option value="all" ${userDeptFilter === 'all' ? 'selected' : ''}>🏢 All Depts</option>
                     <option value="Computer Science" ${userDeptFilter === 'Computer Science' ? 'selected' : ''}>CSE / Computer</option>
                     <option value="Information Technology" ${userDeptFilter === 'Information Technology' ? 'selected' : ''}>Information Tech</option>
-                    <option value="AIML" ${userDeptFilter === 'AIML' ? 'selected' : ''}>AIML</option>
-                    <option value="AIDS" ${userDeptFilter === 'AIDS' ? 'selected' : ''}>AIDS</option>
-                    <option value="IMtech" ${userDeptFilter === 'IMtech' ? 'selected' : ''}>IMtech</option>
-                    <option value="Robotics" ${userDeptFilter === 'Robotics' ? 'selected' : ''}>Robotics</option>
+                    <option value="AI" ${userDeptFilter === 'AI' ? 'selected' : ''}>AI & Data Science</option>
+                    <option value="IMtech" ${userDeptFilter === 'IMtech' ? 'selected' : ''}>Integrated M.Tech</option>
+                    <option value="BBA" ${userDeptFilter === 'BBA' ? 'selected' : ''}>BBA</option>
                     <option value="Mechanical" ${userDeptFilter === 'Mechanical' ? 'selected' : ''}>Mechanical</option>
-                    <option value="Civil" ${userDeptFilter === 'Civil' ? 'selected' : ''}>Civil</option>
+                    <option value="Cyber" ${userDeptFilter === 'Cyber' ? 'selected' : ''}>Cyber Security</option>
+                    <option value="MBA" ${userDeptFilter === 'MBA' ? 'selected' : ''}>MBA / MCA</option>
                     <option value="not_set" ${userDeptFilter === 'not_set' ? 'selected' : ''}>⚠️ Dept Not Set</option>
                   </select>
 

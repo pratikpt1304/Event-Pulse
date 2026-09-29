@@ -109,7 +109,7 @@ export function isUserAdmin(userOrEmail) {
   const email = typeof userOrEmail === 'string' ? userOrEmail : (userOrEmail.email || '');
   const role = typeof userOrEmail === 'object' ? userOrEmail.role : null;
   const clean = email.toLowerCase().trim();
-  return SUPER_ADMIN_EMAILS.some(adminEmail => adminEmail.toLowerCase() === clean) || role === 'admin';
+  return SUPER_ADMIN_EMAILS.some(adminEmail => adminEmail.toLowerCase() === clean) || role === 'admin' || role === 'vc';
 }
 
 export function isUserStaff(userOrEmail) {
