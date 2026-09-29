@@ -45,23 +45,41 @@ export async function requestPushNotificationPermission(user) {
       return { success: false, reason: 'messaging_unsupported' };
     }
 
-    // Register service worker for messaging
-    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    // Register service worker for messaging and ensure it is ready
+    let registration = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
+    if (!registration) {
+      registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    }
+    const readyReg = await navigator.serviceWorker.ready;
 
     // Get FCM Token
     const currentToken = await getToken(msgInstance, {
       vapidKey: VAPID_KEY,
-      serviceWorkerRegistration: registration
+      serviceWorkerRegistration: readyReg || registration
     });
 
     if (currentToken) {
       console.log('⚡ FCM Device Token received:', currentToken);
       localStorage.setItem('ep_fcm_token', currentToken);
 
-      // Save token to Firestore if user is authenticated
+      // 1. ALWAYS save token to global fcm_tokens registry (even for guests / before login)
+      try {
+        const tokenRef = doc(db, 'fcm_tokens', currentToken.replace(/[^a-zA-Z0-9_-]/g, '_'));
+        await setDoc(tokenRef, {
+          token: currentToken,
+          userId: user?.uid || 'guest_device',
+          userName: user?.name || user?.displayName || 'Student / Campus Device',
+          department: user?.department || 'All Departments',
+          role: user?.role || 'student',
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (dbErr) {
+        console.warn('Error saving global FCM token:', dbErr);
+      }
+
+      // 2. If user is authenticated, also link token directly to their user profile
       if (user && user.uid) {
         try {
-          // Add token to user doc
           const userRef = doc(db, 'users', user.uid);
           await updateDoc(userRef, {
             fcmTokens: arrayUnion(currentToken),
@@ -74,18 +92,8 @@ export async function requestPushNotificationPermission(user) {
               lastTokenUpdate: new Date().toISOString()
             }, { merge: true });
           });
-
-          // Also save in global fcm_tokens registry for broadcast queries
-          const tokenRef = doc(db, 'fcm_tokens', currentToken.replace(/[^a-zA-Z0-9_-]/g, '_'));
-          await setDoc(tokenRef, {
-            token: currentToken,
-            userId: user.uid,
-            department: user.department || 'General',
-            role: user.role || 'student',
-            updatedAt: new Date().toISOString()
-          }, { merge: true });
         } catch (dbErr) {
-          console.warn('Error saving FCM token to Firestore:', dbErr);
+          console.warn('Error updating user doc with FCM token:', dbErr);
         }
       }
 
@@ -111,12 +119,29 @@ export function initForegroundNotificationListener(onNotificationReceived) {
 
       const title = payload.notification?.title || payload.data?.title || '⚡ EventPulse Alert';
       const body = payload.notification?.body || payload.data?.body || 'New campus update is available.';
+      const url = payload.data?.url || payload.fcmOptions?.link || 'https://eventpulse-su-34a42.web.app/#events';
 
-      // Show in-app banner or toast
+      // 1. Show native OS notification banner
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        navigator.serviceWorker.ready.then(reg => {
+          reg.showNotification(title, {
+            body,
+            icon: '/logo.jpg',
+            badge: '/logo.jpg',
+            data: { url }
+          });
+        }).catch(() => {
+          try {
+            new Notification(title, { body, icon: '/logo.jpg' });
+          } catch(e) {}
+        });
+      }
+
+      // 2. Show in-app banner or toast
       showInAppNotificationBanner({
         title,
         body,
-        url: payload.data?.url || payload.fcmOptions?.link || '#events'
+        url
       });
 
       if (onNotificationReceived) {

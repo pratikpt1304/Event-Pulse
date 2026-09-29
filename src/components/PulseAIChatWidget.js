@@ -100,7 +100,77 @@ export function initPulseAIChatWidget(navigateTo) {
     modal.style.display = 'none';
   };
 
-  // Add a message to chat
+  // Keyframe styles for cursor, dots and action fade-in
+  const styleEl = document.createElement('style');
+  styleEl.textContent = `
+    @keyframes nexPulseDot {
+      0% { opacity: 0.2; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1.2); }
+      100% { opacity: 0.2; transform: scale(0.8); }
+    }
+    @keyframes nexBlinkCursor {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+    @keyframes nexFadeInUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  `;
+  document.head.appendChild(styleEl);
+
+  // Markdown Formatter with safe typing tag balancing
+  const formatAIMarkdown = (content) => {
+    let formatted = content || '';
+    // Auto-close open ** if currently typing
+    const boldCount = (formatted.match(/\*\*/g) || []).length;
+    if (boldCount % 2 !== 0) {
+      formatted += '**';
+    }
+    return formatted
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\n/g, '<br/>');
+  };
+
+  // Helper to render action buttons below a message
+  const renderActions = (container, actions) => {
+    if (!actions || actions.length === 0) return;
+    const actionsDiv = document.createElement('div');
+    actionsDiv.style.display = 'flex';
+    actionsDiv.style.gap = '0.4rem';
+    actionsDiv.style.flexWrap = 'wrap';
+    actionsDiv.style.marginTop = '0.65rem';
+    actionsDiv.style.paddingTop = '0.45rem';
+    actionsDiv.style.borderTop = '1px solid rgba(0,0,0,0.08)';
+    actionsDiv.style.animation = 'nexFadeInUp 0.3s ease-out';
+
+    actions.forEach(act => {
+      const btn = document.createElement('button');
+      btn.textContent = act.label;
+      btn.style.background = '#ffffff';
+      btn.style.color = '#7c3aed';
+      btn.style.border = '1px solid #7c3aed';
+      btn.style.borderRadius = '20px';
+      btn.style.padding = '0.25rem 0.65rem';
+      btn.style.fontSize = '0.725rem';
+      btn.style.fontWeight = '700';
+      btn.style.cursor = 'pointer';
+      btn.style.transition = 'all 0.15s ease';
+      btn.addEventListener('mouseenter', () => {
+        btn.style.background = '#7c3aed';
+        btn.style.color = '#ffffff';
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.background = '#ffffff';
+        btn.style.color = '#7c3aed';
+      });
+      btn.addEventListener('click', () => handleActionRoute(act.route));
+      actionsDiv.appendChild(btn);
+    });
+    container.appendChild(actionsDiv);
+  };
+
+  // Add a user or static message to chat
   const appendMessage = (sender, content, actions = []) => {
     const isUser = sender === 'user';
     const msgEl = document.createElement('div');
@@ -119,42 +189,92 @@ export function initPulseAIChatWidget(navigateTo) {
     msgEl.style.fontSize = '0.825rem';
     msgEl.style.lineHeight = '1.45';
 
-    // Format content with simple markdown (bold, bullet points, line breaks)
-    let formatted = content
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\n/g, '<br/>');
-
-    msgEl.innerHTML = formatted;
-
-    // Render actions
-    if (actions && actions.length > 0) {
-      const actionsDiv = document.createElement('div');
-      actionsDiv.style.display = 'flex';
-      actionsDiv.style.gap = '0.4rem';
-      actionsDiv.style.flexWrap = 'wrap';
-      actionsDiv.style.marginTop = '0.65rem';
-      actionsDiv.style.paddingTop = '0.45rem';
-      actionsDiv.style.borderTop = '1px solid rgba(0,0,0,0.08)';
-
-      actions.forEach(act => {
-        const btn = document.createElement('button');
-        btn.textContent = act.label;
-        btn.style.background = '#ffffff';
-        btn.style.color = '#7c3aed';
-        btn.style.border = '1px solid #7c3aed';
-        btn.style.borderRadius = '20px';
-        btn.style.padding = '0.25rem 0.65rem';
-        btn.style.fontSize = '0.725rem';
-        btn.style.fontWeight = '700';
-        btn.style.cursor = 'pointer';
-        btn.addEventListener('click', () => handleActionRoute(act.route));
-        actionsDiv.appendChild(btn);
-      });
-      msgEl.appendChild(actionsDiv);
-    }
+    msgEl.innerHTML = formatAIMarkdown(content);
+    renderActions(msgEl, actions);
 
     messagesList.appendChild(msgEl);
     messagesList.scrollTop = messagesList.scrollHeight;
+    return msgEl;
+  };
+
+  // Typewriter effect for AI responses
+  const typeAIMessage = (content, actions = []) => {
+    const msgEl = document.createElement('div');
+    msgEl.style.alignSelf = 'flex-start';
+    msgEl.style.maxWidth = '88%';
+    msgEl.style.background = '#f8fafc';
+    msgEl.style.color = '#1e293b';
+    msgEl.style.padding = '0.75rem 0.9rem';
+    msgEl.style.borderRadius = '14px';
+    msgEl.style.borderTopLeftRadius = '4px';
+    msgEl.style.border = '1px solid #e2e8f0';
+    msgEl.style.fontSize = '0.825rem';
+    msgEl.style.lineHeight = '1.45';
+    msgEl.style.position = 'relative';
+    msgEl.style.cursor = 'pointer';
+    msgEl.title = 'Click to show full message instantly';
+
+    const textSpan = document.createElement('span');
+    const cursor = document.createElement('span');
+    cursor.className = 'ai-typing-cursor';
+    cursor.innerHTML = '▋';
+    cursor.style.cssText = 'display: inline-block; color: #06b6d4; font-size: 0.85rem; margin-left: 2px; vertical-align: baseline; animation: nexBlinkCursor 0.5s infinite; text-shadow: 0 0 8px rgba(6, 182, 212, 0.8);';
+
+    msgEl.appendChild(textSpan);
+    msgEl.appendChild(cursor);
+    messagesList.appendChild(msgEl);
+    messagesList.scrollTop = messagesList.scrollHeight;
+
+    // Unicode safe character array (preserves emojis and complex symbols)
+    const chars = Array.from(content || '');
+    const totalLen = chars.length;
+    let currentIndex = 0;
+    let isFinished = false;
+    let timeoutId = null;
+
+    const finishTyping = () => {
+      if (isFinished) return;
+      isFinished = true;
+      if (timeoutId) clearTimeout(timeoutId);
+      cursor.remove();
+      textSpan.innerHTML = formatAIMarkdown(content);
+      msgEl.style.cursor = 'default';
+      msgEl.title = '';
+      renderActions(msgEl, actions);
+      messagesList.scrollTop = messagesList.scrollHeight;
+    };
+
+    // Fast-forward on click
+    msgEl.addEventListener('click', () => finishTyping());
+
+    const typeNextChar = () => {
+      if (isFinished) return;
+      
+      currentIndex++;
+      const currentSlice = chars.slice(0, currentIndex).join('');
+      textSpan.innerHTML = formatAIMarkdown(currentSlice);
+      messagesList.scrollTop = messagesList.scrollHeight;
+
+      if (currentIndex >= totalLen) {
+        finishTyping();
+        return;
+      }
+
+      // Natural, visible typing cadence
+      const char = chars[currentIndex - 1];
+      let delay = 22; // ~22ms base per letter for clear visible typewriter feel
+      if (char === '.' || char === '!' || char === '?') {
+        delay = 110; // Pause at end of sentence
+      } else if (char === ',' || char === ':' || char === ';') {
+        delay = 55; // Pause at comma / colon
+      } else if (char === '\n') {
+        delay = 75; // Pause at line break
+      }
+
+      timeoutId = setTimeout(typeNextChar, delay);
+    };
+
+    typeNextChar();
   };
 
   // Process Query
@@ -165,24 +285,41 @@ export function initPulseAIChatWidget(navigateTo) {
     appendMessage('user', text);
     if (input) input.value = '';
 
-    // Typing indicator
+    // Typing/Thinking indicator
     const typingIndicator = document.createElement('div');
     typingIndicator.style.alignSelf = 'flex-start';
     typingIndicator.style.background = '#f1f5f9';
-    typingIndicator.style.color = '#64748b';
-    typingIndicator.style.padding = '0.45rem 0.75rem';
+    typingIndicator.style.color = '#06b6d4';
+    typingIndicator.style.padding = '0.55rem 0.85rem';
     typingIndicator.style.borderRadius = '14px';
-    typingIndicator.style.fontSize = '0.75rem';
-    typingIndicator.style.fontStyle = 'italic';
-    typingIndicator.innerHTML = '⚡ NEX is analyzing campus data...';
+    typingIndicator.style.borderTopLeftRadius = '4px';
+    typingIndicator.style.fontSize = '0.775rem';
+    typingIndicator.style.fontWeight = '600';
+    typingIndicator.style.border = '1px solid #e2e8f0';
+    typingIndicator.style.display = 'flex';
+    typingIndicator.style.alignItems = 'center';
+    typingIndicator.style.gap = '0.5rem';
+    typingIndicator.innerHTML = `
+      <span style="display: inline-block; width: 8px; height: 8px; background: #06b6d4; border-radius: 50%; box-shadow: 0 0 8px #06b6d4; animation: nexPulseDot 0.8s infinite;"></span>
+      <span style="color: #475569;">⚡ NEX is analyzing campus data...</span>
+    `;
     messagesList.appendChild(typingIndicator);
     messagesList.scrollTop = messagesList.scrollHeight;
 
-    const user = getCurrentUser();
-    const response = await askPulseAI(text, user);
+    try {
+      const user = getCurrentUser();
+      // Realistic 450ms thinking delay so user sees the thinking pulse before typewriter begins
+      const [response] = await Promise.all([
+        askPulseAI(text, user),
+        new Promise(resolve => setTimeout(resolve, 450))
+      ]);
 
-    typingIndicator.remove();
-    appendMessage('ai', response.text, response.actions);
+      typingIndicator.remove();
+      typeAIMessage(response.text, response.actions);
+    } catch (err) {
+      typingIndicator.remove();
+      appendMessage('ai', "⚠️ Sorry, I encountered an issue processing your request. Please try again.");
+    }
   };
 
   // Form Submit

@@ -6,6 +6,9 @@ import { createEventCardHtml } from '../components/EventCard';
 import { openTeamFinderModal } from '../components/TeamFinderModal';
 import { openVolunteerModal } from '../components/VolunteerModal';
 import { openDocumentPreviewModal } from '../components/DocumentPreviewModal';
+import { openCalendarSyncPicker } from '../services/calendar';
+import { openEventDiscussionModal } from '../components/EventDiscussionModal';
+import { requestPushNotificationPermission } from '../services/fcm';
 
 
 /**
@@ -229,6 +232,25 @@ export async function renderEventsView(container, navigateTo) {
         </p>
       </div>
 
+      <!-- Mobile & Desktop Push Notification Hero Alert Prompt -->
+      <div id="hero-push-prompt" style="display: none; margin-bottom: 1.25rem; background: linear-gradient(135deg, #1e1b4b, #312e81); border: 1px solid rgba(139, 92, 246, 0.4); border-radius: var(--radius-md); padding: 0.9rem 1.15rem; color: #ffffff; box-shadow: 0 4px 20px rgba(79, 70, 229, 0.25);">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.85rem; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div style="font-size: 1.6rem; background: rgba(255,255,255,0.12); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">🔔</div>
+            <div>
+              <div style="font-weight: 800; font-size: 0.95rem; color: #ffffff;">Get Instant Lock-Screen Campus Alerts</div>
+              <div style="font-size: 0.78rem; color: #cbd5e1; margin-top: 0.1rem;">Enable push notifications to receive real-time notice & tournament pop-ups!</div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button id="btn-hero-enable-push" class="btn btn-sm" style="background: linear-gradient(135deg, #ec4899, #8b5cf6); color: #ffffff; font-weight: 800; font-size: 0.8rem; padding: 0.45rem 1.1rem; border-radius: var(--radius-full); border: none; box-shadow: 0 4px 12px rgba(236, 72, 153, 0.4); cursor: pointer; white-space: nowrap;">
+              📲 Enable Alerts Now
+            </button>
+            <button id="btn-hero-dismiss-push" style="background: none; border: none; color: #94a3b8; font-size: 1.1rem; cursor: pointer; padding: 0.2rem 0.4rem; line-height: 1;" title="Dismiss">✕</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Event Category Tabs -->
       <div style="display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 1rem;" id="category-tabs-container">
         <button class="cat-tab ${selectedCategory === 'all' ? 'active' : ''}" data-cat="all">🌟 All Events</button>
@@ -236,6 +258,7 @@ export async function renderEventsView(container, navigateTo) {
         <button class="cat-tab ${selectedCategory === 'sports' ? 'active' : ''}" data-cat="sports">🏆 Sports</button>
         <button class="cat-tab ${selectedCategory === 'social' ? 'active' : ''}" data-cat="social">🎉 Social & Cultural</button>
         <button class="cat-tab ${selectedCategory === 'notice' ? 'active' : ''}" data-cat="notice">📢 Campus Notices (${announcements.length})</button>
+        <button class="cat-tab" data-cat="moments" style="background: linear-gradient(135deg, rgba(236, 72, 153, 0.1), rgba(124, 58, 237, 0.1)); color: #db2777; border-color: rgba(236, 72, 153, 0.3); font-weight: 800;">📸 Moments Wall</button>
       </div>
 
       <!-- Search & Filter Controls -->
@@ -269,6 +292,42 @@ export async function renderEventsView(container, navigateTo) {
   const countLabel = container.querySelector('#events-count-label');
   const searchInput = container.querySelector('#search-input');
   const deptFilter = container.querySelector('#dept-filter');
+
+  // Handle Hero Push Notification Alert Box
+  const pushPrompt = container.querySelector('#hero-push-prompt');
+  if (pushPrompt && typeof Notification !== 'undefined') {
+    const isGranted = Notification.permission === 'granted';
+    const isDismissed = localStorage.getItem('ep_hero_push_dismissed') === 'true';
+    if (!isGranted && !isDismissed) {
+      pushPrompt.style.display = 'block';
+    }
+
+    container.querySelector('#btn-hero-enable-push')?.addEventListener('click', async () => {
+      const btn = container.querySelector('#btn-hero-enable-push');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Enabling...';
+      }
+      const res = await requestPushNotificationPermission(user);
+      if (res.success) {
+        pushPrompt.style.display = 'none';
+        alert('🎉 Awesome! Instant push notifications are now enabled on this device!');
+      } else {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = '📲 Enable Alerts Now';
+        }
+        if (res.reason === 'denied') {
+          alert('Notification permission was blocked. Please allow notifications in your phone/browser settings.');
+        }
+      }
+    });
+
+    container.querySelector('#btn-hero-dismiss-push')?.addEventListener('click', () => {
+      localStorage.setItem('ep_hero_push_dismissed', 'true');
+      pushPrompt.style.display = 'none';
+    });
+  }
 
   // 2. Targeted Grid Update
   const updateGrid = () => {
@@ -458,6 +517,25 @@ export async function renderEventsView(container, navigateTo) {
       });
     });
 
+    // Attach Q&A discussion button listeners
+    eventsContainer.querySelectorAll('.btn-event-qa').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const eventId = e.currentTarget.getAttribute('data-event-id');
+        const targetEvent = events.find(ev => ev.id === eventId);
+        if (targetEvent) openEventDiscussionModal(targetEvent);
+      });
+    });
+
+    // Attach 1-Click Calendar Sync button listeners
+    eventsContainer.querySelectorAll('.btn-sync-calendar').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const eventId = e.currentTarget.getAttribute('data-event-id');
+        const targetEvent = events.find(ev => ev.id === eventId);
+        if (targetEvent) openCalendarSyncPicker(targetEvent, e.currentTarget);
+      });
+    });
+
     // Attach find team button listeners
     eventsContainer.querySelectorAll('.btn-find-team').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -518,7 +596,12 @@ export async function renderEventsView(container, navigateTo) {
   // 3. Category Tabs Handler
   container.querySelectorAll('.cat-tab').forEach(tab => {
     tab.addEventListener('click', (e) => {
-      selectedCategory = e.currentTarget.getAttribute('data-cat');
+      const cat = e.currentTarget.getAttribute('data-cat');
+      if (cat === 'moments') {
+        navigateTo('moments');
+        return;
+      }
+      selectedCategory = cat;
       container.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
       e.currentTarget.classList.add('active');
       updateGrid();

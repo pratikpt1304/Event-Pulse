@@ -108,10 +108,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // 14. Notification Send Logs (admin only)
-    match /notification_logs/{logId} {
-      allow read: if isAdmin();
-      allow create, update, delete: if isAdmin();
+    // 15. Campus Moments Wall (Shared Photo Gallery)
+    match /moments/{momentId} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 16. Event Discussion & Live Q&A
+    match /event_discussions/{discussionId} {
+      allow read, create, update, delete: if true;
     }
   }
 }

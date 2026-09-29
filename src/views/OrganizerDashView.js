@@ -131,6 +131,55 @@ export async function renderOrganizerDashView(container, navigateTo) {
           </div>
         </div>
 
+        ${selectedEvent ? `
+          <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+              <span style="font-size: 0.78rem; font-weight: 800; text-transform: uppercase; color: #475569;">
+                🏛️ Official University Multi-Tier Approval Stepper
+              </span>
+              <span style="font-size: 0.78rem; color: #64748b;">
+                Current Status: <strong style="color: ${selectedEvent.status === 'approved' ? '#059669' : '#d97706'};">${selectedEvent.status.toUpperCase()}</strong>
+              </span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+              <!-- Step 1: Organizer -->
+              <div style="background: #ffffff; border: 1.5px solid #10b981; border-radius: 10px; padding: 0.75rem; box-shadow: 0 2px 6px rgba(0,0,0,0.02);">
+                <div style="font-size: 0.7rem; font-weight: 800; color: #059669; text-transform: uppercase;">1. Organizer Draft</div>
+                <div style="font-size: 0.85rem; font-weight: 800; color: #0f172a; margin-top: 0.2rem;">${selectedEvent.organizerName || 'Pratik Thorat'}</div>
+                <div style="font-size: 0.7rem; color: #059669; font-weight: 700; margin-top: 0.2rem;">✅ Submitted</div>
+              </div>
+
+              <!-- Step 2: HOD (Anwar Sir) -->
+              <div style="background: #ffffff; border: 1.5px solid ${selectedEvent.hodApproval || selectedEvent.status === 'approved' ? '#10b981' : (selectedEvent.status === 'pending_hod' ? '#f59e0b' : '#e2e8f0')}; border-radius: 10px; padding: 0.75rem;">
+                <div style="font-size: 0.7rem; font-weight: 800; color: #6366f1; text-transform: uppercase;">2. HOD Review</div>
+                <div style="font-size: 0.85rem; font-weight: 800; color: #0f172a; margin-top: 0.2rem;">Prof. Anwar Shaikh</div>
+                <div style="font-size: 0.7rem; font-weight: 700; margin-top: 0.2rem; color: ${selectedEvent.hodApproval || selectedEvent.status === 'approved' ? '#059669' : '#d97706'};">
+                  ${selectedEvent.hodApproval || selectedEvent.status === 'approved' ? '✅ Endorsed' : (selectedEvent.status === 'pending_hod' ? '⏳ Under Review' : '⏳ Pending')}
+                </div>
+              </div>
+
+              <!-- Step 3: Dean (Dr. Kavita) -->
+              <div style="background: #ffffff; border: 1.5px solid ${selectedEvent.deanApproval || selectedEvent.status === 'approved' ? '#10b981' : (selectedEvent.status === 'pending_dean' ? '#f59e0b' : '#e2e8f0')}; border-radius: 10px; padding: 0.75rem;">
+                <div style="font-size: 0.7rem; font-weight: 800; color: #0284c7; text-transform: uppercase;">3. Dean Review</div>
+                <div style="font-size: 0.85rem; font-weight: 800; color: #0f172a; margin-top: 0.2rem;">Dr. Kavita (Dean)</div>
+                <div style="font-size: 0.7rem; font-weight: 700; margin-top: 0.2rem; color: ${selectedEvent.deanApproval || selectedEvent.status === 'approved' ? '#059669' : '#d97706'};">
+                  ${selectedEvent.deanApproval || selectedEvent.status === 'approved' ? '✅ Endorsed' : (selectedEvent.status === 'pending_dean' ? '⏳ Under Review' : '⏳ Pending')}
+                </div>
+              </div>
+
+              <!-- Step 4: VC (Vice Chancellor - Top Layer) -->
+              <div style="background: #ffffff; border: 1.5px solid ${selectedEvent.status === 'approved' ? '#10b981' : (selectedEvent.status === 'pending_vc' ? '#f59e0b' : '#e2e8f0')}; border-radius: 10px; padding: 0.75rem;">
+                <div style="font-size: 0.7rem; font-weight: 800; color: #7c3aed; text-transform: uppercase;">4. VC Final Sanction</div>
+                <div style="font-size: 0.85rem; font-weight: 800; color: #0f172a; margin-top: 0.2rem;">Hon. Vice Chancellor</div>
+                <div style="font-size: 0.7rem; font-weight: 700; margin-top: 0.2rem; color: ${selectedEvent.status === 'approved' ? '#059669' : '#d97706'};">
+                  ${selectedEvent.status === 'approved' ? '🚀 LIVE & SANCTIONED' : (selectedEvent.status === 'pending_vc' ? '⏳ Awaiting Sanction' : '⏳ Pending')}
+                </div>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
         <!-- Quick Summary Stat Cards -->
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
           <div class="card" style="padding: 1.1rem; border-left: 4px solid #f59e0b; background: #ffffff;">

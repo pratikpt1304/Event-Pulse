@@ -1,4 +1,5 @@
 import { getSignedPassQRToken, generateQRDataUrl } from '../services/qr';
+import { openCalendarSyncPicker } from '../services/calendar';
 
 export async function openDigitalPassModal(registration, student) {
   const overlay = document.createElement('div');
@@ -45,7 +46,10 @@ export async function openDigitalPassModal(registration, student) {
         </div>
       </div>
 
-      <div style="margin-top: 1.25rem;">
+      <div style="margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.6rem;">
+        <button class="btn btn-primary btn-block" id="btn-pass-sync-calendar" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 0.4rem;">
+          📅 Add to Google / Apple Calendar
+        </button>
         <button class="btn btn-secondary btn-block" id="btn-close-pass">Close Pass View</button>
       </div>
     </div>
@@ -66,4 +70,16 @@ export async function openDigitalPassModal(registration, student) {
   const close = () => overlay.remove();
   overlay.querySelector('#close-modal-x').addEventListener('click', close);
   overlay.querySelector('#btn-close-pass').addEventListener('click', close);
+  
+  overlay.querySelector('#btn-pass-sync-calendar')?.addEventListener('click', (e) => {
+    openCalendarSyncPicker({
+      id: registration.eventId,
+      title: registration.eventTitle,
+      date: registration.eventDate,
+      time: registration.time || '09:00 AM - 05:00 PM',
+      venue: registration.venue,
+      description: `Official digital pass confirmed for ${student.name} (${student.prn || 'Student'}).`,
+      department: student.department
+    }, e.currentTarget);
+  });
 }

@@ -15,10 +15,107 @@ const listeners = new Set();
 
 export const SUPER_ADMIN_EMAILS = [
   'eventpulsesupport@gmail.com',
-  'piyushsahuset@sanjivani.edu.in'
+  'piyushsahuset@sanjivani.edu.in',
+  'hariprasath@sanjivani.edu.in'
 ];
 
 export const SUPER_ADMIN_EMAIL = 'eventpulsesupport@gmail.com';
+
+export const EXECUTIVE_EMAILS = {
+  vc: ['vc@sanjivani.edu.in', 'vicechancellor@sanjivani.edu.in'],
+  dean: ['dean.computing@sanjivani.edu.in', 'kavita@sanjivani.edu.in'],
+  hod: ['hod.aiml@sanjivani.edu.in', 'anwar@sanjivani.edu.in'],
+  organizer: ['thoratpratik2323@gmail.com', 'organizer@sanjivani.edu.in']
+};
+
+export const DEMO_PERSONAS = [
+  {
+    id: 'vc',
+    role: 'vc',
+    name: 'Prof. (Dr.) S. B. Patil',
+    title: "Hon'ble Vice Chancellor",
+    badge: 'VC Sir (Top Layer)',
+    icon: '👑',
+    email: 'vc@sanjivani.edu.in',
+    department: 'University Administration',
+    school: 'Apex Governing Body',
+    scope: 'University Wide (All Schools & Depts)',
+    prn: 'EX-VC-01',
+    route: 'vc'
+  },
+  {
+    id: 'dean',
+    role: 'dean',
+    name: 'Dr. Kavita',
+    title: 'Dean — School of Computing & Engineering',
+    badge: 'Dean (School Level)',
+    icon: '🎓',
+    email: 'dean.computing@sanjivani.edu.in',
+    department: 'School of Computing & Engineering',
+    school: 'School of Computing & Engineering',
+    scope: 'School Level (AIML, CSE, IT)',
+    prn: 'EX-DEAN-02',
+    route: 'dean'
+  },
+  {
+    id: 'hod',
+    role: 'hod',
+    name: 'Prof. Anwar Shaikh',
+    title: 'Head of Department (AIML)',
+    badge: 'HOD (Department Level)',
+    icon: '🏫',
+    email: 'hod.aiml@sanjivani.edu.in',
+    department: 'IMTech (AIML)',
+    school: 'School of Computing & Engineering',
+    scope: 'Department Level (FY, SY, TY AIML)',
+    prn: 'EX-HOD-03',
+    route: 'hod'
+  },
+  {
+    id: 'organizer',
+    role: 'organizer',
+    name: 'Pratik Thorat',
+    title: 'Lead Event Organizer (Group 8)',
+    badge: 'Event Organizer',
+    icon: '⚡',
+    email: 'thoratpratik2323@gmail.com',
+    department: 'IMTech (AIML)',
+    school: 'School of Computing & Engineering',
+    scope: 'Event Proposal & Execution',
+    prn: 'ORG-2126-08',
+    route: 'organizer'
+  },
+  {
+    id: 'admin',
+    role: 'admin',
+    name: 'Prof. Hariprasath / Super Admin',
+    title: 'Super Administrator',
+    badge: 'Master Admin ("Thats for us")',
+    icon: '🛡️',
+    email: 'eventpulsesupport@gmail.com',
+    department: 'Central Administration',
+    school: 'University Admin Hub',
+    scope: 'Full Master Platform Control',
+    prn: 'ADMIN-SUPER',
+    route: 'admin'
+  },
+  {
+    id: 'student',
+    role: 'student',
+    name: 'Kharad Kishor Devidas',
+    title: 'First-Year Student',
+    badge: 'Sample Student (FY AIML)',
+    icon: '🎒',
+    email: '2126pmim1001@sanjivani.edu.in',
+    department: 'IMTech (AIML)',
+    school: 'School of Computing & Engineering',
+    year: '1st Year (FY)',
+    division: 'A',
+    scope: 'Passes, Discovery & Teams',
+    prn: '2126PMIM1001',
+    route: 'events'
+  }
+];
 
 export function isUserAdmin(userOrEmail) {
   if (!userOrEmail) return false;
@@ -28,17 +125,88 @@ export function isUserAdmin(userOrEmail) {
   return SUPER_ADMIN_EMAILS.some(adminEmail => adminEmail.toLowerCase() === clean) || role === 'admin';
 }
 
+export function isUserVC(userOrEmail) {
+  if (!userOrEmail) return false;
+  const email = typeof userOrEmail === 'string' ? userOrEmail : (userOrEmail.email || '');
+  const role = typeof userOrEmail === 'object' ? userOrEmail.role : null;
+  const clean = email.toLowerCase().trim();
+  return EXECUTIVE_EMAILS.vc.some(e => e.toLowerCase() === clean) || role === 'vc';
+}
+
+export function isUserDean(userOrEmail) {
+  if (!userOrEmail) return false;
+  const email = typeof userOrEmail === 'string' ? userOrEmail : (userOrEmail.email || '');
+  const role = typeof userOrEmail === 'object' ? userOrEmail.role : null;
+  const clean = email.toLowerCase().trim();
+  return EXECUTIVE_EMAILS.dean.some(e => e.toLowerCase() === clean) || role === 'dean';
+}
+
+export function isUserHOD(userOrEmail) {
+  if (!userOrEmail) return false;
+  const email = typeof userOrEmail === 'string' ? userOrEmail : (userOrEmail.email || '');
+  const role = typeof userOrEmail === 'object' ? userOrEmail.role : null;
+  const clean = email.toLowerCase().trim();
+  return EXECUTIVE_EMAILS.hod.some(e => e.toLowerCase() === clean) || role === 'hod';
+}
+
+export function isUserOrganizer(userOrEmail) {
+  if (!userOrEmail) return false;
+  const email = typeof userOrEmail === 'string' ? userOrEmail : (userOrEmail.email || '');
+  const role = typeof userOrEmail === 'object' ? userOrEmail.role : null;
+  const clean = email.toLowerCase().trim();
+  return EXECUTIVE_EMAILS.organizer.some(e => e.toLowerCase() === clean) || role === 'organizer' || isUserAdmin(userOrEmail);
+}
+
+export function isUserExecutive(userOrEmail) {
+  return isUserAdmin(userOrEmail) || isUserVC(userOrEmail) || isUserDean(userOrEmail) || isUserHOD(userOrEmail);
+}
+
 export function resolveUserRole(email, currentRole = 'student') {
   const clean = (email || '').toLowerCase().trim();
   if (SUPER_ADMIN_EMAILS.some(adminEmail => adminEmail.toLowerCase() === clean)) {
     return 'admin';
   }
-  // If someone had admin before but is not in super admin emails, revert to student
+  if (EXECUTIVE_EMAILS.vc.some(e => e.toLowerCase() === clean) || currentRole === 'vc') {
+    return 'vc';
+  }
+  if (EXECUTIVE_EMAILS.dean.some(e => e.toLowerCase() === clean) || currentRole === 'dean') {
+    return 'dean';
+  }
+  if (EXECUTIVE_EMAILS.hod.some(e => e.toLowerCase() === clean) || currentRole === 'hod') {
+    return 'hod';
+  }
+  if (EXECUTIVE_EMAILS.organizer.some(e => e.toLowerCase() === clean) || currentRole === 'organizer') {
+    return 'organizer';
+  }
   if (currentRole === 'admin') {
     return 'student';
   }
   return currentRole || 'student';
 }
+
+export function switchDemoPersona(personaId) {
+  const persona = DEMO_PERSONAS.find(p => p.id === personaId);
+  if (!persona) return null;
+  const profile = {
+    uid: 'demo_user_' + persona.id,
+    name: persona.name,
+    email: persona.email,
+    role: persona.role,
+    department: persona.department,
+    school: persona.school,
+    year: persona.year || 'Executive',
+    division: persona.division || 'HQ',
+    prn: persona.prn,
+    title: persona.title,
+    isDemoPersona: true,
+    createdAt: new Date().toISOString()
+  };
+  currentUserProfile = profile;
+  saveLocalProfile(profile);
+  notifyListeners();
+  return profile;
+}
+
 
 // Active session caching
 function saveLocalProfile(profile) {

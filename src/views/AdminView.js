@@ -9,6 +9,22 @@ import { generateEventDescriptionAI } from '../services/ai';
 import { openCompletedEventModal } from '../components/CompletedEventModal';
 import { openDocumentPreviewModal } from '../components/DocumentPreviewModal';
 
+/**
+ * Converts plain URLs in text into clickable <a> links (XSS-safe)
+ */
+function linkifyText(text) {
+  if (!text) return '';
+  const escaped = String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  return escaped.replace(
+    /(https?:\/\/[^\s<>"']+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #7c3aed; text-decoration: underline; font-weight: 600; word-break: break-all;">$1</a>'
+  );
+}
+
 export async function renderAdminView(container, navigateTo) {
   const user = getCurrentUser();
   const isAdmin = isUserAdmin(user);

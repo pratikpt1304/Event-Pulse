@@ -7,17 +7,14 @@ import { requestPushNotificationPermission, getNotificationPermissionStatus, isP
 
 /**
  * Converts plain URLs in text to clickable <a> links
- * Safe: escapes HTML to prevent XSS, then replaces URLs with anchor tags
  */
 function linkifyText(text) {
   if (!text) return '';
-  // Escape HTML first to prevent XSS
   const escaped = text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-  // Replace URLs with clickable links
   return escaped.replace(
     /(https?:\/\/[^\s<>"']+)/g,
     '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline; word-break: break-all;" onclick="event.stopPropagation()">$1</a>'
@@ -33,7 +30,159 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
     return parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
   };
 
-  // Fetch notifications
+  // 1. GATEWAY VIEW NAVBAR
+  if (activeRoute === 'portal' || activeRoute === 'gateway') {
+    container.innerHTML = `
+      <nav style="
+        background: #ffffff;
+        border-bottom: 1.5px solid #e2e8f0;
+        padding: 0.75rem 1.5rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      ">
+        <div style="max-width: 1240px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <div style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;" id="nav-brand-gateway">
+            <img src="/logo.jpg" alt="Sanjivani Logo" style="width: 38px; height: 38px; border-radius: 10px; object-fit: cover;" />
+            <div>
+              <div style="font-weight: 900; font-size: 1.15rem; color: #0f172a; line-height: 1.2;">Sanjivani University</div>
+              <div style="font-size: 0.72rem; color: #7c3aed; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;">EventPulse Enterprise Gateway</div>
+            </div>
+          </div>
+          
+          <button id="btn-quick-student" style="
+            background: linear-gradient(135deg, #7c3aed, #4f46e5);
+            color: #ffffff;
+            border: none;
+            padding: 0.45rem 1rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+          ">
+            🎒 Student Portal ➔
+          </button>
+        </div>
+      </nav>
+    `;
+    container.querySelector('#nav-brand-gateway')?.addEventListener('click', () => navigateTo('portal'));
+    container.querySelector('#btn-quick-student')?.addEventListener('click', () => navigateTo('events'));
+    return;
+  }
+
+  // 2. DEDICATED EXECUTIVE PORTALS NAVBAR (VC, Dean, HOD, Organizer, Admin)
+  const isExecutiveRoute = ['vc', 'dean', 'hod', 'organizer', 'admin'].includes(activeRoute);
+  if (isExecutiveRoute) {
+    let meta = {
+      title: "Vice Chancellor's Apex Portal",
+      sub: "Apex University Governance & Charters",
+      icon: "👑",
+      color: "#f59e0b",
+      bg: "linear-gradient(90deg, #090d16 0%, #1e1b4b 100%)",
+      userTitle: "Hon'ble Vice Chancellor",
+      userName: "Prof. (Dr.) S. B. Patil"
+    };
+
+    if (activeRoute === 'dean') {
+      meta = {
+        title: "Dean's Academic Oversight Portal",
+        sub: "School of Computing & Engineering (SCE)",
+        icon: "🎓",
+        color: "#38bdf8",
+        bg: "linear-gradient(90deg, #090d16 0%, #0c4a6e 100%)",
+        userTitle: "Dean (SCE)",
+        userName: "Dr. Kavita"
+      };
+    } else if (activeRoute === 'hod') {
+      meta = {
+        title: "HOD Departmental Command Console",
+        sub: "Department of AI & ML (IMTech)",
+        icon: "🏫",
+        color: "#a855f7",
+        bg: "linear-gradient(90deg, #090d16 0%, #2e1065 100%)",
+        userTitle: "Head of Department (AIML)",
+        userName: "Prof. Anwar Shaikh"
+      };
+    } else if (activeRoute === 'organizer') {
+      meta = {
+        title: "Event Operations Hub",
+        sub: "Lead Student Organizer (Group 8)",
+        icon: "⚡",
+        color: "#10b981",
+        bg: "linear-gradient(90deg, #090d16 0%, #064e3b 100%)",
+        userTitle: "Lead Organizer",
+        userName: "Pratik Thorat"
+      };
+    } else if (activeRoute === 'admin') {
+      meta = {
+        title: "Master Administration Console",
+        sub: "Universal Governance & Security (\"That's for us\")",
+        icon: "🛡️",
+        color: "#ef4444",
+        bg: "linear-gradient(90deg, #090d16 0%, #450a0a 100%)",
+        userTitle: "Super Administrator",
+        userName: "Prof. Hariprasath"
+      };
+    }
+
+    container.innerHTML = `
+      <nav style="
+        background: ${meta.bg};
+        border-bottom: 1.5px solid rgba(255, 255, 255, 0.12);
+        padding: 0.65rem 1.5rem;
+        color: #ffffff;
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        box-shadow: 0 4px 18px rgba(0,0,0,0.3);
+      ">
+        <div style="max-width: 1240px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 0.75rem;">
+          
+          <!-- Left: Dedicated Portal Brand -->
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span style="font-size: 1.6rem;">${meta.icon}</span>
+            <div>
+              <div style="font-weight: 900; font-size: 1.15rem; color: #ffffff; letter-spacing: -0.01em; line-height: 1.2;">
+                ${meta.title}
+              </div>
+              <div style="font-size: 0.72rem; color: ${meta.color}; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                ${meta.sub}
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Official Identity & Switch Portal Action -->
+          <div style="display: flex; align-items: center; gap: 0.85rem;">
+            <div style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 8px; padding: 0.35rem 0.85rem; text-align: right;">
+              <div style="font-size: 0.82rem; font-weight: 800; color: #ffffff;">${user?.name || meta.userName}</div>
+              <div style="font-size: 0.68rem; color: ${meta.color}; font-weight: 700;">${user?.title || meta.userTitle}</div>
+            </div>
+
+            <button id="btn-switch-portal" style="
+              background: rgba(255, 255, 255, 0.15);
+              color: #ffffff;
+              border: 1px solid rgba(255, 255, 255, 0.25);
+              padding: 0.45rem 0.95rem;
+              border-radius: 8px;
+              font-size: 0.78rem;
+              font-weight: 800;
+              cursor: pointer;
+              display: inline-flex;
+              align-items: center;
+              gap: 0.4rem;
+              transition: all 0.2s;
+            ">
+              <span>🔄</span> Switch Portal
+            </button>
+          </div>
+
+        </div>
+      </nav>
+    `;
+
+    container.querySelector('#btn-switch-portal')?.addEventListener('click', () => navigateTo('portal'));
+    return;
+  }
+
+  // 3. STUDENT & PUBLIC VIEWS NAVBAR (Clean, uncluttered, focused)
   const notifications = user ? await getStudentNotifications(user) : [];
   const unreadCount = notifications.filter(n => !n.isRead).length;
   const pushStatus = getNotificationPermissionStatus();
@@ -44,7 +193,7 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
   const navHtml = `
     <nav class="navbar">
       <div class="navbar-container">
-        <!-- LEFT: Brand Logo & Title (Clickable to Home) -->
+        <!-- LEFT: Brand Logo & Title -->
         <div class="brand" id="nav-brand" style="cursor: pointer;" title="Go to Home / Campus Events">
           <img src="/logo.jpg" alt="EventPulse Logo" style="width: 36px; height: 36px; border-radius: 9px; object-fit: cover; box-shadow: 0 4px 12px rgba(168, 85, 247, 0.35);" />
           <div class="brand-text">
@@ -52,22 +201,43 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
           </div>
         </div>
 
-        <!-- CENTER: Main Navigation Links (Desktop) -->
+        <!-- CENTER: Student Navigation Links Only -->
         <div class="nav-links">
-          ${user && (user.role === 'organizer' || isUserAdmin(user)) ? `
-            <a class="nav-link ${activeRoute === 'organizer' ? 'active' : ''}" id="nav-organizer" style="cursor: pointer; color: var(--primary);">
-              <span>⚡</span> Organizer Hub
-            </a>
-          ` : ''}
-          ${isUserAdmin(user) ? `
-            <a class="nav-link ${activeRoute === 'admin' ? 'active' : ''}" id="nav-admin" style="cursor: pointer; color: #ef4444; font-weight: 700;">
-              <span>🛡️</span> Admin Console
+          <a class="nav-link ${activeRoute === 'events' ? 'active' : ''}" id="nav-events-link" style="cursor: pointer;">
+            <span>📅</span> Events
+          </a>
+          <a class="nav-link ${activeRoute === 'moments' ? 'active' : ''}" id="nav-moments" style="cursor: pointer;">
+            <span>📸</span> Moments
+          </a>
+          <a class="nav-link ${activeRoute === 'ideas' ? 'active' : ''}" id="nav-ideas" style="cursor: pointer;">
+            <span>💡</span> Wishlist
+          </a>
+          ${user ? `
+            <a class="nav-link ${activeRoute === 'my-passes' ? 'active' : ''}" id="nav-passes" style="cursor: pointer;">
+              <span>🎟️</span> My Passes
             </a>
           ` : ''}
         </div>
 
-        <!-- RIGHT: User Profile / Auth Action & Notification Bell (Side-by-Side) -->
+        <!-- RIGHT: Portals Gateway Button + User Actions -->
         <div class="nav-actions" style="display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0;">
+          
+          <button id="btn-nav-gateway" style="
+            background: #f1f5f9;
+            border: 1.5px solid #cbd5e1;
+            color: #334155;
+            font-size: 0.75rem;
+            font-weight: 800;
+            padding: 0.4rem 0.8rem;
+            border-radius: 8px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+          " title="Open Vice Chancellor, Dean, HOD & Admin Portals">
+            <span>🏛️</span> Role Portals
+          </button>
+
           ${user ? `
             <!-- Notification Bell Icon Button -->
             <div style="position: relative; display: flex; align-items: center;" id="notif-bell-container">
@@ -108,365 +278,145 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
                       <strong>📲 Get Lock-Screen Alerts</strong><br>
                       <span style="color: var(--text-secondary); font-size: 0.7rem;">Never miss notices & events</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0;">
-                      <button id="btn-enable-push-notifs" class="btn btn-sm btn-primary" style="padding: 0.28rem 0.6rem; font-size: 0.725rem; font-weight: 700; white-space: nowrap;">
-                        Enable
-                      </button>
-                      <button id="btn-dismiss-push-banner" style="background: none; border: none; font-size: 0.85rem; color: var(--text-tertiary); cursor: pointer; padding: 2px 4px; border-radius: 4px; line-height: 1;" title="Dismiss alert">
-                        ✕
-                      </button>
-                    </div>
+                    <button id="btn-enable-push-notifs" style="background: #7c3aed; color: #fff; border: none; padding: 0.35rem 0.65rem; border-radius: 6px; font-size: 0.7rem; font-weight: 700; cursor: pointer; white-space: nowrap;">
+                      Turn On
+                    </button>
                   </div>
                 ` : ''}
 
-                <div style="max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.45rem;">
+                <div id="notif-list-container" style="max-height: 300px; overflow-y: auto;">
                   ${notifications.length === 0 ? `
-                    <div style="text-align: center; padding: 2rem 1rem; color: var(--text-tertiary); font-size: 0.85rem;">
-                      <div style="font-size: 1.75rem; margin-bottom: 0.35rem;">✨</div>
-                      No notifications yet
+                    <div style="text-align: center; padding: 1.5rem 0; color: var(--text-tertiary); font-size: 0.85rem;">
+                      No new notifications 🎉
                     </div>
                   ` : notifications.map(n => `
-                    <div class="notif-item ${n.isRead ? 'read' : 'unread'}" data-notif-id="${n.id}" data-route="${n.route}" style="position: relative; padding: 0.6rem 0.7rem; padding-right: 1.75rem; border-radius: var(--radius-sm); background: ${n.isRead ? '#f8fafc' : 'rgba(124, 58, 237, 0.08)'}; border: 1px solid ${n.isRead ? 'var(--border-subtle)' : 'rgba(124, 58, 237, 0.25)'}; cursor: pointer; transition: background 0.15s;">
-                      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; margin-bottom: 0.2rem;">
-                        <div style="font-size: 0.825rem; font-weight: 700; color: var(--text-primary);">${n.title}</div>
-                        <span style="font-size: 0.675rem; color: var(--text-tertiary); white-space: nowrap;">${n.time}</span>
+                    <div class="notif-item ${!n.isRead ? 'unread' : ''}" data-id="${n.id}" style="padding: 0.65rem; border-radius: var(--radius-sm); margin-bottom: 0.4rem; background: ${!n.isRead ? 'rgba(124, 58, 237, 0.06)' : 'transparent'}; border-left: 3px solid ${!n.isRead ? 'var(--primary)' : 'transparent'}; cursor: pointer; position: relative;">
+                      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem;">
+                        <strong style="font-size: 0.8rem; color: var(--text-primary); line-height: 1.2;">${n.title}</strong>
+                        <div style="display: flex; align-items: center; gap: 0.25rem;">
+                          <span style="font-size: 0.65rem; color: var(--text-tertiary); white-space: nowrap;">${new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <button class="btn-dismiss-single-notif" data-id="${n.id}" style="background: none; border: none; color: var(--text-tertiary); font-size: 0.75rem; cursor: pointer; padding: 0 0.15rem; line-height: 1;" title="Dismiss notification">✕</button>
+                        </div>
                       </div>
-                      <div style="font-size: 0.775rem; color: var(--text-secondary); line-height: 1.4;">${linkifyText(n.message)}</div>
-                      
-                      <!-- Individual Dismiss Button -->
-                      <button class="btn-dismiss-notif" data-notif-id="${n.id}" style="position: absolute; top: 6px; right: 6px; background: none; border: none; font-size: 0.75rem; color: var(--text-tertiary); cursor: pointer; padding: 2px 4px; border-radius: 4px;" title="Dismiss">
-                        ✕
-                      </button>
+                      <p style="font-size: 0.75rem; color: var(--text-secondary); margin: 0.25rem 0 0 0; line-height: 1.3;">
+                        ${linkifyText(n.message)}
+                      </p>
                     </div>
                   `).join('')}
                 </div>
               </div>
             </div>
 
-            <!-- Profile Dropdown -->
-            <div style="position: relative;" id="profile-dropdown-container">
-              <button id="profile-menu-btn" style="background: var(--bg-surface-elevated); border: 1px solid var(--border-strong); padding: 0.25rem 0.65rem; border-radius: var(--radius-full); display: flex; align-items: center; gap: 0.5rem; cursor: pointer; color: var(--text-primary); outline: none; transition: all 0.2s;">
-                <div style="width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), #8b5cf6); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800; color: #fff; flex-shrink: 0; box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);">
+            <!-- Profile Dropdown Trigger -->
+            <div style="position: relative;">
+              <button class="profile-chip" id="profile-dropdown-btn" style="cursor: pointer; border: 1px solid var(--border-subtle); background: var(--bg-surface); padding: 0.25rem 0.5rem; border-radius: var(--radius-full); display: flex; align-items: center; gap: 0.5rem;">
+                <div class="avatar" style="width: 28px; height: 28px; font-size: 0.75rem; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700;">
                   ${getInitials(user.name)}
                 </div>
-                <div class="user-profile-meta" style="text-align: left; line-height: 1.2;">
-                  <div class="user-profile-name" style="font-size: 0.825rem; font-weight: 700; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${user.name}</div>
+                <div style="display: flex; flex-direction: column; align-items: flex-start; text-align: left; line-height: 1.1;">
+                  <span style="font-weight: 700; font-size: 0.8rem; color: var(--text-primary);">${user.name.split(' ')[0]}</span>
                   <span class="role-tag ${user.role}" style="font-size: 0.625rem; padding: 0.05rem 0.35rem;">${user.role}</span>
                 </div>
                 <span style="font-size: 0.65rem; color: var(--text-tertiary);">▼</span>
               </button>
 
               <!-- Profile Dropdown Menu -->
-              <div id="profile-dropdown-menu" style="display: none; position: absolute; right: 0; top: 120%; background: var(--bg-surface); border: 1px solid var(--border-strong); border-radius: var(--radius-md); box-shadow: var(--shadow-modal); min-width: 220px; padding: 0.5rem; z-index: 200;">
-                <div style="padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border-subtle); margin-bottom: 0.35rem;">
-                  <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary);">${user.name}</div>
+              <div id="profile-dropdown-menu" style="display: none; position: absolute; right: 0; top: 120%; background: var(--bg-surface); border: 1px solid var(--border-strong); border-radius: var(--radius-md); box-shadow: var(--shadow-modal); width: 220px; padding: 0.5rem; z-index: 200;">
+                <div style="padding: 0.5rem; border-bottom: 1px solid var(--border-subtle); margin-bottom: 0.5rem;">
+                  <div style="font-weight: 700; font-size: 0.875rem; color: var(--text-primary);">${user.name}</div>
                   <div style="font-size: 0.75rem; color: var(--text-tertiary); word-break: break-all;">${user.email}</div>
-                  <div style="font-size: 0.75rem; color: var(--primary); font-family: monospace; margin-top: 0.2rem;">PRN: ${user.prn || 'Not Set'}</div>
+                  <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.2rem;">PRN: ${user.prn || 'N/A'}</div>
                 </div>
 
-                <button class="nav-dropdown-item" id="btn-menu-events">
-                  🎉 Campus Events
-                </button>
+                <a class="dropdown-item" id="menu-edit-profile" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem; border-radius: var(--radius-sm); color: var(--text-primary); cursor: pointer; font-size: 0.85rem;">
+                  <span>✏️</span> Edit Profile
+                </a>
+                <a class="dropdown-item" id="menu-team-finder" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem; border-radius: var(--radius-sm); color: var(--text-primary); cursor: pointer; font-size: 0.85rem;">
+                  <span>🤝</span> Teammate Finder
+                </a>
+                <a class="dropdown-item" id="menu-help-desk" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem; border-radius: var(--radius-sm); color: var(--text-primary); cursor: pointer; font-size: 0.85rem;">
+                  <span>💬</span> Campus Helpdesk
+                </a>
+                <a class="dropdown-item" id="menu-complaint" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem; border-radius: var(--radius-sm); color: #ef4444; cursor: pointer; font-size: 0.85rem;">
+                  <span>🚨</span> Confidential Grievance
+                </a>
 
-                <button class="nav-dropdown-item" id="btn-menu-passes">
-                  🎫 My Passes & Certs
-                </button>
-
-                <button class="nav-dropdown-item" id="btn-menu-teams">
-                  🤝 Teammate & Squad Hub
-                </button>
-
-                <button class="nav-dropdown-item" id="btn-menu-ideas">
-                  💡 Campus Wishlist & Ideas
-                </button>
-
-                <button class="nav-dropdown-item" id="btn-menu-profile">
-                  ✏️ Edit Profile
-                </button>
-                
-                <button class="nav-dropdown-item" id="btn-menu-help">
-                  🎧 Helpdesk & Support
-                </button>
-
-                <button class="nav-dropdown-item" id="btn-menu-report-grievance" style="color: #dc2626; font-weight: 600;">
-                  🚨 Report Grievance / Incident
-                </button>
-
-                <div style="border-top: 1px solid var(--border-subtle); margin-top: 0.35rem; padding-top: 0.35rem;">
-                  <button class="nav-dropdown-item danger" id="btn-menu-logout">
-                    🚪 Sign Out
-                  </button>
+                <div style="border-top: 1px solid var(--border-subtle); margin-top: 0.5rem; padding-top: 0.5rem;">
+                  <a class="dropdown-item" id="menu-logout" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem; border-radius: var(--radius-sm); color: #ef4444; cursor: pointer; font-size: 0.85rem;">
+                    <span>🚪</span> Log Out
+                  </a>
                 </div>
               </div>
             </div>
           ` : `
-            <button class="btn btn-primary btn-sm" id="btn-login-nav">Sign In</button>
+            <button class="btn btn-primary btn-sm" id="btn-login-nav" style="font-weight: 700;">
+              Sign In
+            </button>
           `}
+
         </div>
       </div>
     </nav>
-
-    <!-- MOBILE BOTTOM NAVIGATION BAR (Fixed on Mobile Screens <= 768px) -->
-    ${user ? `
-      <nav class="mobile-bottom-nav">
-        <button class="mobile-nav-btn ${activeRoute === 'events' ? 'active' : ''}" id="mob-nav-events">
-          <span class="mob-icon">🎪</span>
-          <span class="mob-label">Events</span>
-        </button>
-        <button class="mobile-nav-btn ${activeRoute === 'my-passes' ? 'active' : ''}" id="mob-nav-passes">
-          <span class="mob-icon">🎫</span>
-          <span class="mob-label">Passes</span>
-        </button>
-        <button class="mobile-nav-btn ${activeRoute === 'ideas' ? 'active' : ''}" id="mob-nav-ideas">
-          <span class="mob-icon">💡</span>
-          <span class="mob-label">Ideas</span>
-        </button>
-        ${isUserAdmin(user) ? `
-          <button class="mobile-nav-btn ${activeRoute === 'admin' ? 'active' : ''}" id="mob-nav-admin">
-            <span class="mob-icon">🛡️</span>
-            <span class="mob-label">Admin</span>
-          </button>
-        ` : user.role === 'organizer' ? `
-          <button class="mobile-nav-btn ${activeRoute === 'organizer' ? 'active' : ''}" id="mob-nav-organizer">
-            <span class="mob-icon">⚡</span>
-            <span class="mob-label">Org Hub</span>
-          </button>
-        ` : `
-          <button class="mobile-nav-btn" id="mob-nav-teams">
-            <span class="mob-icon">🤝</span>
-            <span class="mob-label">Teams</span>
-          </button>
-        `}
-        <button class="mobile-nav-btn" id="mob-nav-profile">
-          <span class="mob-icon">👤</span>
-          <span class="mob-label">Profile</span>
-        </button>
-      </nav>
-    ` : ''}
   `;
 
   container.innerHTML = navHtml;
 
-  // Navigation Links
+  // Student Navigation Listeners
   container.querySelector('#nav-brand')?.addEventListener('click', () => navigateTo('events'));
   container.querySelector('#nav-events-link')?.addEventListener('click', () => navigateTo('events'));
+  container.querySelector('#nav-moments')?.addEventListener('click', () => navigateTo('moments'));
   container.querySelector('#nav-ideas')?.addEventListener('click', () => navigateTo('ideas'));
-  container.querySelector('#nav-organizer')?.addEventListener('click', () => navigateTo('organizer'));
-  container.querySelector('#nav-admin')?.addEventListener('click', () => navigateTo('admin'));
-
+  container.querySelector('#nav-passes')?.addEventListener('click', () => navigateTo('my-passes'));
+  container.querySelector('#btn-nav-gateway')?.addEventListener('click', () => navigateTo('portal'));
   container.querySelector('#btn-login-nav')?.addEventListener('click', () => navigateTo('login'));
 
   // Notification Bell Listeners
   const notifBtn = container.querySelector('#notif-bell-btn');
   const notifMenu = container.querySelector('#notif-dropdown-menu');
+  const profileBtn = container.querySelector('#profile-dropdown-btn');
+  const profileMenu = container.querySelector('#profile-dropdown-menu');
 
   if (notifBtn && notifMenu) {
     notifBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       notifMenu.style.display = notifMenu.style.display === 'block' ? 'none' : 'block';
-      if (dropdownMenu) dropdownMenu.style.display = 'none';
-    });
-
-    // Enable Push Notifications Click Handler
-    container.querySelector('#btn-enable-push-notifs')?.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const btn = e.currentTarget;
-      const banner = container.querySelector('#push-enable-banner');
-      btn.disabled = true;
-      btn.textContent = 'Enabling...';
-
-      try {
-        const res = await requestPushNotificationPermission(user);
-        if (res.success || Notification.permission === 'granted') {
-          localStorage.setItem('ep_push_banner_dismissed', 'true');
-          btn.textContent = '✓ Active!';
-          btn.style.background = '#10b981';
-          if (banner) {
-            banner.innerHTML = `
-              <div style="font-size: 0.75rem; color: #059669; font-weight: 700; display: flex; align-items: center; gap: 0.35rem; width: 100%;">
-                <span>✅</span> Lock-Screen Alerts Active!
-              </div>
-            `;
-            setTimeout(() => {
-              banner.style.opacity = '0';
-              banner.style.height = '0';
-              banner.style.padding = '0';
-              banner.style.margin = '0';
-              banner.style.overflow = 'hidden';
-              setTimeout(() => banner.remove(), 300);
-            }, 1200);
-          }
-        } else {
-          btn.disabled = false;
-          btn.textContent = res.reason === 'denied' ? 'Blocked in Browser' : 'Enable';
-          if (res.reason === 'denied') {
-            alert('Notifications were blocked in your browser settings. Please allow notifications from your browser address bar icon to receive alerts.');
-          }
-        }
-      } catch (err) {
-        btn.disabled = false;
-        btn.textContent = 'Enable';
-      }
-    });
-
-    // Dismiss Push Notification Banner Handler
-    container.querySelector('#btn-dismiss-push-banner')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      localStorage.setItem('ep_push_banner_dismissed', 'true');
-      const banner = container.querySelector('#push-enable-banner');
-      if (banner) {
-        banner.style.opacity = '0';
-        banner.style.height = '0';
-        banner.style.padding = '0';
-        banner.style.margin = '0';
-        banner.style.overflow = 'hidden';
-        setTimeout(() => banner.remove(), 300);
-      }
-    });
-
-    // Auto-trigger push permission after 5 seconds if banner is visible and not already asked
-    if (showPushBanner && !sessionStorage.getItem('ep_push_auto_asked')) {
-      sessionStorage.setItem('ep_push_auto_asked', 'true');
-      setTimeout(async () => {
-        const banner = container.querySelector('#push-enable-banner');
-        if (!banner) return; // Already dismissed
-        const btn = container.querySelector('#btn-enable-push-notifs');
-        if (btn) {
-          btn.disabled = true;
-          btn.textContent = 'Enabling...';
-        }
-        try {
-          const res = await requestPushNotificationPermission(user);
-          if (res.success || Notification.permission === 'granted') {
-            localStorage.setItem('ep_push_banner_dismissed', 'true');
-            if (banner) {
-              banner.innerHTML = `
-                <div style="font-size: 0.75rem; color: #059669; font-weight: 700; display: flex; align-items: center; gap: 0.35rem; width: 100%;">
-                  <span>✅</span> Lock-Screen Alerts Active!
-                </div>
-              `;
-              setTimeout(() => {
-                banner.style.opacity = '0';
-                banner.style.height = '0';
-                banner.style.padding = '0';
-                banner.style.margin = '0';
-                banner.style.overflow = 'hidden';
-                setTimeout(() => banner.remove(), 300);
-              }, 1500);
-            }
-          } else {
-            // User denied or dismissed — re-enable the manual button
-            if (btn) {
-              btn.disabled = false;
-              btn.textContent = res.reason === 'denied' ? '🚫 Blocked' : 'Enable';
-            }
-          }
-        } catch (err) {
-          if (btn) { btn.disabled = false; btn.textContent = 'Enable'; }
-        }
-      }, 5000);
-    }
-
-    container.querySelector('#btn-mark-all-read')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      markAllNotificationsAsRead(user.uid, notifications);
-      renderNavbar(container, activeRoute, navigateTo);
-    });
-
-    container.querySelector('#btn-clear-all-notifs')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      clearAllNotifications(user.uid, notifications);
-      renderNavbar(container, activeRoute, navigateTo);
-    });
-
-    container.querySelectorAll('.btn-dismiss-notif').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const notifId = e.currentTarget.getAttribute('data-notif-id');
-        dismissNotification(user.uid, notifId);
-        renderNavbar(container, activeRoute, navigateTo);
-      });
-    });
-
-    container.querySelectorAll('.notif-item').forEach(item => {
-      item.addEventListener('click', (e) => {
-        const notifId = e.currentTarget.getAttribute('data-notif-id');
-        const route = e.currentTarget.getAttribute('data-route') || 'events';
-        markNotificationAsRead(user.uid, notifId);
-        notifMenu.style.display = 'none';
-        navigateTo(route);
-      });
+      if (profileMenu) profileMenu.style.display = 'none';
     });
   }
 
-  // Profile Dropdown Toggle
-  const menuBtn = container.querySelector('#profile-menu-btn');
-  const dropdownMenu = container.querySelector('#profile-dropdown-menu');
-
-  if (menuBtn && dropdownMenu) {
-    menuBtn.addEventListener('click', (e) => {
+  if (profileBtn && profileMenu) {
+    profileBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
+      profileMenu.style.display = profileMenu.style.display === 'block' ? 'none' : 'block';
       if (notifMenu) notifMenu.style.display = 'none';
     });
-
-    document.addEventListener('click', (e) => {
-      if (!container.contains(e.target)) {
-        dropdownMenu.style.display = 'none';
-        if (notifMenu) notifMenu.style.display = 'none';
-      }
-    });
-
-    container.querySelector('#btn-menu-events')?.addEventListener('click', () => {
-      dropdownMenu.style.display = 'none';
-      navigateTo('events');
-    });
-
-    container.querySelector('#btn-menu-passes')?.addEventListener('click', () => {
-      dropdownMenu.style.display = 'none';
-      navigateTo('my-passes');
-    });
-
-    container.querySelector('#btn-menu-teams')?.addEventListener('click', () => {
-      dropdownMenu.style.display = 'none';
-      openTeamFinderModal();
-    });
-
-    container.querySelector('#btn-menu-ideas')?.addEventListener('click', () => {
-      dropdownMenu.style.display = 'none';
-      navigateTo('ideas');
-    });
-
-    container.querySelector('#btn-menu-profile')?.addEventListener('click', () => {
-      dropdownMenu.style.display = 'none';
-      openEditProfileModal(user, () => renderNavbar(container, activeRoute, navigateTo));
-    });
-
-    container.querySelector('#btn-menu-help')?.addEventListener('click', () => {
-      dropdownMenu.style.display = 'none';
-      openHelpDeskModal();
-    });
-
-    container.querySelector('#btn-menu-report-grievance')?.addEventListener('click', () => {
-      dropdownMenu.style.display = 'none';
-      openComplaintModal();
-    });
-
-    container.querySelector('#btn-menu-logout')?.addEventListener('click', async () => {
-      dropdownMenu.style.display = 'none';
-      await logoutUser();
-      navigateTo('login');
-    });
   }
 
-  // Mobile Bottom Navigation Listeners
-  container.querySelector('#mob-nav-events')?.addEventListener('click', () => navigateTo('events'));
-  container.querySelector('#mob-nav-passes')?.addEventListener('click', () => navigateTo('my-passes'));
-  container.querySelector('#mob-nav-ideas')?.addEventListener('click', () => navigateTo('ideas'));
-  container.querySelector('#mob-nav-organizer')?.addEventListener('click', () => navigateTo('organizer'));
-  container.querySelector('#mob-nav-admin')?.addEventListener('click', () => navigateTo('admin'));
-  container.querySelector('#mob-nav-teams')?.addEventListener('click', () => openTeamFinderModal());
-  container.querySelector('#mob-nav-profile')?.addEventListener('click', () => {
-    openEditProfileModal(user, () => renderNavbar(container, activeRoute, navigateTo));
+  // Close menus on outside click
+  document.addEventListener('click', () => {
+    if (notifMenu) notifMenu.style.display = 'none';
+    if (profileMenu) profileMenu.style.display = 'none';
+  });
+
+  // Profile Menu Actions
+  container.querySelector('#menu-edit-profile')?.addEventListener('click', () => {
+    if (profileMenu) profileMenu.style.display = 'none';
+    openEditProfileModal(user);
+  });
+  container.querySelector('#menu-team-finder')?.addEventListener('click', () => {
+    if (profileMenu) profileMenu.style.display = 'none';
+    openTeamFinderModal();
+  });
+  container.querySelector('#menu-help-desk')?.addEventListener('click', () => {
+    if (profileMenu) profileMenu.style.display = 'none';
+    openHelpDeskModal();
+  });
+  container.querySelector('#menu-complaint')?.addEventListener('click', () => {
+    if (profileMenu) profileMenu.style.display = 'none';
+    openComplaintModal();
+  });
+  container.querySelector('#menu-logout')?.addEventListener('click', async () => {
+    await logoutUser();
+    navigateTo('portal');
   });
 }

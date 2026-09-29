@@ -5,7 +5,14 @@ export function createEventCardHtml(event, registrationStatus = null, isEligible
   const ratingStats = getEventRatingStats(event.id);
   
   let actionButton = '';
-  if (registrationStatus) {
+  if (event.isExternal || event.externalRegistrationUrl) {
+    const extUrl = event.externalRegistrationUrl || event.externalLink;
+    if (isPastDeadline) {
+      actionButton = `<button class="btn btn-secondary btn-sm" disabled>Deadline Passed</button>`;
+    } else {
+      actionButton = `<a href="${extUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm" style="background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700; box-shadow: 0 2px 6px rgba(124, 58, 237, 0.3);">📝 Register on Form ↗</a>`;
+    }
+  } else if (registrationStatus) {
     actionButton = `<span class="badge badge-${registrationStatus}">Status: ${registrationStatus}</span>`;
   } else if (isPastDeadline) {
     actionButton = `<button class="btn btn-secondary btn-sm" disabled>Deadline Passed</button>`;
@@ -13,7 +20,7 @@ export function createEventCardHtml(event, registrationStatus = null, isEligible
     actionButton = `<button class="btn btn-primary btn-sm btn-register" data-event-id="${event.id}">Register Now</button>`;
   }
 
-  const deptClass = event.department.includes('Computer') ? 'dept-cs' : (event.department.includes('Info') ? 'dept-it' : 'dept-robo');
+  const deptClass = (event.department || '').includes('Computer') ? 'dept-cs' : ((event.department || '').includes('Info') ? 'dept-it' : 'dept-robo');
 
   return `
     <div class="card card-hover" style="display: flex; flex-direction: column; justify-content: space-between; background: #ffffff;">
@@ -23,7 +30,7 @@ export function createEventCardHtml(event, registrationStatus = null, isEligible
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
           <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
             <span style="font-size: 0.725rem; font-weight: 700; color: var(--primary); background: var(--primary-light); padding: 0.25rem 0.65rem; border-radius: var(--radius-full);">
-              ${event.department}
+              ${event.department || 'Campus'}
             </span>
             <span style="font-size: 0.725rem; font-weight: 700; color: var(--mint); background: var(--mint-light); padding: 0.25rem 0.65rem; border-radius: var(--radius-full); text-transform: capitalize;">
               ${event.category === 'technical' ? '💻 Tech' : (event.category === 'sports' ? '🏆 Sports' : (event.category === 'social' ? '🎉 Social' : (event.category === 'notice' ? '📢 Notice' : '✨ Event')))}
@@ -38,19 +45,22 @@ export function createEventCardHtml(event, registrationStatus = null, isEligible
         </div>
 
         <h3 style="margin-bottom: 0.5rem; font-size: 1.2rem; color: var(--text-primary);">${event.title}</h3>
-        <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1.25rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+        <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1.25rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5;">
           ${event.description}
         </p>
 
         <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.85rem; margin-bottom: 1.25rem; font-size: 0.825rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 0.4rem;">
           <div>📅 <strong>Date:</strong> ${event.date} (${event.time})</div>
           <div>📍 <strong>Venue:</strong> ${event.venue}</div>
-          <div>🎓 <strong>Eligible:</strong> ${(event.eligibleYears || []).join(', ')}</div>
-          ${event.externalLink ? `
+          <div>🎓 <strong>Eligible:</strong> ${(event.eligibleYears || ['All Years']).join(', ')}</div>
+          ${event.entryFee ? `<div>💰 <strong>Entry Fee:</strong> <span style="color: #059669; font-weight: 700;">${event.entryFee}</span></div>` : ''}
+          ${event.prizePool ? `<div>🏆 <strong>Prize Pool:</strong> <span style="color: #d97706; font-weight: 700;">${event.prizePool}</span></div>` : ''}
+          ${event.contacts ? `<div>📞 <strong>Contacts:</strong> ${event.contacts}</div>` : ''}
+          ${(event.externalRegistrationUrl || event.externalLink) ? `
             <div style="margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px dashed var(--border-subtle);">
-              🔗 <strong>External Link:</strong> 
-              <a href="${event.externalLink}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 700; text-decoration: underline; word-break: break-all;">
-                ${event.externalLink.length > 35 ? event.externalLink.slice(0, 35) + '...' : event.externalLink} ↗
+              📝 <strong>Official Registration Form:</strong> 
+              <a href="${event.externalRegistrationUrl || event.externalLink}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 700; text-decoration: underline; word-break: break-all;">
+                Google Form Link ↗
               </a>
             </div>
           ` : ''}
@@ -58,28 +68,28 @@ export function createEventCardHtml(event, registrationStatus = null, isEligible
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-subtle); padding-top: 1rem; flex-wrap: wrap; gap: 0.5rem;">
-        <!-- Find Teammates & Volunteer & Reviews Buttons -->
+        <!-- Action Buttons -->
         <div style="display: flex; gap: 0.35rem; flex-wrap: wrap; align-items: center;">
           <button class="btn btn-secondary btn-sm btn-find-team" data-event-id="${event.id}" style="font-size: 0.75rem; padding: 0.35rem 0.55rem; gap: 0.25rem;" title="Find or form a squad for this event">
             🤝 Squad
           </button>
-          <button class="btn btn-secondary btn-sm btn-apply-volunteer" data-event-id="${event.id}" style="font-size: 0.75rem; padding: 0.35rem 0.55rem; gap: 0.25rem; background: rgba(16, 185, 129, 0.08); color: var(--mint); border-color: rgba(16, 185, 129, 0.3);" title="Join the event organizing volunteer team">
-            🙋 Volunteer
+          <button class="btn btn-secondary btn-sm btn-event-qa" data-event-id="${event.id}" style="font-size: 0.75rem; padding: 0.35rem 0.55rem; gap: 0.25rem; background: rgba(139, 92, 246, 0.08); color: var(--primary); border-color: rgba(139, 92, 246, 0.3);" title="Ask questions & live discussion">
+            💬 Q&A
           </button>
+          <button class="btn btn-secondary btn-sm btn-sync-calendar" data-event-id="${event.id}" style="font-size: 0.75rem; padding: 0.35rem 0.55rem; gap: 0.25rem; background: #f0fdf4; color: #15803d; border-color: #bbf7d0;" title="1-Click Add to Google or Apple Calendar">
+            📅 Calendar
+          </button>
+          ${(!event.isExternal && !event.disableVolunteer) ? `
+            <button class="btn btn-secondary btn-sm btn-apply-volunteer" data-event-id="${event.id}" style="font-size: 0.75rem; padding: 0.35rem 0.55rem; gap: 0.25rem; background: rgba(16, 185, 129, 0.08); color: var(--mint); border-color: rgba(16, 185, 129, 0.3);" title="Join the event organizing volunteer team">
+              🙋 Volunteer
+            </button>
+          ` : ''}
           <button class="btn btn-secondary btn-sm btn-event-reviews" data-event-id="${event.id}" style="font-size: 0.75rem; padding: 0.35rem 0.55rem; gap: 0.25rem;" title="View reviews & ratings">
             ⭐ Reviews
           </button>
-          ${event.externalLink ? `
-            <a href="${event.externalLink}" target="_blank" rel="noopener noreferrer" class="btn btn-sm" style="background: linear-gradient(135deg, #0284c7, #0369a1); color: #ffffff; font-size: 0.75rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: var(--radius-sm); text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;" title="Open Official Link / Rulebook">
-              🔗 Open Link ↗
-            </a>
-          ` : ''}
         </div>
 
         <div style="display: flex; align-items: center; gap: 0.5rem;">
-          <div style="font-size: 0.75rem; color: var(--text-tertiary);">
-            ${event.maxParticipants} spots
-          </div>
           ${actionButton}
         </div>
       </div>
