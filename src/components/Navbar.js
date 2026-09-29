@@ -54,19 +54,24 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
 
         <!-- CENTER: Main Navigation Links (Desktop) -->
         <div class="nav-links">
-          ${user && (user.role === 'organizer' || isUserAdmin(user)) ? `
+          ${user && user.role === 'vc' ? `
+            <a class="nav-link ${activeRoute === 'admin' ? 'active' : ''}" id="nav-admin" style="cursor: pointer; color: #10b981; font-weight: 800;">
+              <span>👑</span> VC Command Console
+            </a>
+          ` : ''}
+          ${user && user.role !== 'vc' && (user.role === 'organizer' || isUserAdmin(user)) ? `
             <a class="nav-link ${activeRoute === 'organizer' ? 'active' : ''}" id="nav-organizer" style="cursor: pointer; color: var(--primary);">
               <span>⚡</span> Organizer Hub
             </a>
           ` : ''}
-          ${user && (['hod', 'dean', 'vc'].includes(user.role) || isUserAdmin(user)) ? `
+          ${user && user.role !== 'vc' && (['hod', 'dean'].includes(user.role) || isUserAdmin(user)) ? `
             <a class="nav-link ${activeRoute === 'executive' ? 'active' : ''}" id="nav-executive" style="cursor: pointer; color: #3b82f6; font-weight: 700;">
               <span>🏛️</span> Executive Hub
             </a>
           ` : ''}
-          ${isUserAdmin(user) || user?.role === 'vc' ? `
+          ${user && user.role !== 'vc' && isUserAdmin(user) ? `
             <a class="nav-link ${activeRoute === 'admin' ? 'active' : ''}" id="nav-admin" style="cursor: pointer; color: #ef4444; font-weight: 700;">
-              <span>${user?.role === 'vc' ? '👑' : '🛡️'}</span> ${user?.role === 'vc' ? 'VC Console' : 'Admin Console'}
+              <span>🛡️</span> Admin Console
             </a>
           ` : ''}
         </div>
@@ -172,12 +177,9 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
                 </div>
 
                 ${user.role === 'vc' ? `
-                  <!-- VC SPECIFIC MENU: Full Admin & Institutional Oversight -->
-                  <button class="nav-dropdown-item" id="btn-menu-admin" style="color: #ef4444; font-weight: 700; background: rgba(239, 68, 68, 0.08); margin-bottom: 0.25rem;">
-                    👑 VC Institutional Console
-                  </button>
-                  <button class="nav-dropdown-item" id="btn-menu-executive" style="color: #3b82f6; font-weight: 700;">
-                    🏛️ Executive Academic Hub
+                  <!-- VC SPECIFIC MENU -->
+                  <button class="nav-dropdown-item" id="btn-menu-admin" style="color: #10b981; font-weight: 700; background: rgba(16, 185, 129, 0.08); margin-bottom: 0.25rem;">
+                    👑 VC Command Console
                   </button>
                 ` : ['hod', 'dean'].includes(user.role) ? `
                   <!-- EXECUTIVE SPECIFIC MENU: Clean & Faculty-Only -->
@@ -261,10 +263,6 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
           <button class="mobile-nav-btn ${activeRoute === 'admin' ? 'active' : ''}" id="mob-nav-admin">
             <span class="mob-icon">👑</span>
             <span class="mob-label">VC Console</span>
-          </button>
-          <button class="mobile-nav-btn ${activeRoute === 'executive' ? 'active' : ''}" id="mob-nav-executive">
-            <span class="mob-icon">🏛️</span>
-            <span class="mob-label">Academic</span>
           </button>
           <button class="mobile-nav-btn ${activeRoute === 'ideas' ? 'active' : ''}" id="mob-nav-ideas">
             <span class="mob-icon">💡</span>
