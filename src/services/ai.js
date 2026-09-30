@@ -3,6 +3,7 @@ import { getCachedRegistrationsSync } from './registrations';
 import { getCachedCertificatesSync } from './certificates';
 import { getCachedTeamsSync } from './teams';
 import { getCachedVolunteersSync } from './volunteers';
+import { getCachedAnnouncementsSync } from './announcements';
 
 /**
  * Normalizes input text and catches typos / spelling variations
@@ -38,6 +39,7 @@ export async function askPulseAI(rawQuery, user) {
   const certificates = user ? (getCachedCertificatesSync(user.uid) || []) : [];
   const teams = getCachedTeamsSync() || [];
   const volunteers = user ? (getCachedVolunteersSync(user.uid) || []) : [];
+  const announcements = getCachedAnnouncementsSync() || [];
 
   // =========================================================================
   // 0. STUDENT WELLNESS, MOOD, FEELING LOW & STRESS RELIEF
@@ -455,6 +457,18 @@ export async function askPulseAI(rawQuery, user) {
     q.includes('latest news') ||
     q.includes('khabar')
   ) {
+    if (announcements.length > 0) {
+      const activeNotices = announcements.slice(0, 3).map(n =>
+        `• 📌 **${n.title || 'Campus Notice'}**${n.shortContent ? '\n  ' + n.shortContent : ''}`
+      ).join('\n');
+      return {
+        text: `📢 **Campus Notices & Announcements** (${announcements.length} active):\n\n${activeNotices}\n\n*Sabhi official notices Events tab ke "📢 Campus Notices" section mein full detail ke saath milenge!*`,
+        actions: [
+          { label: '📢 View All Campus Notices', route: 'events' },
+          { label: '💡 Suggest an Event', route: 'ideas' }
+        ]
+      };
+    }
     return {
       text: `📢 **Campus Notices & Announcements**:\n\nCurrently EventPulse par **koi active campus notice published nahi hai**. 🔕\n\n*Jab Admin koi official notice, sports event announcement, ya campus circular post karega — woh yahan aur Events tab ke "📢 Campus Notices" section mein turant dikhega!*\n\n**Stay connected:**\n• 🔔 **Push Notifications** enable karo (Profile > Settings) — nayi notice aate hi alert milega!\n• 💡 **Wishlist** par apni events & activity ideas suggest karo!\n• 🎧 **Support**: eventpulsesupport@gmail.com`,
       actions: [
