@@ -23,6 +23,8 @@ export async function renderStudentPassesView(container, navigateTo) {
     activeTab = 'volunteering';
   }
   
+  let passSubFilter = 'all'; // 'all' | 'active' | 'attended'
+
   // Instant Cache-First Load (0ms delay)
   let registrations = getCachedRegistrationsSync(user.uid) || [];
   let certificates = getCachedCertificatesSync(user.uid) || [];
@@ -61,46 +63,70 @@ export async function renderStudentPassesView(container, navigateTo) {
           </div>
         </div>
 
-        ${activeTab === 'passes' ? `
-          <div style="display: flex; flex-direction: column; gap: 1rem;">
-            ${registrations.length === 0 ? `
-              <div class="card" style="text-align: center; padding: 3rem 1rem;">
-                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🎫</div>
-                <h3>No Registrations Yet</h3>
-                <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem;">Browse approved events to register and get your digital pass!</p>
-                <button class="btn btn-primary btn-sm" id="btn-goto-events" style="margin-top: 1rem;">Discover Events</button>
-              </div>
-            ` : registrations.map(r => `
-              <div class="card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                <div>
-                  <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem;">
-                    <span class="badge badge-${r.status}">${r.status}</span>
-                    <span style="font-size: 0.75rem; color: var(--text-tertiary);">Reg ID: ${r.id}</span>
-                  </div>
-                  <h3 style="font-size: 1.15rem; color: var(--text-primary);">${r.eventTitle}</h3>
-                  <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
-                    📍 ${r.venue || 'Campus Main Venue'} | 📅 Registered on ${new Date(r.registeredAt).toLocaleDateString()}
-                  </div>
-                </div>
+        ${activeTab === 'passes' ? (() => {
+          const activeRegs = registrations.filter(r => r.status === 'approved' || r.status === 'pending');
+          const attendedRegs = registrations.filter(r => r.status === 'attended' || r.status === 'completed' || r.certificateId);
+          const displayedRegs = passSubFilter === 'active' ? activeRegs : (passSubFilter === 'attended' ? attendedRegs : registrations);
 
-                <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                  ${(r.status === 'approved' || r.status === 'attended') ? `
-                    <button class="btn btn-primary btn-sm btn-view-pass" data-reg-id="${r.id}">
-                      🎟️ View Digital Pass
-                    </button>
-                  ` : `
-                    <button class="btn btn-secondary btn-sm" disabled style="opacity: 0.7;">
-                      ⏳ Pending Approval
-                    </button>
-                  `}
-                  <button class="btn btn-sm btn-delete-registration" data-reg-id="${r.id}" style="background: #fef2f2; border: 1px solid #fca5a5; color: #dc2626; font-size: 0.75rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: var(--radius-sm); cursor: pointer;" title="Cancel registration and delete pass">
-                    🗑️ Cancel Pass
-                  </button>
+          return `
+            <!-- Sub-Filter Pills -->
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem; flex-wrap: wrap;">
+              <button class="btn btn-sm ${passSubFilter === 'all' ? 'btn-primary' : 'btn-secondary'}" id="filter-pass-all" style="font-size: 0.8rem; border-radius: 20px;">
+                All Passes (${registrations.length})
+              </button>
+              <button class="btn btn-sm ${passSubFilter === 'active' ? 'btn-primary' : 'btn-secondary'}" id="filter-pass-active" style="font-size: 0.8rem; border-radius: 20px;">
+                🟢 Upcoming Active (${activeRegs.length})
+              </button>
+              <button class="btn btn-sm ${passSubFilter === 'attended' ? 'btn-primary' : 'btn-secondary'}" id="filter-pass-attended" style="font-size: 0.8rem; border-radius: 20px;">
+                🏁 Attended & Certified (${attendedRegs.length})
+              </button>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+              ${displayedRegs.length === 0 ? `
+                <div class="card" style="text-align: center; padding: 3rem 1rem;">
+                  <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🎫</div>
+                  <h3>No passes in this category</h3>
+                  <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem;">Browse approved events to register and get your digital pass!</p>
+                  <button class="btn btn-primary btn-sm" id="btn-goto-events" style="margin-top: 1rem;">Discover Events</button>
                 </div>
-              </div>
-            `).join('')}
-          </div>
-        ` : (activeTab === 'certs' ? `
+              ` : displayedRegs.map(r => `
+                <div class="card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; border-left: 4.5px solid ${r.status === 'attended' ? '#10b981' : (r.status === 'approved' ? '#6366f1' : '#f59e0b')};">
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem;">
+                      <span class="badge badge-${r.status}">${r.status === 'attended' ? 'ATTENDED & VERIFIED' : r.status.toUpperCase()}</span>
+                      <span style="font-size: 0.75rem; color: var(--text-tertiary);">Reg ID: ${r.id}</span>
+                    </div>
+                    <h3 style="font-size: 1.15rem; color: var(--text-primary);">${r.eventTitle}</h3>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                      📍 ${r.venue || 'Campus Main Venue'} | 📅 Registered on ${new Date(r.registeredAt).toLocaleDateString()}
+                    </div>
+                  </div>
+
+                  <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                    ${(r.status === 'approved' || r.status === 'attended') ? `
+                      <button class="btn btn-primary btn-sm btn-view-pass" data-reg-id="${r.id}">
+                        🎟️ View Digital Pass
+                      </button>
+                    ` : `
+                      <button class="btn btn-secondary btn-sm" disabled style="opacity: 0.7;">
+                        ⏳ Pending Approval
+                      </button>
+                    `}
+                    ${r.certificateId ? `
+                      <button class="btn btn-sm btn-view-earned-cert" data-cert-id="${r.certificateId}" style="background: #ecfdf5; border: 1.5px solid #10b981; color: #047857; font-weight: 700; font-size: 0.8rem; border-radius: var(--radius-sm); cursor: pointer; padding: 0.35rem 0.65rem;">
+                        🏆 View Certificate
+                      </button>
+                    ` : ''}
+                    <button class="btn btn-sm btn-delete-registration" data-reg-id="${r.id}" style="background: #fef2f2; border: 1px solid #fca5a5; color: #dc2626; font-size: 0.75rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: var(--radius-sm); cursor: pointer;" title="Cancel registration and delete pass">
+                      🗑️ Cancel Pass
+                    </button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        })() : (activeTab === 'certs' ? `
           <div style="display: flex; flex-direction: column; gap: 1rem;">
             ${certificates.length === 0 ? `
               <div class="card" style="text-align: center; padding: 3rem 1rem;">
@@ -300,6 +326,17 @@ export async function renderStudentPassesView(container, navigateTo) {
     container.querySelector('#tab-grievances-btn')?.addEventListener('click', () => { activeTab = 'grievances'; render(); });
     container.querySelector('#btn-goto-events')?.addEventListener('click', () => navigateTo('events'));
     container.querySelector('#btn-goto-events-vol')?.addEventListener('click', () => navigateTo('events'));
+
+    // Sub-Filter Pills Listeners
+    container.querySelector('#filter-pass-all')?.addEventListener('click', () => { passSubFilter = 'all'; render(); });
+    container.querySelector('#filter-pass-active')?.addEventListener('click', () => { passSubFilter = 'active'; render(); });
+    container.querySelector('#filter-pass-attended')?.addEventListener('click', () => { passSubFilter = 'attended'; render(); });
+    container.querySelectorAll('.btn-view-earned-cert').forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeTab = 'certs';
+        render();
+      });
+    });
 
     // Cancel / Delete Registration Pass
     container.querySelectorAll('.btn-delete-registration').forEach(btn => {

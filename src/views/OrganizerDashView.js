@@ -316,6 +316,119 @@ export async function renderOrganizerDashView(container, navigateTo) {
             transform: translateY(-1px);
           }
 
+          /* ── Academic Multi-Tier Governance Pipeline Stepper ── */
+          .org-pipeline-card {
+            background: #ffffff;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1.15rem 1.4rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+          }
+          .org-pipeline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid #f1f5f9;
+          }
+          .org-pipeline-title {
+            font-weight: 800;
+            font-size: 0.95rem;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+          }
+          .org-pipeline-tag {
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 4px 11px;
+            border-radius: 20px;
+            letter-spacing: 0.04em;
+          }
+          .org-pipeline-tag.live {
+            background: #dcfce7;
+            color: #15803d;
+            border: 1px solid #86efac;
+          }
+          .org-pipeline-tag.pending {
+            background: #fef3c7;
+            color: #b45309;
+            border: 1px solid #fcd34d;
+          }
+          .org-pipeline-tag.completed {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #cbd5e1;
+          }
+          .org-stepper-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            overflow-x: auto;
+            padding: 0.4rem 0.2rem;
+            gap: 0.5rem;
+          }
+          .org-step {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            flex-shrink: 0;
+          }
+          .org-step-circle {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #f8fafc;
+            color: #64748b;
+            border: 2px solid #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.82rem;
+            font-weight: 800;
+            flex-shrink: 0;
+            transition: all 0.2s ease;
+          }
+          .org-step.completed .org-step-circle {
+            background: #10b981;
+            color: #ffffff;
+            border-color: #059669;
+          }
+          .org-step.active .org-step-circle {
+            background: #6366f1;
+            color: #ffffff;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+          }
+          .org-step-title {
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1.2;
+            white-space: nowrap;
+          }
+          .org-step-sub {
+            font-size: 0.68rem;
+            color: #64748b;
+            font-weight: 600;
+            white-space: nowrap;
+          }
+          .org-step-line {
+            flex: 1;
+            height: 3px;
+            background: #e2e8f0;
+            min-width: 20px;
+            border-radius: 2px;
+          }
+          .org-step-line.completed {
+            background: #10b981;
+          }
+
           /* ── High-Contrast Stat Cards ── */
           .org-stats-grid {
             display: grid;
@@ -486,6 +599,70 @@ export async function renderOrganizerDashView(container, navigateTo) {
             </div>
           ` : ''}
         </div>
+
+        ${selectedEvent ? `
+          <!-- ── Academic Multi-Tier Governance Pipeline Stepper ── -->
+          <div class="org-pipeline-card">
+            <div class="org-pipeline-header">
+              <div class="org-pipeline-title">
+                <span>🏛️</span> Academic Multi-Tier Governance Pipeline
+              </div>
+              <span class="org-pipeline-tag ${selectedEvent.status === 'approved' ? 'live' : (selectedEvent.status === 'completed' ? 'completed' : 'pending')}">
+                ${selectedEvent.status === 'approved' ? '🟢 INSTITUTIONALLY APPROVED & LIVE' : (selectedEvent.status === 'completed' ? '🏁 CONCLUDED & ARCHIVED' : '⏳ AWAITING ADMINISTRATIVE SANCTION')}
+              </span>
+            </div>
+            <div class="org-stepper-wrap">
+              <!-- Step 1: Organizer -->
+              <div class="org-step completed">
+                <div class="org-step-circle">✓</div>
+                <div class="org-step-content">
+                  <div class="org-step-title">1. Proposal Submitted</div>
+                  <div class="org-step-sub">${selectedEvent.organizerName || 'Hariprasath (Lead)'}</div>
+                </div>
+              </div>
+              <div class="org-step-line completed"></div>
+
+              <!-- Step 2: HOD -->
+              <div class="org-step ${selectedEvent.status === 'approved' || selectedEvent.hodApproved ? 'completed' : 'active'}">
+                <div class="org-step-circle">${selectedEvent.status === 'approved' || selectedEvent.hodApproved ? '✓' : '2'}</div>
+                <div class="org-step-content">
+                  <div class="org-step-title">2. HOD Sanction</div>
+                  <div class="org-step-sub">${selectedEvent.status === 'approved' || selectedEvent.hodApproved ? 'Dr. Arun Kulkarni (IMTech)' : 'Pending Review'}</div>
+                </div>
+              </div>
+              <div class="org-step-line ${selectedEvent.status === 'approved' || selectedEvent.deanApproved ? 'completed' : ''}"></div>
+
+              <!-- Step 3: Dean -->
+              <div class="org-step ${selectedEvent.status === 'approved' || selectedEvent.deanApproved ? 'completed' : (selectedEvent.hodApproved ? 'active' : '')}">
+                <div class="org-step-circle">${selectedEvent.status === 'approved' || selectedEvent.deanApproved ? '✓' : '3'}</div>
+                <div class="org-step-content">
+                  <div class="org-step-title">3. Dean Approval</div>
+                  <div class="org-step-sub">${selectedEvent.status === 'approved' || selectedEvent.deanApproved ? 'Dr. Neha Sharma (Engg)' : 'Faculty Sanction'}</div>
+                </div>
+              </div>
+              <div class="org-step-line ${selectedEvent.status === 'approved' || selectedEvent.vcApproved ? 'completed' : ''}"></div>
+
+              <!-- Step 4: VC Sir -->
+              <div class="org-step ${selectedEvent.status === 'approved' || selectedEvent.vcApproved ? 'completed' : (selectedEvent.deanApproved ? 'active' : '')}">
+                <div class="org-step-circle">${selectedEvent.status === 'approved' || selectedEvent.vcApproved ? '👑' : '4'}</div>
+                <div class="org-step-content">
+                  <div class="org-step-title">4. VC Directive</div>
+                  <div class="org-step-sub">${selectedEvent.status === 'approved' || selectedEvent.vcApproved ? 'Prof. K. V. Raman (VC)' : 'Apex Sanction'}</div>
+                </div>
+              </div>
+              <div class="org-step-line ${selectedEvent.status === 'approved' ? 'completed' : ''}"></div>
+
+              <!-- Step 5: Public Discovery -->
+              <div class="org-step ${selectedEvent.status === 'approved' ? 'completed' : (selectedEvent.status === 'completed' ? 'completed' : '')}">
+                <div class="org-step-circle">${selectedEvent.status === 'approved' ? '🟢' : (selectedEvent.status === 'completed' ? '🏁' : '5')}</div>
+                <div class="org-step-content">
+                  <div class="org-step-title">5. Campus Discovery</div>
+                  <div class="org-step-sub">${selectedEvent.status === 'approved' ? 'Open for Registrations' : (selectedEvent.status === 'completed' ? 'Archived' : 'Pending Live')}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ` : ''}
 
         <!-- ── High-Contrast Stat Cards ── -->
         <div class="org-stats-grid">
