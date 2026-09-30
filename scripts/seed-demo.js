@@ -56,9 +56,9 @@ export const DEMO_USERS = [
     uid: 'demo_student',
     email: 'student@college.edu',
     password: 'Password@123',
-    name: 'Pratik Thorat (Student)',
+    name: 'Mihika Joshi (Student)',
     role: 'student',
-    prn: 'SU2024CS0142',
+    prn: 'SU2024IMT0091',
     department: 'Integrated M.Tech (AIML)',
     year: '1st Year',
     division: 'A'

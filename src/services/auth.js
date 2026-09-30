@@ -45,12 +45,12 @@ export const DEMO_ACCOUNTS = {
   'student@college.edu': {
     uid: 'demo_student',
     email: 'student@college.edu',
-    name: 'Pratik Thorat (Student)',
+    name: 'Mihika Joshi (Student)',
     role: 'student',
     department: 'Integrated M.Tech (AIML)',
     year: '1st Year',
     division: 'A',
-    prn: 'SU2024CS0142'
+    prn: 'SU2024IMT0091'
   },
   'organizer@college.edu': {
     uid: 'demo_organizer',
