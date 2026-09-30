@@ -48,11 +48,51 @@ async function deploy() {
   console.log('✅ Authenticated successfully via Service Account.');
 
   // 2. Hosting config for REST API
+  const cspDirectives = [
+    "default-src 'self' https://*.firebaseio.com https://*.googleapis.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://*.firebaseio.com https://*.googleapis.com https://cdn.jsdelivr.net",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "img-src 'self' data: blob: https:",
+    "connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://*.firebaseio.com https://*.firebaseapp.com",
+    "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com",
+    "worker-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'self'"
+  ].join('; ');
+
   const hostingConfig = {
     rewrites: [
       {
         glob: '**',
         path: '/index.html'
+      }
+    ],
+    headers: [
+      {
+        glob: '**',
+        headers: {
+          'X-Frame-Options': 'SAMEORIGIN',
+          'X-Content-Type-Options': 'nosniff',
+          'Referrer-Policy': 'strict-origin-when-cross-origin',
+          'Permissions-Policy': 'camera=(self), microphone=(), geolocation=(), payment=()',
+          'Content-Security-Policy': cspDirectives,
+          'Cross-Origin-Opener-Policy': 'same-origin-allow-popups'
+        }
+      },
+      {
+        glob: '**/*.@(html|htm)',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      },
+      {
+        glob: '/assets/**',
+        headers: {
+          'Cache-Control': 'public, max-age=31536000, immutable'
+        }
       }
     ]
   };
