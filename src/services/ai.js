@@ -98,8 +98,12 @@ export async function askPulseAI(rawQuery, user) {
     q === 'good evening' || q === 'kaise ho' || q === 'kya hal hai'
   ) {
     const name = user ? user.name.split(' ')[0] : 'friend';
+    const eventsCount = events.length;
+    const eventsStatus = eventsCount > 0
+      ? `🎉 **${eventsCount} events** abhi live hain — check them out!`
+      : `📌 Abhi koi live event nahi hai, lekin **upcoming events** ke liye stay tuned!`;
     return {
-      text: `👋 **Hey ${name}! Welcome to NEX AI.**\n\nI'm your 24/7 intelligent campus copilot. How can I help you today?\n\n• 🚀 Find upcoming hackathons & sports fests\n• 🎫 Check your QR entry pass & certificate status\n• 🙋 Apply as a volunteer for campus events\n• 💡 Suggest new events or improvements on Wishlist\n• 🤝 Find teammates for projects & competitions\n\nWhat's on your mind?`,
+      text: `👋 **Hey ${name}! Welcome to NEX AI.** ⚡\n\nMain tumhara **24/7 intelligent campus copilot** hoon — EventPulse ka smart assistant!\n\n${eventsStatus}\n\n**Main kya kar sakta hoon:**\n• 🔍 Upcoming hackathons, sports & cultural events dhundna\n• 💡 Wishlist par naya event suggest karna\n• 🤝 Hackathon ke liye teammates dhundhna\n• 📜 Certificates & QR Passes check karna\n• 🚨 Grievance ya complaint file karna\n• 🎧 Campus helpdesk & support\n\nKya poochna hai? 🚀`,
       actions: [
         { label: '🎉 Browse Events', route: 'events' },
         { label: '💡 Campus Wishlist', route: 'ideas' },
@@ -413,11 +417,50 @@ export async function askPulseAI(rawQuery, user) {
     }
 
     // General participation
+    if (availableEvents.length === 0) {
+      return {
+        text: `🔍 **Abhi koi active events nahi hain!**\n\nCurrently EventPulse par koi live event registered nahi hai. Lekin ye change ho sakta hai anytime soon! 🚀\n\n**Kya karo tab tak:**\n• 💡 **Wishlist par suggest karo** — Kaunsa event chahiye? Hackathon? Sports? Concert? Suggest karo aur votes lao!\n• 🤝 **Teammates find karo** — Future hackathons ke liye abhi se apna squad ready karo!\n• 🙋 **Volunteer ke liye ready raho** — Jab event aaye toh pehle aap organizer crew mein ho!\n• 🔔 **Stay tuned** — Notifications enable karo (Profile > Settings) taaki naya event aate hi alert mile!\n\n*Koi naya event ata hai toh main turant tumhe bata dunga! 🔥*`,
+        actions: [
+          { label: '💡 Suggest an Event on Wishlist', route: 'ideas' },
+          { label: '🤝 Squad & Teammate Finder', route: 'teams_modal' },
+          { label: '🎫 My Profile & Passes', route: 'my-passes' }
+        ]
+      };
+    }
+
     return {
       text: `🎉 **How to Participate in Campus Events on EventPulse**:\n\n1. **Browse Approved Events**: Go to the **Campus Events** tab to view Technical, Sports, and Cultural events.\n2. **1-Click Registration**: Click **Register Now** on any eligible event.\n3. **Access Your Digital QR Pass**: Once approved, your QR pass is always available in **🎫 My Passes** for venue check-in!`,
       actions: [
         { label: '🎉 Open Events Portal', route: 'events' },
         { label: '🎫 My Wallet & Passes', route: 'my-passes' }
+      ]
+    };
+  }
+
+  // =========================================================================
+  // 1b. CAMPUS NOTICES & ANNOUNCEMENTS
+  // =========================================================================
+  if (
+    q.includes('notice') ||
+    q.includes('announcement') ||
+    q.includes('notice board') ||
+    q.includes('noticeboard') ||
+    q.includes('koi notice') ||
+    q.includes('koi announcement') ||
+    q.includes('campus notice') ||
+    q.includes('circullar') ||
+    q.includes('circular') ||
+    q.includes('what is new') ||
+    q.includes('kya naya hai') ||
+    q.includes('latest news') ||
+    q.includes('khabar')
+  ) {
+    return {
+      text: `📢 **Campus Notices & Announcements**:\n\nCurrently EventPulse par **koi active campus notice published nahi hai**. 🔕\n\n*Jab Admin koi official notice, sports event announcement, ya campus circular post karega — woh yahan aur Events tab ke "📢 Campus Notices" section mein turant dikhega!*\n\n**Stay connected:**\n• 🔔 **Push Notifications** enable karo (Profile > Settings) — nayi notice aate hi alert milega!\n• 💡 **Wishlist** par apni events & activity ideas suggest karo!\n• 🎧 **Support**: eventpulsesupport@gmail.com`,
+      actions: [
+        { label: '📢 Browse Campus Notices', route: 'events' },
+        { label: '💡 Suggest an Event', route: 'ideas' },
+        { label: '🔔 Enable Notifications', route: 'my-passes' }
       ]
     };
   }
@@ -691,8 +734,10 @@ export async function askPulseAI(rawQuery, user) {
   // 9. WHAT CAN YOU DO / FEATURES OVERVIEW
   // =========================================================================
   if (q.includes('what can you do') || q.includes('features') || q.includes('help me') || q.includes('guide') || q.includes('kya kar') || q.includes('kya kya') || q.includes('sab kuch')) {
+    const liveCount = events.length;
+    const eventsLine = liveCount > 0 ? `→ ${liveCount} events currently live! Browse & register.` : `→ Abhi koi event nahi hai. Wishlist par suggest karo!`;
     return {
-      text: `⚡ **NEX — Everything EventPulse Can Do For You:**\n\n🎉 **Events & Registration**\n→ Browse & register for campus events, get instant QR passes.\n\n🙋 **Volunteer**\n→ Apply as event volunteer — earn Leadership Certificates & VIP access.\n\n⭐ **Event Reviews**\n→ Rate & review events you attended. Help improve future ones!\n\n💡 **Campus Wishlist & Ideas**\n→ Suggest new events or improvements. Upvote ideas you love. Most-voted gets organized!\n\n🤝 **Teammate Finder**\n→ Find hackathon partners, post squad requirements, connect via WhatsApp.\n\n📜 **Certificates**\n→ Download tamper-proof participation certificates after attending events.\n\n🚨 **Grievance / Report**\n→ Report misbehavior, unfair judging, or safety issues — 100% confidential option.\n\n🎧 **Helpdesk**\n→ Email & on-campus support for any issue.\n\n*Ask me anything about any of these! 👆*`,
+      text: `⚡ **NEX — EventPulse ke saare features:**\n\n🎉 **Events & Registration**\n${eventsLine}\n\n📢 **Campus Notices**\n→ Official campus circulars, sports events, & announcements (Admin dwara post hote hain).\n\n🙋 **Volunteer**\n→ Event volunteer ke liye apply karo — Leadership Certificate & VIP access milta hai!\n\n⭐ **Event Reviews**\n→ Attended event ko rate & review karo. Future events improve honge!\n\n💡 **Campus Wishlist & Ideas**\n→ Naya event suggest karo. Most-voted idea officially organize hota hai! 🔥\n\n🤝 **Teammate Finder**\n→ Hackathon partners dhundo, squad post karo, WhatsApp par connect karo.\n\n📜 **Certificates**\n→ Event attend karo, QR scan ho, tamper-proof PDF certificate download karo.\n\n🚨 **Grievance / Report**\n→ Misbehavior, unfair judging ya safety issues — 100% confidential option.\n\n🎧 **Helpdesk**\n→ Email & on-campus support for any issue.\n\n*Kuch bhi poocho — main 24/7 yahan hoon!* 👆`,
       actions: [
         { label: '🎉 Browse Events', route: 'events' },
         { label: '💡 Campus Wishlist', route: 'ideas' },
@@ -704,8 +749,12 @@ export async function askPulseAI(rawQuery, user) {
   // =========================================================================
   // 10. SMART DYNAMIC CONVERSATIONAL FALLBACK
   // =========================================================================
+  const liveEventsHint = events.length > 0
+    ? `🎉 *${events.length} events abhi live hain!*`
+    : `📌 *Abhi koi live event nahi hai — Wishlist par suggest karo ya squad ready karo!*`;
+
   return {
-    text: `⚡ **Got it!** 🤖\n\nI'm your 24/7 campus copilot. While I specialize in everything happening around **Sanjivani University** (events, passes, certificates, squads, and wishlist), I'm always here to assist!\n\nHere are some popular things you can ask me:\n• 🚀 *"Upcoming hackathons & events dikhao"*\n• 🤝 *"Hackathon ke liye teammates chahiye"*\n• 🙋 *"Event volunteer kaise bane?"*\n• 💡 *"Naya event ya concert suggest karna hai"*\n• 🎫 *"Mera QR pass & status check karo"*\n\nOr click below to explore right away!`,
+    text: `⚡ **Samjha!** 🤖\n\nMain tumhara **24/7 NEX AI Campus Copilot** hoon — EventPulse ka intelligent assistant for Sanjivani University! 🎓\n\n${liveEventsHint}\n\n**Ye cheezein mujhse pooch sakte ho:**\n• 🚀 *"Upcoming hackathons & events dikhao"*\n• 🤝 *"Hackathon ke liye teammates chahiye"*\n• 🙋 *"Event volunteer kaise bane?"*\n• 💡 *"Naya event ya concert suggest karna hai"*\n• 🎫 *"Mera QR pass & status check karo"*\n• 📢 *"Koi campus notice ya circular hai?"*\n• 🚨 *"Grievance ya complaint file karna hai"*\n\nAage kya explore karna hai?`,
     actions: [
       { label: '🎉 Browse Events', route: 'events' },
       { label: '💡 Campus Wishlist', route: 'ideas' },
