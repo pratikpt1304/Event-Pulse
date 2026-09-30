@@ -585,4 +585,12 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
   container.querySelector('#mob-nav-profile')?.addEventListener('click', () => {
     openEditProfileModal(user, () => renderNavbar(container, activeRoute, navigateTo));
   });
+
+  // Live listener for real-time notification updates across events & approvals
+  if (user && !container._hasNotifListener) {
+    container._hasNotifListener = true;
+    window.addEventListener('ep_notification_update', () => {
+      renderNavbar(container, activeRoute, navigateTo);
+    });
+  }
 }

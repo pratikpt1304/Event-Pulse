@@ -1200,6 +1200,7 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
             endorsedRole: 'hod', endorsedAt: new Date().toISOString(),
             status: 'approved'
           });
+          window.dispatchEvent(new CustomEvent('ep_notification_update'));
           alert('✅ Event approved by HOD! It is now officially live for students.');
           renderExecutiveDashboardView(container, navigateTo);
         } catch (err) {
@@ -2978,6 +2979,7 @@ Prof. (Dr.) Dean — School of Engineering</textarea>
             endorsedRole: role || 'dean', endorsedAt: new Date().toISOString(),
             status: 'approved'
           });
+          window.dispatchEvent(new CustomEvent('ep_notification_update'));
           alert(`✅ Dean's Official Approval granted! Event is now live for all students.`);
           renderExecutiveDashboardView(container, navigateTo);
         } catch (err) {
@@ -4833,6 +4835,7 @@ Vice Chancellor, Sanjivani University</textarea>
             endorsedRole: 'vc', endorsedAt: new Date().toISOString(),
             status: 'approved'
           });
+          window.dispatchEvent(new CustomEvent('ep_notification_update'));
           alert(`👑 Vice Chancellor's Supreme Approval granted.`);
           renderExecutiveDashboardView(container, navigateTo);
         } catch (err) {

@@ -195,6 +195,74 @@ async function seedDemoUsers() {
     }
   }
 
+  // Seed Completed Event & Verified Certificate for Mihika Joshi
+  try {
+    const completedEventId = 'demo_event_ai_summit_2025';
+    await db.collection('events').doc(completedEventId).set({
+      id: completedEventId,
+      title: 'Sanjivani National AI Summit 2025',
+      category: 'Technical',
+      department: 'Integrated M.Tech (AIML)',
+      eligibleDepartments: ['All Departments'],
+      eligibleYears: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'Post Graduate'],
+      date: '2025-12-15',
+      time: '09:30 AM – 05:30 PM',
+      venue: 'APJ Abdul Kalam Convention Center, Sanjivani University',
+      maxParticipants: 500,
+      status: 'completed',
+      approvalStatus: 'approved',
+      hodApproved: true,
+      deanApproved: true,
+      vcApproved: true,
+      organizerId: 'demo_organizer',
+      organizerName: 'Hariprasath (Lead Organizer)',
+      completedAt: '2025-12-16T18:00:00.000Z',
+      completedBy: 'Hariprasath (Lead Organizer)',
+      createdAt: '2025-11-20T10:00:00.000Z',
+      updatedAt: '2025-12-16T18:00:00.000Z'
+    }, { merge: true });
+
+    const certId = 'CERT-SU-2025-0091';
+    await db.collection('certificates').doc(certId).set({
+      id: certId,
+      verificationId: certId,
+      userId: 'demo_student',
+      studentName: 'Mihika Joshi',
+      prn: 'SU2024IMT0091',
+      department: 'Integrated M.Tech (AIML)',
+      year: '1st Year',
+      division: 'IMT-A',
+      eventId: completedEventId,
+      eventTitle: 'Sanjivani National AI Summit 2025',
+      eventDate: '15 Dec 2025',
+      organizerName: 'Hariprasath (Lead Organizer)',
+      issuedAt: '2025-12-16T12:00:00.000Z',
+      status: 'issued',
+      valid: true
+    }, { merge: true });
+
+    await db.collection('registrations').doc('reg_mihika_summit_2025').set({
+      id: 'reg_mihika_summit_2025',
+      userId: 'demo_student',
+      eventId: completedEventId,
+      eventTitle: 'Sanjivani National AI Summit 2025',
+      studentName: 'Mihika Joshi',
+      prn: 'SU2024IMT0091',
+      department: 'Integrated M.Tech (AIML)',
+      year: '1st Year',
+      division: 'IMT-A',
+      status: 'attended',
+      attendance: 'present',
+      certificateId: certId,
+      registeredAt: '2025-11-25T14:30:00.000Z',
+      attendedAt: '2025-12-15T09:45:00.000Z',
+      decidedBy: 'Hariprasath (Organizer)'
+    }, { merge: true });
+    console.log('  └─ Verified Certificate & Registration seeded for Mihika Joshi');
+  } catch (cErr) {
+    console.warn('Certificate seed notice:', cErr.message);
+  }
+
   console.log('\n✨ Demo Seeding Process Complete!');
   console.log('You can now log in using any demo account with password: Password@123\n');
 }
