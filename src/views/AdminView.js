@@ -40,6 +40,12 @@ export async function renderAdminView(container, navigateTo) {
     return;
   }
 
+  // VC Sir's primary academic portal with Apex School Matrix is #executive
+  if (user?.role === 'vc') {
+    navigateTo('executive');
+    return;
+  }
+
   // Safe Instant In-Memory Cache Init (Never hangs or shows blank white screen)
   const cachedAllEvents = getCachedEventsSync() || [];
   let pendingEvents = cachedAllEvents.filter(e => e.status === 'pending_approval' || e.status === 'pending');
