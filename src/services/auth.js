@@ -47,8 +47,8 @@ export const DEMO_ACCOUNTS = {
     email: 'student@college.edu',
     name: 'Pratik Thorat (Student)',
     role: 'student',
-    department: 'Computer Science & Engineering',
-    year: '3rd Year',
+    department: 'Integrated M.Tech (AIML)',
+    year: '1st Year',
     division: 'A',
     prn: 'SU2024CS0142'
   },

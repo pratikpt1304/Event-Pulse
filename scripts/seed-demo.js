@@ -59,8 +59,8 @@ export const DEMO_USERS = [
     name: 'Pratik Thorat (Student)',
     role: 'student',
     prn: 'SU2024CS0142',
-    department: 'Computer Science & Engineering',
-    year: '3rd Year',
+    department: 'Integrated M.Tech (AIML)',
+    year: '1st Year',
     division: 'A'
   },
   {
