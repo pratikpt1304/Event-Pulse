@@ -27,7 +27,8 @@ export async function renderOrganizerDashView(container, navigateTo) {
 
   // Instant Cache-First Initialization
   let events = getCachedEventsSync() || [];
-  let selectedEventId = events.length > 0 ? events[0].id : null;
+  const defaultEvent = events.find(e => e.status === 'approved') || (events.length > 0 ? events[0] : null);
+  let selectedEventId = defaultEvent ? defaultEvent.id : null;
   let registrations = [];
   let volunteers = [];
   let complaints = [];
@@ -82,258 +83,452 @@ export async function renderOrganizerDashView(container, navigateTo) {
       return !q || (c.reporterName || '').toLowerCase().includes(q) || (c.description || '').toLowerCase().includes(q) || (c.ticketId || '').toLowerCase().includes(q);
     });
 
+    // Auto-adjust subtab if pending is empty but approved has attendees
+    if (regSubTab === 'pending' && pendingRegs.length === 0 && approvedRegs.length > 0) {
+      regSubTab = 'approved';
+    }
+
     container.innerHTML = `
-      <div>
+      <div class="org-hub-wrap">
         <style>
           .org-hub-wrap { font-family: inherit; }
 
-          /* ── Hero Header ── */
+          /* ── Modern Hero Banner ── */
           .org-hero {
-            background: linear-gradient(135deg, #0f0c29 0%, #1a1040 50%, #0d1b3e 100%);
-            border-radius: 20px;
-            padding: 2rem 2rem 1.5rem;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%);
+            border-radius: 18px;
+            padding: 1.75rem 2rem;
             margin-bottom: 1.5rem;
             position: relative;
             overflow: hidden;
-            border: 1px solid rgba(124,58,237,0.25);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+            box-shadow: 0 10px 30px -5px rgba(49, 46, 129, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.1);
           }
           .org-hero::before {
             content: '';
             position: absolute;
-            top: -60px; right: -60px;
+            top: -50px; right: -50px;
             width: 220px; height: 220px;
-            background: radial-gradient(circle, rgba(124,58,237,0.25) 0%, transparent 70%);
+            background: radial-gradient(circle, rgba(167, 139, 250, 0.25) 0%, transparent 70%);
             pointer-events: none;
           }
-          .org-hero::after {
-            content: '';
-            position: absolute;
-            bottom: -40px; left: -40px;
-            width: 160px; height: 160px;
-            background: radial-gradient(circle, rgba(16,185,129,0.12) 0%, transparent 70%);
-            pointer-events: none;
+          .org-hero-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 1.25rem;
+            position: relative;
+            z-index: 1;
           }
           .org-badge {
-            display: inline-flex; align-items: center; gap: 0.4rem;
-            background: rgba(124,58,237,0.2);
-            border: 1px solid rgba(124,58,237,0.4);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.25);
             padding: 0.25rem 0.75rem;
             border-radius: 999px;
-            font-size: 0.7rem; font-weight: 800;
-            color: #c4b5fd; text-transform: uppercase; letter-spacing: 0.05em;
-            margin-bottom: 0.75rem;
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: #e0e7ff;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.6rem;
           }
           .org-title {
-            font-size: 2rem; font-weight: 900;
-            color: #ffffff; margin: 0 0 0.35rem;
-            background: linear-gradient(135deg, #fff 40%, #c4b5fd);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            background-clip: text;
+            font-size: 1.85rem;
+            font-weight: 900;
+            color: #ffffff;
+            margin: 0 0 0.35rem;
+            letter-spacing: -0.02em;
           }
-          .org-subtitle { color: rgba(255,255,255,0.55); font-size: 0.9rem; margin: 0 0 1.5rem; }
-          .org-action-btns { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+          .org-subtitle {
+            color: #c7d2fe;
+            font-size: 0.9rem;
+            margin: 0;
+            max-width: 580px;
+            line-height: 1.5;
+          }
+          .org-action-btns {
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+            align-items: center;
+          }
           .org-btn-primary {
-            background: linear-gradient(135deg, #7c3aed, #6d28d9);
-            color: #fff; border: none; border-radius: 10px;
-            padding: 0.55rem 1.1rem; font-weight: 800; font-size: 0.85rem;
-            cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;
-            box-shadow: 0 4px 14px rgba(124,58,237,0.4);
-            transition: transform 0.15s, box-shadow 0.15s;
+            background: #ffffff;
+            color: #312e81;
+            border: none;
+            border-radius: 10px;
+            padding: 0.6rem 1.15rem;
+            font-weight: 800;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+            transition: all 0.15s ease;
           }
-          .org-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(124,58,237,0.5); }
+          .org-btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+            background: #f8fafc;
+          }
           .org-btn-ghost {
-            background: rgba(255,255,255,0.07);
-            color: rgba(255,255,255,0.85); border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 10px; padding: 0.55rem 1.1rem;
-            font-weight: 700; font-size: 0.85rem; cursor: pointer;
-            display: inline-flex; align-items: center; gap: 0.4rem;
-            transition: background 0.15s, border-color 0.15s;
+            background: rgba(255, 255, 255, 0.12);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(8px);
+            border-radius: 10px;
+            padding: 0.6rem 1.1rem;
+            font-weight: 700;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            transition: all 0.15s ease;
           }
-          .org-btn-ghost:hover { background: rgba(255,255,255,0.13); border-color: rgba(255,255,255,0.3); }
+          .org-btn-ghost:hover {
+            background: rgba(255, 255, 255, 0.22);
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateY(-1px);
+          }
 
-          /* ── Stat Cards ── */
-          .org-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
-          .org-stat-card {
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 14px; padding: 1.1rem 1.2rem;
-            position: relative; overflow: hidden;
-            transition: transform 0.15s;
-          }
-          .org-stat-card:hover { transform: translateY(-2px); }
-          .org-stat-card::before {
-            content: ''; position: absolute; top: 0; left: 0;
-            right: 0; height: 3px; border-radius: 14px 14px 0 0;
-          }
-          .org-stat-card.amber::before  { background: #f59e0b; }
-          .org-stat-card.blue::before   { background: #3b82f6; }
-          .org-stat-card.green::before  { background: #10b981; }
-          .org-stat-card.red::before    { background: #ef4444; }
-          .org-stat-card.slate::before  { background: #64748b; }
-          .org-stat-label { font-size: 0.7rem; font-weight: 800; color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.4rem; }
-          .org-stat-value { font-size: 2rem; font-weight: 900; line-height: 1; }
-          .org-stat-card.amber .org-stat-value { color: #fbbf24; }
-          .org-stat-card.blue .org-stat-value  { color: #60a5fa; }
-          .org-stat-card.green .org-stat-value { color: #34d399; }
-          .org-stat-card.red .org-stat-value   { color: #f87171; }
-          .org-stat-card.slate .org-stat-value { color: #94a3b8; }
-
-          /* ── Event Selector ── */
-          .org-event-bar {
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 16px; padding: 1.1rem 1.4rem;
+          /* ── Target Event Selector Bar ── */
+          .org-event-card {
+            background: #ffffff;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1.1rem 1.4rem;
             margin-bottom: 1.5rem;
-            display: flex; justify-content: space-between; align-items: center;
-            flex-wrap: wrap; gap: 1rem;
+            box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
           }
-          .org-event-label { font-weight: 800; font-size: 0.9rem; color: rgba(255,255,255,0.6); white-space: nowrap; }
+          .org-event-select-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            flex: 1;
+            min-width: 290px;
+          }
+          .org-event-label {
+            font-weight: 800;
+            font-size: 0.925rem;
+            color: #0f172a;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+          }
           #event-select-dropdown {
-            background: rgba(255,255,255,0.07) !important;
-            border: 1px solid rgba(255,255,255,0.18) !important;
-            color: #fff !important; border-radius: 10px !important;
-            font-weight: 700 !important; font-size: 0.9rem !important;
-            padding: 0.5rem 0.9rem !important; max-width: 480px;
+            background: #f8fafc !important;
+            border: 1.5px solid #cbd5e1 !important;
+            color: #0f172a !important;
+            border-radius: 10px !important;
+            font-weight: 700 !important;
+            font-size: 0.925rem !important;
+            padding: 0.55rem 1rem !important;
+            width: 100%;
+            max-width: 520px;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
           }
-          #event-select-dropdown option { background: #1e1b4b; color: #fff; }
+          #event-select-dropdown:focus {
+            border-color: #6366f1 !important;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
+          }
+          #event-select-dropdown option {
+            background: #ffffff;
+            color: #0f172a;
+          }
+          .org-event-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+          }
+          .org-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.35rem 0.8rem;
+            border-radius: 999px;
+            font-size: 0.775rem;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+          }
+          .org-status-pill.open {
+            background: #dcfce7;
+            color: #15803d;
+            border: 1px solid #bbf7d0;
+          }
+          .org-status-pill.closed {
+            background: #ede9fe;
+            color: #6d28d9;
+            border: 1px solid #ddd6fe;
+          }
+          .org-status-pill.approved {
+            background: #eff6ff;
+            color: #1d4ed8;
+            border: 1px solid #bfdbfe;
+          }
+          .org-status-pill.pending {
+            background: #fffbeb;
+            color: #b45309;
+            border: 1px solid #fde68a;
+          }
+          .org-btn-action {
+            background: #f8fafc;
+            color: #334155;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 9px;
+            padding: 0.4rem 0.85rem;
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            transition: all 0.15s ease;
+          }
+          .org-btn-action:hover {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+            color: #0f172a;
+          }
+          .org-btn-action.success {
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: #ffffff;
+            border: none;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+          }
+          .org-btn-action.success:hover {
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+            transform: translateY(-1px);
+          }
 
-          /* ── Event Action Badges ── */
-          .org-evbadge {
-            display: inline-flex; align-items: center; gap: 0.35rem;
-            padding: 0.3rem 0.75rem; border-radius: 999px;
-            font-size: 0.75rem; font-weight: 800;
+          /* ── High-Contrast Stat Cards ── */
+          .org-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
           }
-          .org-evbadge.open  { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
-          .org-evbadge.approved { background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
-          .org-evbadge.closed { background: rgba(124,58,237,0.15); color: #c4b5fd; border: 1px solid rgba(124,58,237,0.3); }
-          .org-evbtn {
-            background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.8);
-            border: 1px solid rgba(255,255,255,0.15); border-radius: 8px;
-            padding: 0.3rem 0.75rem; font-size: 0.75rem; font-weight: 700; cursor: pointer;
-            transition: background 0.15s;
+          .org-metric-card {
+            background: #ffffff;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1.15rem 1.25rem;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
           }
-          .org-evbtn:hover { background: rgba(255,255,255,0.13); }
-          .org-evbtn.green { background: rgba(16,185,129,0.2); color: #34d399; border-color: rgba(16,185,129,0.4); }
-          .org-evbtn.green:hover { background: rgba(16,185,129,0.3); }
+          .org-metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.07);
+          }
+          .org-metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 4.5px;
+            border-radius: 16px 0 0 16px;
+          }
+          .org-metric-card.amber::before { background: #f59e0b; }
+          .org-metric-card.blue::before { background: #3b82f6; }
+          .org-metric-card.green::before { background: #10b981; }
+          .org-metric-card.red::before { background: #ef4444; }
+          .org-metric-card.slate::before { background: #64748b; }
 
-          /* ── Section Tabs ── */
-          .org-tabs { display: flex; gap: 0.4rem; margin-bottom: 1.5rem; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem; }
-          .org-tab {
-            background: transparent; color: rgba(255,255,255,0.5);
-            border: 1px solid transparent; border-radius: 10px;
-            padding: 0.45rem 0.9rem; font-size: 0.82rem; font-weight: 700;
-            cursor: pointer; transition: all 0.15s;
+          .org-metric-label {
+            font-size: 0.74rem;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
           }
-          .org-tab:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.8); }
-          .org-tab.active {
-            background: rgba(124,58,237,0.2); color: #c4b5fd;
-            border-color: rgba(124,58,237,0.4);
+          .org-metric-val {
+            font-size: 2.1rem;
+            font-weight: 900;
+            line-height: 1.1;
+            margin-top: 0.35rem;
           }
-          .org-tab.danger { color: rgba(239,68,68,0.7); }
-          .org-tab.danger.active { background: rgba(239,68,68,0.15); color: #f87171; border-color: rgba(239,68,68,0.3); }
+          .org-metric-card.amber .org-metric-val { color: #d97706; }
+          .org-metric-card.blue .org-metric-val { color: #2563eb; }
+          .org-metric-card.green .org-metric-val { color: #059669; }
+          .org-metric-card.red .org-metric-val { color: #dc2626; }
+          .org-metric-card.slate .org-metric-val { color: #475569; }
 
-          /* ── Inner Cards (table containers etc) ── */
-          .org-inner-card {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 16px; padding: 1.5rem;
+          /* ── Modern Segmented Section Tabs ── */
+          .org-nav-tabs {
+            display: flex;
+            gap: 0.35rem;
+            background: #e2e8f0;
+            padding: 5px;
+            border-radius: 14px;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+          }
+          .org-nav-tab {
+            background: transparent;
+            color: #475569;
+            border: none;
+            padding: 0.55rem 1.15rem;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+          }
+          .org-nav-tab:hover {
+            color: #0f172a;
+            background: rgba(255, 255, 255, 0.5);
+          }
+          .org-nav-tab.active {
+            background: #ffffff;
+            color: #4338ca;
+            font-weight: 800;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+          }
+          .org-nav-tab.danger {
+            color: #b91c1c;
+          }
+          .org-nav-tab.danger.active {
+            background: #ffffff;
+            color: #dc2626;
+            box-shadow: 0 2px 8px rgba(220, 38, 38, 0.12);
+          }
+          .org-tab-badge {
+            background: rgba(67, 56, 202, 0.12);
+            color: #4338ca;
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 2px 7px;
+            border-radius: 999px;
+          }
+          .org-nav-tab.active .org-tab-badge {
+            background: #4338ca;
+            color: #ffffff;
           }
         </style>
 
-        <div class="org-hub-wrap">
-
-          <!-- ── Hero Header ── -->
-          <div class="org-hero">
-            <div class="org-badge">🎛️ Event Operations &amp; Attendance Console</div>
-            <h1 class="org-title">Organizer Command Hub</h1>
-            <p class="org-subtitle">Review pending student approvals, mark attendance, issue certificates &amp; manage events.</p>
+        <!-- ── Top Hero Banner ── -->
+        <div class="org-hero">
+          <div class="org-hero-top">
+            <div>
+              <div class="org-badge">🎛️ Event Operations &amp; Attendance Console</div>
+              <h1 class="org-title">Organizer Command Hub</h1>
+              <p class="org-subtitle">
+                Review student applications, take live attendance via QR scan, award certificates, and manage participant rosters.
+              </p>
+            </div>
             <div class="org-action-btns">
               <button class="org-btn-primary" id="btn-scan-qr">📷 Scan Student QR</button>
-              <button class="org-btn-ghost" id="btn-sync-organizer-live" title="Fetch fresh data from cloud">🔄 Sync Live Data</button>
-              <button class="org-btn-ghost" id="btn-export-master">📊 Master CSV Report</button>
+              <button class="org-btn-ghost" id="btn-sync-organizer-live" title="Fetch fresh registrations from database">🔄 Sync Live</button>
+              <button class="org-btn-ghost" id="btn-export-master">📊 Master CSV</button>
               <button class="org-btn-ghost" id="btn-create-event">➕ Create Event</button>
             </div>
           </div>
+        </div>
 
-          <!-- ── Event Selector Bar ── -->
-          <div class="org-event-bar">
-            <div style="display:flex;align-items:center;gap:1rem;flex:1;min-width:280px;">
-              <span class="org-event-label">🎯 Target Event:</span>
-              <select id="event-select-dropdown">
-                ${events.length === 0 ? `<option value="">No events found — click "Create Event" to post one.</option>` : ''}
-                ${events.map(e => `
-                  <option value="${e.id}" ${e.id === selectedEventId ? 'selected' : ''}>
-                    ${e.status === 'completed' ? '🏁 [COMPLETED]' : (e.status === 'approved' ? '🟢 [ACTIVE]' : '⏳ [PENDING]')} ${e.title}
-                  </option>
-                `).join('')}
-              </select>
-            </div>
-
-            ${selectedEvent ? `
-              <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
-                ${selectedEvent.visibility === 'closed' ? `
-                  <span class="org-evbadge closed">🔒 CLOSED EVENT (${allowedParticipantsList.length})</span>
-                  <button id="btn-toggle-event-visibility" class="org-evbtn">🌐 Switch to Open</button>
-                ` : `
-                  <span class="org-evbadge open">🌐 OPEN EVENT</span>
-                  <button id="btn-toggle-event-visibility" class="org-evbtn">🔒 Switch to Closed</button>
-                `}
-
-                ${selectedEvent.status === 'completed' ? `
-                  <span class="org-evbadge closed">🏁 COMPLETED</span>
-                  <button id="btn-reopen-event" class="org-evbtn">↺ Reopen</button>
-                ` : `
-                  <span class="org-evbadge approved">Status: ${selectedEvent.status.toUpperCase()}</span>
-                  <button id="btn-complete-event" class="org-evbtn green">🏁 Mark Completed</button>
-                `}
-                <button id="btn-export-this-event" class="org-evbtn" title="Download attendance sheet for HOD">📥 Export CSV</button>
-              </div>
-            ` : ''}
+        <!-- ── Target Event Selector Bar ── -->
+        <div class="org-event-card">
+          <div class="org-event-select-wrap">
+            <span class="org-event-label">🎯 Target Event:</span>
+            <select id="event-select-dropdown">
+              ${events.length === 0 ? `<option value="">No events found. Click "Create Event" to post one.</option>` : ''}
+              ${events.map(e => `
+                <option value="${e.id}" ${e.id === selectedEventId ? 'selected' : ''}>
+                  ${e.status === 'completed' ? '🏁 [COMPLETED] ' : (e.status === 'approved' ? '🟢 [ACTIVE] ' : '⏳ [PENDING] ')} ${e.title}
+                </option>
+              `).join('')}
+            </select>
           </div>
 
-          <!-- ── Stat Cards ── -->
-          <div class="org-stats">
-            <div class="org-stat-card amber">
-              <div class="org-stat-label">⏳ Pending Approvals</div>
-              <div class="org-stat-value">${pendingRegs.length}</div>
-            </div>
-            <div class="org-stat-card blue">
-              <div class="org-stat-label">✅ Approved Passes</div>
-              <div class="org-stat-value">${approvedRegs.length}</div>
-            </div>
-            <div class="org-stat-card green">
-              <div class="org-stat-label">🟢 Marked Present</div>
-              <div class="org-stat-value">${presentCount}</div>
-            </div>
-            <div class="org-stat-card red">
-              <div class="org-stat-label">🔴 Marked Absent</div>
-              <div class="org-stat-value">${absentCount}</div>
-            </div>
-            <div class="org-stat-card slate">
-              <div class="org-stat-label">❌ Rejected Apps</div>
-              <div class="org-stat-value">${rejectedRegs.length}</div>
-            </div>
-          </div>
+          ${selectedEvent ? `
+            <div class="org-event-actions">
+              ${selectedEvent.visibility === 'closed' ? `
+                <span class="org-status-pill closed">🔒 CLOSED (${allowedParticipantsList.length})</span>
+                <button id="btn-toggle-event-visibility" class="org-btn-action">🌐 Switch to Open</button>
+              ` : `
+                <span class="org-status-pill open">🌐 OPEN EVENT</span>
+                <button id="btn-toggle-event-visibility" class="org-btn-action">🔒 Switch to Closed</button>
+              `}
 
-          <!-- ── Section Switcher Tabs ── -->
-          <div class="org-tabs">
-            <button class="org-tab ${activeTab === 'registrations' ? 'active' : ''}" data-tab="registrations">
-              📋 Registrations &amp; Attendance (${registrations.length})
-            </button>
-            <button class="org-tab ${activeTab === 'participants' ? 'active' : ''}" data-tab="participants">
-              👥 Allowed Participants ${selectedEvent?.visibility === 'closed' ? `🔒` : ''} (${allowedParticipantsList.length})
-            </button>
-            <button class="org-tab ${activeTab === 'volunteers' ? 'active' : ''}" data-tab="volunteers">
-              🙋 Volunteer Crew (${volunteers.length})
-            </button>
-            <button class="org-tab ${activeTab === 'grievances' ? 'active' : ''} ${complaints.length > 0 ? 'danger' : ''}" data-tab="grievances">
-              🚨 Incident Grievances (${complaints.length})
-            </button>
-            <button class="org-tab ${activeTab === 'history' ? 'active' : ''}" data-tab="history">
-              📚 Event History &amp; Archives (${completedEvents.length})
-            </button>
+              ${selectedEvent.status === 'completed' ? `
+                <span class="org-status-pill closed">🏁 ARCHIVED</span>
+                <button id="btn-reopen-event" class="org-btn-action">↺ Reopen</button>
+              ` : `
+                <span class="org-status-pill ${selectedEvent.status === 'approved' ? 'approved' : 'pending'}">
+                  Status: ${selectedEvent.status.toUpperCase()}
+                </span>
+                <button id="btn-complete-event" class="org-btn-action success">🏁 Mark Completed</button>
+              `}
+              <button id="btn-export-this-event" class="org-btn-action" title="Download attendance sheet for HOD">📥 Export CSV</button>
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- ── High-Contrast Stat Cards ── -->
+        <div class="org-stats-grid">
+          <div class="org-metric-card amber">
+            <div class="org-metric-label">⏳ Pending Approvals</div>
+            <div class="org-metric-val">${pendingRegs.length}</div>
           </div>
+          <div class="org-metric-card blue">
+            <div class="org-metric-label">✅ Approved Passes</div>
+            <div class="org-metric-val">${approvedRegs.length}</div>
+          </div>
+          <div class="org-metric-card green">
+            <div class="org-metric-label">🟢 Marked Present</div>
+            <div class="org-metric-val">${presentCount}</div>
+          </div>
+          <div class="org-metric-card red">
+            <div class="org-metric-label">🔴 Marked Absent</div>
+            <div class="org-metric-val">${absentCount}</div>
+          </div>
+          <div class="org-metric-card slate">
+            <div class="org-metric-label">❌ Rejected Apps</div>
+            <div class="org-metric-val">${rejectedRegs.length}</div>
+          </div>
+        </div>
+
+        <!-- ── Section Switcher Tabs ── -->
+        <div class="org-nav-tabs">
+          <button class="org-nav-tab ${activeTab === 'registrations' ? 'active' : ''}" data-tab="registrations">
+            📋 Registrations &amp; Attendance <span class="org-tab-badge">${registrations.length}</span>
+          </button>
+          <button class="org-nav-tab ${activeTab === 'participants' ? 'active' : ''}" data-tab="participants">
+            👥 Allowed Participants ${selectedEvent?.visibility === 'closed' ? `🔒` : ''} <span class="org-tab-badge">${allowedParticipantsList.length}</span>
+          </button>
+          <button class="org-nav-tab ${activeTab === 'volunteers' ? 'active' : ''}" data-tab="volunteers">
+            🙋 Volunteer Crew <span class="org-tab-badge">${volunteers.length}</span>
+          </button>
+          <button class="org-nav-tab ${activeTab === 'grievances' ? 'active' : ''} ${complaints.length > 0 ? 'danger' : ''}" data-tab="grievances">
+            🚨 Incident Grievances <span class="org-tab-badge">${complaints.length}</span>
+          </button>
+          <button class="org-nav-tab ${activeTab === 'history' ? 'active' : ''}" data-tab="history">
+            📚 History &amp; Archives <span class="org-tab-badge">${completedEvents.length}</span>
+          </button>
+        </div>
 
         <!-- ========================================== -->
         <!-- TAB 1: REGISTRATIONS & ATTENDANCE         -->
@@ -953,7 +1148,7 @@ export async function renderOrganizerDashView(container, navigateTo) {
     // =========================================================================
 
     // Tab Navigation
-    container.querySelectorAll('.cat-tab, .org-tab').forEach(tab => {
+    container.querySelectorAll('.cat-tab, .org-tab, .org-nav-tab').forEach(tab => {
       tab.addEventListener('click', (e) => {
         activeTab = e.currentTarget.getAttribute('data-tab');
         render();
@@ -1682,7 +1877,8 @@ export async function renderOrganizerDashView(container, navigateTo) {
       if (fetchedEvents && fetchedEvents.length > 0) {
         events = fetchedEvents;
         if (!selectedEventId || !events.some(e => e.id === selectedEventId)) {
-          selectedEventId = events[0].id;
+          const defaultFetched = events.find(e => e.status === 'approved') || events[0];
+          selectedEventId = defaultFetched.id;
         }
       }
       if (selectedEventId) {
