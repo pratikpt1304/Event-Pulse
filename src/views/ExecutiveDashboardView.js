@@ -368,7 +368,7 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
         .hod-name {
           font-size: 1.05rem;
           font-weight: 800;
-          color: var(--text-primary);
+          color: #ffffff;
         }
 
         .hod-dept-tag {
@@ -1811,7 +1811,7 @@ Prof. (Dr.) Dean — School of Engineering</textarea>
         .dean-title {
           font-size: 1.1rem;
           font-weight: 800;
-          color: var(--text-primary);
+          color: #ffffff;
         }
 
         .dean-scope-tag {
