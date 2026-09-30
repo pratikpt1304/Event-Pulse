@@ -59,14 +59,19 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
               <span>${user.role === 'vc' ? '👑' : '🏛️'}</span> ${user.role === 'vc' ? 'Apex Executive Hub' : 'Executive Hub'}
             </a>
           ` : ''}
-          ${user && (user.role === 'organizer' || isUserAdmin(user)) ? `
+          ${user && user.role === 'organizer' ? `
             <a class="nav-link ${activeRoute === 'organizer' ? 'active' : ''}" id="nav-organizer" style="cursor: pointer; color: var(--primary);">
               <span>⚡</span> Organizer Hub
             </a>
           ` : ''}
-          ${user && (user.role === 'vc' || isUserAdmin(user)) ? `
+          ${user && user.role === 'admin' ? `
             <a class="nav-link ${activeRoute === 'admin' ? 'active' : ''}" id="nav-admin" style="cursor: pointer; color: #ef4444; font-weight: 700;">
               <span>🛡️</span> Admin Console
+            </a>
+          ` : ''}
+          ${user ? `
+            <a class="nav-link ${activeRoute === 'events' ? 'active' : ''}" id="nav-events-link" style="cursor: pointer; color: var(--text-secondary); font-weight: 600;">
+              <span>🎪</span> Events
             </a>
           ` : ''}
         </div>
@@ -176,8 +181,8 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
                   <button class="nav-dropdown-item" id="btn-menu-executive" style="color: #8b5cf6; font-weight: 800; background: rgba(139, 92, 246, 0.1); margin-bottom: 0.25rem;">
                     👑 Apex Executive Portal
                   </button>
-                  <button class="nav-dropdown-item" id="btn-menu-admin" style="color: #ef4444; font-weight: 700; background: rgba(239, 68, 68, 0.08); margin-bottom: 0.25rem;">
-                    🛡️ Central Admin Console
+                  <button class="nav-dropdown-item" id="btn-menu-events">
+                    🎪 Campus Events
                   </button>
                 ` : ['hod', 'dean'].includes(user.role) ? `
                   <!-- EXECUTIVE SPECIFIC MENU: Clean & Faculty-Only -->
