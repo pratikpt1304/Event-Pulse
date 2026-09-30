@@ -50,13 +50,13 @@ export const ROUTES_CONFIG = {
 export function getRoleDefaultRoute(role) {
   switch (role) {
     case 'admin':
-    case 'vc':
       return 'admin';
+    case 'vc':
+    case 'dean':
+    case 'hod':
+      return 'executive';
     case 'organizer':
       return 'organizer';
-    case 'hod':
-    case 'dean':
-      return 'executive';
     case 'student':
     default:
       return 'events';

@@ -54,22 +54,17 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
 
         <!-- CENTER: Main Navigation Links (Desktop) -->
         <div class="nav-links">
-          ${user && user.role === 'vc' ? `
-            <a class="nav-link ${activeRoute === 'admin' ? 'active' : ''}" id="nav-admin" style="cursor: pointer; color: #10b981; font-weight: 800;">
-              <span>👑</span> VC Command Console
+          ${user && ['hod', 'dean', 'vc'].includes(user.role) ? `
+            <a class="nav-link ${activeRoute === 'executive' ? 'active' : ''}" id="nav-executive" style="cursor: pointer; color: ${user.role === 'vc' ? '#8b5cf6' : '#3b82f6'}; font-weight: 800;">
+              <span>${user.role === 'vc' ? '👑' : '🏛️'}</span> ${user.role === 'vc' ? 'Apex Executive Hub' : 'Executive Hub'}
             </a>
           ` : ''}
-          ${user && user.role !== 'vc' && (user.role === 'organizer' || isUserAdmin(user)) ? `
+          ${user && (user.role === 'organizer' || isUserAdmin(user)) ? `
             <a class="nav-link ${activeRoute === 'organizer' ? 'active' : ''}" id="nav-organizer" style="cursor: pointer; color: var(--primary);">
               <span>⚡</span> Organizer Hub
             </a>
           ` : ''}
-          ${user && user.role !== 'vc' && (['hod', 'dean'].includes(user.role) || isUserAdmin(user)) ? `
-            <a class="nav-link ${activeRoute === 'executive' ? 'active' : ''}" id="nav-executive" style="cursor: pointer; color: #3b82f6; font-weight: 700;">
-              <span>🏛️</span> Executive Hub
-            </a>
-          ` : ''}
-          ${user && user.role !== 'vc' && isUserAdmin(user) ? `
+          ${user && (user.role === 'vc' || isUserAdmin(user)) ? `
             <a class="nav-link ${activeRoute === 'admin' ? 'active' : ''}" id="nav-admin" style="cursor: pointer; color: #ef4444; font-weight: 700;">
               <span>🛡️</span> Admin Console
             </a>
@@ -178,8 +173,11 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
 
                 ${user.role === 'vc' ? `
                   <!-- VC SPECIFIC MENU -->
-                  <button class="nav-dropdown-item" id="btn-menu-admin" style="color: #10b981; font-weight: 700; background: rgba(16, 185, 129, 0.08); margin-bottom: 0.25rem;">
-                    👑 VC Command Console
+                  <button class="nav-dropdown-item" id="btn-menu-executive" style="color: #8b5cf6; font-weight: 800; background: rgba(139, 92, 246, 0.1); margin-bottom: 0.25rem;">
+                    👑 Apex Executive Portal
+                  </button>
+                  <button class="nav-dropdown-item" id="btn-menu-admin" style="color: #ef4444; font-weight: 700; background: rgba(239, 68, 68, 0.08); margin-bottom: 0.25rem;">
+                    🛡️ Central Admin Console
                   </button>
                 ` : ['hod', 'dean'].includes(user.role) ? `
                   <!-- EXECUTIVE SPECIFIC MENU: Clean & Faculty-Only -->
@@ -334,7 +332,7 @@ export async function renderNavbar(container, activeRoute, navigateTo) {
   // Navigation Links
   container.querySelector('#nav-brand')?.addEventListener('click', () => {
     if (user && user.role === 'vc') {
-      navigateTo('admin');
+      navigateTo('executive');
     } else if (user && ['hod', 'dean'].includes(user.role)) {
       navigateTo('executive');
     } else if (user && user.role === 'organizer') {
