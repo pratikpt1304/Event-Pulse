@@ -3954,76 +3954,6 @@ Vice Chancellor, Sanjivani University</textarea>
           </div>
         </div>
 
-        <!-- 4-Tier Interactive Drilldown Toolbar (University -> School -> Department -> Year) -->
-        <div class="vc-drilldown-bar">
-          <!-- Dynamic Breadcrumb -->
-          <div class="vc-breadcrumb">
-            <span class="vc-crumb ${selectedSchool === 'all' ? 'active' : ''}" id="crumb-uni">
-              🏛️ ${UNIVERSITY_NAME}
-            </span>
-            <span class="vc-crumb-sep">›</span>
-            <span class="vc-crumb ${selectedSchool !== 'all' && selectedDept === 'all' ? 'active' : ''}" id="crumb-school">
-              ${selectedSchool === 'all' ? 'All Schools (Apex)' : selectedSchool}
-            </span>
-            <span class="vc-crumb-sep">›</span>
-            <span class="vc-crumb ${selectedDept !== 'all' && selectedYear === 'all' ? 'active' : ''}" id="crumb-dept">
-              ${selectedDept === 'all' ? 'All Departments' : selectedDept}
-            </span>
-            <span class="vc-crumb-sep">›</span>
-            <span class="vc-crumb ${selectedYear !== 'all' ? 'active' : ''}" id="crumb-year">
-              ${selectedYear === 'all' ? 'All Years' : selectedYear}
-            </span>
-          </div>
-
-          <!-- Selectors: School, Department, Search -->
-          <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center; justify-content:space-between;">
-            <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
-              <!-- School Selector -->
-              <select class="vc-select-input" id="vc-school-select">
-                <option value="all" ${selectedSchool === 'all' ? 'selected' : ''}>🌐 All Schools (Apex View)</option>
-                ${SCHOOLS.map(s => `<option value="${s}" ${selectedSchool === s ? 'selected' : ''}>🏫 ${s}</option>`).join('')}
-              </select>
-
-              <!-- Department Selector (Dynamic) -->
-              <select class="vc-select-input" id="vc-dept-select">
-                <option value="all" ${selectedDept === 'all' ? 'selected' : ''}>🏛️ All Departments</option>
-                ${availableDepts.map(d => `<option value="${d}" ${selectedDept === d ? 'selected' : ''}>${d}</option>`).join('')}
-              </select>
-
-              <!-- Year Filter Buttons -->
-              <div style="display:flex; gap:4px; align-items:center; margin-left:4px;">
-                <span style="font-size:0.72rem; color:var(--text-secondary); font-weight:600;">Year:</span>
-                <button class="vc-filter-btn ${selectedYear === 'all' ? 'active' : ''}" data-year="all">All</button>
-                <button class="vc-filter-btn ${selectedYear === '1st Year' ? 'active' : ''}" data-year="1st Year">1st Yr</button>
-                <button class="vc-filter-btn ${selectedYear === '2nd Year' ? 'active' : ''}" data-year="2nd Year">2nd Yr</button>
-                <button class="vc-filter-btn ${selectedYear === '3rd Year' ? 'active' : ''}" data-year="3rd Year">3rd Yr</button>
-                <button class="vc-filter-btn ${selectedYear === '4th Year' ? 'active' : ''}" data-year="4th Year">4th Yr</button>
-              </div>
-
-              <!-- Standing Filter Buttons -->
-              <div style="display:flex; gap:4px; align-items:center; margin-left:4px;">
-                <span style="font-size:0.72rem; color:var(--text-secondary); font-weight:600;">Standing:</span>
-                <button class="vc-filter-btn ${selectedStanding === 'all' ? 'active' : ''}" data-standing="all">All</button>
-                <button class="vc-filter-btn ${selectedStanding === 'star' ? 'active' : ''}" data-standing="star">🏆 Star Achievers</button>
-                <button class="vc-filter-btn ${selectedStanding === 'innovator' ? 'active' : ''}" data-standing="innovator">🚀 Innovators</button>
-                <button class="vc-filter-btn ${selectedStanding === 'active' ? 'active' : ''}" data-standing="active">🟢 Active</button>
-                <button class="vc-filter-btn ${selectedStanding === 'inactive' ? 'active' : ''}" data-standing="inactive">⚠️ Inactive</button>
-              </div>
-            </div>
-
-            <!-- Global Search Box -->
-            <div style="min-width:220px; flex:1; max-width:320px;">
-              <input 
-                type="text" 
-                id="vc-search-input" 
-                value="${searchQuery}" 
-                placeholder="🔍 Search name, PRN, email, dept, school..." 
-                style="width:100%; box-sizing:border-box; background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:8px; padding:6px 12px; font-size:0.8rem; color:var(--text-primary); outline:none;"
-              />
-            </div>
-          </div>
-        </div>
-
         <!-- 5-Metric Apex University Stats Strip -->
         <div class="vc-stats">
           <div class="vc-stat">
@@ -4194,6 +4124,76 @@ Vice Chancellor, Sanjivani University</textarea>
               <button class="vc-action-btn" id="btn-export-students-tab" style="background:rgba(245,158,11,0.15); color:#f59e0b; border-color:rgba(245,158,11,0.3);">
                 📥 Export Student Roster (CSV)
               </button>
+            </div>
+
+            <!-- 4-Tier Interactive Drilldown Toolbar (University -> School -> Department -> Year) -->
+            <div class="vc-drilldown-bar" style="margin: 0.75rem 1.25rem 1.25rem; border: 1px solid var(--border-subtle); background: var(--bg-surface-elevated);">
+              <!-- Dynamic Breadcrumb -->
+              <div class="vc-breadcrumb">
+                <span class="vc-crumb ${selectedSchool === 'all' ? 'active' : ''}" id="crumb-uni">
+                  🏛️ ${UNIVERSITY_NAME}
+                </span>
+                <span class="vc-crumb-sep">›</span>
+                <span class="vc-crumb ${selectedSchool !== 'all' && selectedDept === 'all' ? 'active' : ''}" id="crumb-school">
+                  ${selectedSchool === 'all' ? 'All Schools (Apex)' : selectedSchool}
+                </span>
+                <span class="vc-crumb-sep">›</span>
+                <span class="vc-crumb ${selectedDept !== 'all' && selectedYear === 'all' ? 'active' : ''}" id="crumb-dept">
+                  ${selectedDept === 'all' ? 'All Departments' : selectedDept}
+                </span>
+                <span class="vc-crumb-sep">›</span>
+                <span class="vc-crumb ${selectedYear !== 'all' ? 'active' : ''}" id="crumb-year">
+                  ${selectedYear === 'all' ? 'All Years' : selectedYear}
+                </span>
+              </div>
+
+              <!-- Selectors: School, Department, Search -->
+              <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center; justify-content:space-between;">
+                <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                  <!-- School Selector -->
+                  <select class="vc-select-input" id="vc-school-select">
+                    <option value="all" ${selectedSchool === 'all' ? 'selected' : ''}>🌐 All Schools (Apex View)</option>
+                    ${SCHOOLS.map(s => `<option value="${s}" ${selectedSchool === s ? 'selected' : ''}>🏫 ${s}</option>`).join('')}
+                  </select>
+
+                  <!-- Department Selector (Dynamic) -->
+                  <select class="vc-select-input" id="vc-dept-select">
+                    <option value="all" ${selectedDept === 'all' ? 'selected' : ''}>🏛️ All Departments</option>
+                    ${availableDepts.map(d => `<option value="${d}" ${selectedDept === d ? 'selected' : ''}>${d}</option>`).join('')}
+                  </select>
+
+                  <!-- Year Filter Buttons -->
+                  <div style="display:flex; gap:4px; align-items:center; margin-left:4px;">
+                    <span style="font-size:0.72rem; color:var(--text-secondary); font-weight:600;">Year:</span>
+                    <button class="vc-filter-btn ${selectedYear === 'all' ? 'active' : ''}" data-year="all">All</button>
+                    <button class="vc-filter-btn ${selectedYear === '1st Year' ? 'active' : ''}" data-year="1st Year">1st Yr</button>
+                    <button class="vc-filter-btn ${selectedYear === '2nd Year' ? 'active' : ''}" data-year="2nd Year">2nd Yr</button>
+                    <button class="vc-filter-btn ${selectedYear === '3rd Year' ? 'active' : ''}" data-year="3rd Year">3rd Yr</button>
+                    <button class="vc-filter-btn ${selectedYear === '4th Year' ? 'active' : ''}" data-year="4th Year">4th Yr</button>
+                  </div>
+
+                  <!-- Standing Filter Buttons -->
+                  <div style="display:flex; gap:4px; align-items:center; margin-left:4px;">
+                    <span style="font-size:0.72rem; color:var(--text-secondary); font-weight:600;">Standing:</span>
+                    <button class="vc-filter-btn ${selectedStanding === 'all' ? 'active' : ''}" data-standing="all">All</button>
+                    <button class="vc-filter-btn ${selectedStanding === 'star' ? 'active' : ''}" data-standing="star">🏆 Star Achievers</button>
+                    <button class="vc-filter-btn ${selectedStanding === 'innovator' ? 'active' : ''}" data-standing="innovator">🚀 Innovators</button>
+                    <button class="vc-filter-btn ${selectedStanding === 'active' ? 'active' : ''}" data-standing="active">🟢 Active</button>
+                    <button class="vc-filter-btn ${selectedStanding === 'inactive' ? 'active' : ''}" data-standing="inactive">⚠️ Inactive</button>
+                  </div>
+                </div>
+
+                <!-- Global Search Box -->
+                <div style="min-width:220px; flex:1; max-width:320px;">
+                  <input 
+                    type="text" 
+                    id="vc-search-input" 
+                    value="${searchQuery}" 
+                    placeholder="🔍 Search name, PRN, email, dept, school..." 
+                    style="width:100%; box-sizing:border-box; background:var(--bg-surface); border:1px solid var(--border-subtle); border-radius:8px; padding:6px 12px; font-size:0.8rem; color:var(--text-primary); outline:none;"
+                  />
+                </div>
+              </div>
             </div>
 
             <div style="overflow-x: auto;">
