@@ -45,7 +45,7 @@ export const DEMO_ACCOUNTS = {
   'student@college.edu': {
     uid: 'demo_student',
     email: 'student@college.edu',
-    name: 'Rahul Sharma (Student)',
+    name: 'Pratik Thorat (Student)',
     role: 'student',
     department: 'Computer Science & Engineering',
     year: '3rd Year',
@@ -55,7 +55,7 @@ export const DEMO_ACCOUNTS = {
   'organizer@college.edu': {
     uid: 'demo_organizer',
     email: 'organizer@college.edu',
-    name: 'Pratik Thorat (Event Lead)',
+    name: 'Hariprasath Sir (Event Lead)',
     role: 'organizer',
     department: 'Technology Council',
     year: 'Lead Organizer',
