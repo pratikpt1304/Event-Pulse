@@ -583,7 +583,7 @@ export function renderLoginView(container, navigateTo) {
 
         .ep-demo-grid-compact {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
+          grid-template-columns: repeat(auto-fit, minmax(115px, 1fr));
           gap: 6px;
         }
 
@@ -917,10 +917,10 @@ export function renderLoginView(container, navigateTo) {
                   <div class="ep-demo-grid-compact">
                     <!-- 1. Student -->
                     <button type="button" class="ep-demo-chip-btn" data-email="student@college.edu" title="Sign in as Student">
-                      <span class="role-icon">👨‍🎓</span>
+                      <span class="role-icon">👩‍🎓</span>
                       <div class="role-meta">
                         <span class="role-title">Student</span>
-                        <span class="role-sub">Rahul S.</span>
+                        <span class="role-sub">Mihika J.</span>
                       </div>
                     </button>
 
@@ -929,7 +929,7 @@ export function renderLoginView(container, navigateTo) {
                       <span class="role-icon">⚡</span>
                       <div class="role-meta">
                         <span class="role-title">Organizer</span>
-                        <span class="role-sub">Pratik T.</span>
+                        <span class="role-sub">Hariprasath</span>
                       </div>
                     </button>
 
@@ -957,15 +957,6 @@ export function renderLoginView(container, navigateTo) {
                       <div class="role-meta">
                         <span class="role-title">VC Sir</span>
                         <span class="role-sub">Vice Chancellor</span>
-                      </div>
-                    </button>
-
-                    <!-- 6. Central Admin -->
-                    <button type="button" class="ep-demo-chip-btn" data-email="admin@college.edu" title="Sign in as Central Admin">
-                      <span class="role-icon">🛡️</span>
-                      <div class="role-meta">
-                        <span class="role-title">Admin</span>
-                        <span class="role-sub">Superuser</span>
                       </div>
                     </button>
                   </div>
