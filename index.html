@@ -6,21 +6,40 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <title>EventPulse</title>
+    <title>EventPulse — University Event & Clearance Portal</title>
+    <meta name="description" content="Official university campus event discovery, smart QR pass generation, tiered administrative clearance (HOD, Dean, VC), and instant certificate validation." />
+    <meta name="theme-color" content="#7c3aed" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://eventpulse-su-34a42.web.app" />
+    <meta property="og:title" content="EventPulse — University Event & Clearance Portal" />
+    <meta property="og:description" content="Live campus events, secure digital passes, academic clearances, and instant verification." />
+    <meta property="og:image" content="https://eventpulse-su-34a42.web.app/logo.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="EventPulse — University Event & Clearance Portal" />
+    <meta name="twitter:description" content="Live campus events, secure digital passes, academic clearances, and instant verification." />
+    <meta name="twitter:image" content="https://eventpulse-su-34a42.web.app/logo.jpg" />
     <link rel="icon" type="image/jpeg" href="/logo.jpg" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
     <script>
-      // Clean any legacy rogue service worker and browser cache
+      // Clean any legacy caching service worker, but preserve Firebase Cloud Messaging
       if ('caches' in window) {
         caches.keys().then(function(names) {
-          names.forEach(function(name) { caches.delete(name); });
+          names.forEach(function(name) {
+            if (!name.includes('firebase')) caches.delete(name);
+          });
         });
       }
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(regs) {
-          for (var i = 0; i < regs.length; i++) { regs[i].unregister(); }
+          for (var i = 0; i < regs.length; i++) {
+            var url = (regs[i].active && regs[i].active.scriptURL) || '';
+            // Only unregister legacy workers, keep FCM worker
+            if (url && !url.includes('firebase-messaging-sw.js')) {
+              regs[i].unregister();
+            }
+          }
         }).catch(function() {});
       }
     </script>
