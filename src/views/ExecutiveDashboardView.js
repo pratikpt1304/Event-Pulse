@@ -366,9 +366,9 @@ async function renderHODPortal({ container, navigateTo, user, userDept, allEvent
         }
 
         .hod-name {
-          font-size: 1.05rem;
+          font-size: 1.15rem;
           font-weight: 800;
-          color: #ffffff;
+          color: #0f172a !important;
         }
 
         .hod-dept-tag {
@@ -1809,9 +1809,9 @@ Prof. (Dr.) Dean — School of Engineering</textarea>
         }
 
         .dean-title {
-          font-size: 1.1rem;
+          font-size: 1.15rem;
           font-weight: 800;
-          color: #ffffff;
+          color: #0f172a !important;
         }
 
         .dean-scope-tag {
@@ -3636,7 +3636,7 @@ Vice Chancellor, Sanjivani University</textarea>
         .vc-title {
           font-size: 1.15rem;
           font-weight: 800;
-          color: var(--text-primary);
+          color: #0f172a !important;
         }
 
         .vc-scope-tag {
