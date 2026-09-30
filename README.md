@@ -3,16 +3,16 @@
   <img src="public/logo.jpg" alt="EventPulse Logo" width="120" style="border-radius: 28px; box-shadow: 0 12px 36px rgba(124, 58, 237, 0.4);" />
 
   # ⚡ EventPulse
-  ### Next-Generation University Event & Campus Life Super-Platform
+  ### Next-Generation University Event & Academic Governance Super-Platform
 
   <p align="center">
-    <strong>Empowering university campuses with Cryptographic QR Entry Passes, AI Campus Copilot, Role-Scoped Academic Dashboards (HOD, Dean, VC), Teammate Squad Matchmaking, and High-DPI Notice Broadcasts.</strong>
+    <strong>Empowering universities with Cryptographic QR Entry Passes, 5-Tier Academic Governance (Student ➔ Organizer ➔ HOD ➔ Dean ➔ VC), Instant Client-Side PDF Certificate Generation, NAAC Criterion 5.3.3 Audits, and Real-Time Push & In-App Broadcasts.</strong>
   </p>
 
   [![Live App](https://img.shields.io/badge/Live%20Demo-EventPulse%20Web-7c3aed?style=for-the-badge&logo=firebase&logoColor=white)](https://eventpulse-su-34a42.web.app)
   [![Vite](https://img.shields.io/badge/Vite-6.x-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
   [![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%26%20Hosting-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
-  [![JavaScript](https://img.shields.io/badge/ES6+-Vanilla%20JS-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)](https://developer.mozilla.org/)
+  [![PDF-Lib](https://img.shields.io/badge/PDF--Lib-High--DPI%20Certs-E11D48?style=for-the-badge&logo=adobeacrobatreader&logoColor=white)](https://pdf-lib.js.org/)
   [![License: MIT](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)](LICENSE)
 
 </div>
@@ -21,69 +21,63 @@
 
 ## 🌟 Overview
 
-**EventPulse** is a university-scale event management and academic governance ecosystem engineered for modern campus operations. Built on zero-framework Vanilla ES6+, Vite 6, and reactive Firebase Firestore listeners, EventPulse unifies every stakeholder in university life &mdash; students, club organizers, department heads (HODs), academic deans, and the Vice Chancellor's office.
+**EventPulse** is a university-scale event management, student lifecycle, and academic governance ecosystem engineered for modern campus operations. Built on zero-framework Vanilla ES6+, Vite 6, and reactive Firebase Firestore listeners, EventPulse unifies every stakeholder in university life &mdash; students, club organizers, department heads (HODs), academic deans, and the Vice Chancellor's office.
 
 🌐 **Production Deployment**: [https://eventpulse-su-34a42.web.app](https://eventpulse-su-34a42.web.app)
 
 ---
 
-## 👥 Role & Permissions Matrix
+## 👥 Academic Role Hierarchy & Demo Accounts
 
-EventPulse enforces strict role separation across six university personas. Roles are never settable client-side; they are assigned by administrators or pre-provisioned via the `staffInvites` collection in Firestore.
+EventPulse enforces strict role separation across the university's academic governance hierarchy:
 
-| Persona | Role Key | Permissions & Scope | Onboarding Workflow |
+| Persona | Demo Email | Password | Academic Scope & Authority |
 |---|---|---|---|
-| **👨‍🎓 Student** | `student` | Browse events, claim single-use anti-fraud QR passes, view digital certificates, join squad matchmaking, submit wishlist ideas, and ask Q&A. | Self-registration via the **Student Sign Up** tab with college PRN and email verification. |
-| **⚡ Organizer** | `organizer` | Create & manage events, live camera gate pass scanner with haptic/audio validation, reply with `ORGANIZER VERIFIED` badges in Q&A, and export attendance CSVs. | Staff Invite issued by Admin (`staffInvites/{email}`). Cannot self-register. |
-| **📚 HOD** | `hod` | Department-scoped academic dashboard, approve and endorse departmental events, view student attendance numbers, and export NAAC Criterion 5 participation logs. | Staff Invite issued by Admin (`staffInvites/{email}`). Applied on first login. |
-| **🎓 Dean** | `dean` | School/Faculty-wide event oversight, cross-department metrics, inter-departmental event approvals, and institutional compliance reviews. | Staff Invite issued by Admin (`staffInvites/{email}`). Applied on first login. |
-| **👑 Vice Chancellor** | `vc` | University-wide executive dashboard, institutional health metrics, campus participation summaries, and flagship event oversight. | Staff Invite issued by Admin (`staffInvites/{email}`). Applied on first login. |
-| **🛡️ Administrator** | `admin` | Full platform control: issue staff invites, bulk CSV invite import with interactive validation preview, promote/demote user roles, broadcast notices, review grievances. | Pre-configured in `SUPER_ADMIN_EMAILS` or manually assigned in Firestore. |
+| **👩‍🎓 Student**<br>*(Mihika Joshi)* | `student@college.edu` | `Password@123` | Integrated M.Tech (AIML) 1st Year student. Event discovery, dynamic QR passes, verified certificate downloads, squad matchmaking, wishlist ideas, and incident grievances. |
+| **⚡ Organizer**<br>*(Hariprasath)* | `organizer@college.edu` | `Password@123` | Event proposal submission, **Multi-Tier Visual Approval Pipeline Tracker**, live camera QR gate attendance scanner, participant roster management, and CSV exports. |
+| **📚 HOD**<br>*(Dr. Arun Kulkarni)* | `hod@college.edu` | `Password@123` | Department-level academic jurisdiction (Integrated M.Tech AIML). Endorses/sanctions departmental events, monitors 1st&ndash;4th year student breakdown, resolves grievances, and exports **NAAC Criterion 5.3.3 Reports**. |
+| **🎓 Dean**<br>*(Dr. Neha Sharma)* | `dean@college.edu` | `Password@123` | School of Engineering & Technology oversight (11 Departments). Inter-departmental participation matrix, budgetary and venue sanctions, star achievers tracking, and school-wide compliance. |
+| **👑 Vice Chancellor**<br>*(Prof. K. V. Raman)* | `vc@college.edu` | `Password@123` | Supreme Executive Authority. **Apex Institutional Matrix**, NAAC/NIRF readiness metrics, **Universal Student Directory with 4-Tier Interactive Drilldown Filters**, University Ombudsman grievance redressal, and **Instant Campus-Wide Proclamation Broadcasts**. |
+
+> [!NOTE]
+> Demo accounts are accessible with 1-click directly from the **⚡ Quick Demo Logins** grid on the `#login` view.
 
 ---
 
-## 🔐 Staff Invites Architecture
+## 🚀 Key Platform Features
 
-Staff members (**Organizer, HOD, Dean, VC, Admin**) cannot create accounts through the student sign-up form. Their roles are provisioned securely:
+### 1. 🏛️ Academic Multi-Tier Governance Pipeline
+- Organizers cannot self-publish events. Every proposed event moves through a visual 5-stage progress stepper:
+  $$\text{1. Proposal Drafted} \longrightarrow \text{2. HOD Review} \longrightarrow \text{3. Dean Approval} \longrightarrow \text{4. VC Directive} \longrightarrow \text{5. Campus Discovery Feed}$$
+- Live status tags (`🟢 INSTITUTIONALLY APPROVED & LIVE`, `⏳ AWAITING ADMINISTRATIVE SANCTION`, `🏁 CONCLUDED & ARCHIVED`).
 
-1. **Admin Issues Invite**: In the Admin Console, the administrator issues an invite (or uploads a CSV) targeting a faculty email, specifying `role` and `department`.
-2. **Firestore Record**: A document is written to `staffInvites/{email.toLowerCase()}` with fields `{ email, role, department, invitedBy, redeemed: false }`.
-3. **Automatic Redemption on First Login**: When the staff member signs in with their university email, the authentication service looks up `staffInvites/{email}`, updates `users/{uid}` with their assigned role and department, and marks the invite as redeemed.
-4. **Strict Security Rules**: Non-admin users cannot alter their own `role` field in `users/{uid}`, ensuring tamper-proof authorization.
+### 2. 📜 Client-Side Instant PDF Certificate Engine
+- Powered by `pdf-lib` operating entirely inside the student's browser (0ms server latency, zero pop-up blocking issues).
+- Generates high-resolution, print-ready A4 landscape certificates containing:
+  - Official **Sanjivani University** header, gold decorative borders, and institutional seal.
+  - Student Name (**MIHIKA JOSHI**), College PRN (**SU2024IMT0091**), and Academic Department.
+  - Three official signatures: **Head of Department (Dr. Arun Kulkarni)**, **Dean of Engineering (Dr. Neha Sharma)**, and **Vice Chancellor (Prof. K. V. Raman)**.
+  - Digital Certificate ID (e.g. `CERT-SU-2025-0091`) with instant public validation via `#verify/{id}`.
 
----
+### 3. 📊 NAAC Criterion 5.3.3 & IQAC Compliance Reporting
+- 1-Click export of official accreditation audit sheets:
+  - `NAAC Criterion (5.3.3 - Sports, Cultural & Co-Curricular Student Activities)`
+  - `Student PRN, Academic Year, Event Title, Activity Level (State/National)`
+  - `Certificate Verification IDs & Accreditation Authority Sign-Off`
 
-## 🔑 How to Create the First Admin
+### 4. 🔔 Real-Time Cross-Role In-App Notification Center
+- Reactive notification bell in the top navigation bar.
+- Automatic cross-tab sync via custom event bus (`ep_notification_update`).
+- Unread badge counters and role-aware message dispatch:
+  - **Students**: Pass approvals, certificate ready alerts, grievance updates, and campus circular broadcasts.
+  - **Organizers**: Event sanction status notifications and check-in scanner readiness.
+  - **HOD & Dean**: Pending event sanction alerts and departmental grievance escalations.
+  - **VC Sir**: Institutional health briefing and 1-click **Campus-Wide Proclamation Broadcast** (`createAnnouncement`).
 
-To bootstrap the administrative account for your campus deployment:
-
-### Option A: Via Firebase Console (Recommended for Production)
-1. Navigate to the [Firebase Console](https://console.firebase.google.com/) and open your project.
-2. Under **Authentication** &rarr; **Users**, click **Add User** and create an account with your admin email (e.g. `admin@college.edu`) and a secure password. Copy the generated **User UID**.
-3. Go to **Firestore Database** &rarr; click on the `users` collection.
-4. Add a document with **Document ID** = `{User UID}` and add the following fields:
-   * `role`: `"admin"` (string)
-   * `name`: `"System Administrator"` (string)
-   * `email`: `"admin@college.edu"` (string)
-   * `department`: `"Central Administration"` (string)
-5. Alternatively, add your email address to the `SUPER_ADMIN_EMAILS` array in [`src/services/auth.js`](file:///C:/My%20Projects/New%20folder/src/services/auth.js).
-
-### Option B: Using the Demo Seed Script (Local Development)
-1. Download your service account key from **Firebase Project Settings &rarr; Service Accounts** and save it as `functions/serviceAccountKey.json`.
-2. Run:
-   ```bash
-   npm run seed:demo
-   ```
-   This automatically provisions the six demo accounts (`admin@college.edu`, `vc@college.edu`, `dean@college.edu`, `hod@college.edu`, `organizer@college.edu`, `student@college.edu`) with the password `Password@123`.
-
----
-
-## 🧪 Demo Mode (Evaluators & Presentations)
-
-For showcase and demonstration environments, EventPulse includes a 1-click **Try Demo** switcher:
-* Enable by setting `VITE_DEMO_MODE=true` in your `.env` or `.env.local` file.
-* When active, a demo card renders on the login view allowing 1-click login as **Student**, **Organizer**, **HOD**, **Dean**, **VC**, or **Admin**.
-* **Production Safety**: In production builds, `VITE_DEMO_MODE` is disabled (`false`), completely hiding all demo buttons from real students and faculty.
+### 5. 🎟️ Student Pass Vault: Active Passes vs Attended History
+- Filter pill switcher in `#my-passes`:
+  - `🟢 Upcoming Active Passes`: Single-use encrypted QR code passes for gate entry.
+  - `🏁 Attended & Certified History`: Direct links to download PDF certificates and inspect participation records.
 
 ---
 
@@ -95,27 +89,37 @@ git clone https://github.com/thoratpratik2323-hue/Event-Pulse.git
 cd Event-Pulse
 ```
 
-### 2. Configure Environment Variables
-Copy `.env.example` to `.env`:
-```bash
-cp .env.example .env
-```
-Fill in your Firebase credentials, optional college domain (`VITE_ALLOWED_EMAIL_DOMAIN=sanjivani.edu.in`), and demo mode preference.
-
-### 3. Install Dependencies
+### 2. Install Dependencies
 ```bash
 npm install
 ```
 
-### 4. Start Local Development Server
+### 3. Configure Environment Variables
+Copy `.env.example` to `.env`:
+```bash
+cp .env.example .env
+```
+Ensure your Firebase configuration keys and `VITE_DEMO_MODE=true` are set.
+
+### 4. Seed Demo Environment
+Seed the 5 academic personas, verified demo certificates, and completed events:
+```bash
+npm run seed:demo
+```
+
+### 5. Run Local Development Server
 ```bash
 npm run dev
 ```
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-### 5. Build for Production
+### 6. Production Build & Deployment
 ```bash
+# Build the project
 npm run build
+
+# Deploy directly to Firebase Hosting (Uses Service Account credentials)
+npm run deploy:hosting
 ```
 
 ---
@@ -126,87 +130,43 @@ npm run build
 EventPulse/
 ├── src/
 │   ├── assets/          # Static branding, university seals, and logos
-│   ├── components/      # Navbar, DigitalPassModal, Scanner, PulseAIChatWidget
-│   ├── services/        # Firebase Auth, Staff Invites, Firestore, FCM Push, QR Engine
+│   ├── components/      # Navbar, DigitalPassModal, Scanner, Modals
+│   ├── services/        # Service modules:
+│   │   ├── auth.js                # Role resolution, session state, permissions
+│   │   ├── clientPdfService.js    # Browser-side PDF certificate generator (pdf-lib)
+│   │   ├── certificates.js        # Certificate cache, queries, and download triggers
+│   │   ├── notifications.js       # Role-aware real-time notification engine
+│   │   ├── events.js              # Event approvals, status transitions, Firestore CRUD
+│   │   ├── registrations.js       # Student registration and pass management
+│   │   └── announcements.js       # Campus broadcasts and VC circulars
 │   ├── styles/          # Responsive Glassmorphic Design System & Variables
 │   ├── views/           # Modular SPA Views:
-│   │   ├── LoginView.js               # Dual-Tab Sign In & Student Sign Up
-│   │   ├── EventsView.js              # Student Portal, Event Discovery, Calendar Sync
-│   │   ├── StudentPassesView.js       # Cryptographic QR Entry Passes
-│   │   ├── OrganizerDashView.js       # Organizer Hub, Turbo QR Camera Gate Scanner
-│   │   ├── ExecutiveDashboardView.js  # HOD, Dean, & VC Scoped Academic Dashboards
-│   │   ├── AdminView.js               # Admin Console, Staff Invites & CSV Import
+│   │   ├── LoginView.js               # Clean 5-Role Demo Grid & Sign In / Sign Up
+│   │   ├── EventsView.js              # Student Event Discovery & Live Feed
+│   │   ├── StudentPassesView.js       # Pass Vault (Upcoming vs Attended History)
+│   │   ├── OrganizerDashView.js       # Organizer Hub, Governance Stepper & Gate Scanner
+│   │   ├── ExecutiveDashboardView.js  # Scoped HOD, Dean, & VC Apex Dashboards
 │   │   ├── IdeaHubView.js             # Campus Wishlist & Democracy Voting
-│   │   └── VerifyCertView.js          # Public Certificate Cryptographic Verification
+│   │   └── VerifyCertView.js          # Public Certificate Validation Portal
 │   ├── firebase.js      # Initialized with import.meta.env.VITE_* variables
 │   ├── router.js        # Route Guards, Role Redirects, and Hash Router
 │   └── main.js          # App Bootstrap & Lifecycle Manager
-├── functions/           # Firebase Admin SDK & Push Notification Cloud Functions
+├── functions/           # Firebase Cloud Functions & Push Notification Services
 ├── scripts/
-│   ├── seed-demo.js     # Seeds 6 Core Personas in Firebase Auth & Firestore
-│   ├── seed.js          # Sample Event Data & Notice Seeder
-│   └── test-closed-events.js # Automated verification test suite for closed events
+│   ├── seed-demo.js         # Seeds 5 Core Personas, Sample Passes & Certificates
+│   ├── seed-certificate.js  # Verified Certificate & Event Seeder
+│   └── deploy-hosting.js    # Direct Firebase Hosting Deployment Script
 ├── public/              # Service Workers, Manifest, Posters & Icons
-├── .env.example         # Environment template with demo mode & domain settings
 └── firestore.rules      # Strict Security Rules enforcing role-scoped access
 ```
 
 ---
 
-## 🔒 Closed Event Participants & Invite-Only Roster
+## 🔒 Security & Firestore Rules
 
-EventPulse supports **Closed Events** restricted to specific approved participants.
-
-### 1. Visibility & Access Model
-* **Open Events (`visibility: 'open'`)**: Discoverable and registerable by all eligible university students.
-* **Closed Events (`visibility: 'closed'`)**: Restricted strictly to students on the event's approved participant roster. Unlisted students cannot see the event in their discovery feed, cannot access direct registration, and are rejected by Firestore security rules.
-
-### 2. Participant Storage & Security
-* **Storage Location**: `events/{eventId}/allowedParticipants/{emailLower}`
-* **Schema**:
-  ```json
-  {
-    "name": "Aditya Patil",
-    "email": "aditya.cs24@college.edu",
-    "prn": "PRN20240101",
-    "addedBy": "Prof. Anwar / Organizer",
-    "addedByUid": "user_uid",
-    "addedAt": "2026-09-29T10:00:00.000Z"
-  }
-  ```
-* **Security Rules**:
-  - `events/{eventId}`: Closed events can only be fetched by the event owner, staff/admin, or listed participants (`request.auth.token.email.lower() in allowedParticipants`).
-  - `events/{eventId}/allowedParticipants/{email}`: Only the event owner or admin can read/write the list. Arbitrary students cannot list the participant subcollection.
-  - `registrations/{regId}`: Creation blocked if the target event is closed and caller email is not on the roster.
-
-### 3. Building Participant Lists
-Organizers can manage rosters from **Organizer Dashboard → 👥 Allowed Participants**:
-* **Manual Add**: Name, College Email, PRN.
-* **Excel & CSV Bulk Upload**: Drag & Drop `.xlsx`, `.xls`, or `.csv` files parsed completely in the browser via **SheetJS** (`xlsx`).
-* **Validation Preview**: Real-time analysis detecting:
-  - ✅ Valid rows
-  - ⚠️ Invalid rows (missing fields, malformed emails)
-  - 🔁 Duplicates (intra-file and already-existing entries)
-* **Sample Template**: Downloadable `.xlsx` and `.csv` templates.
-* **Batch Writes**: Chunks writes into Firestore batches of up to 450 documents with a live progress indicator.
-
-### 4. Manual Test Checklist
-1. **Organizer Upload**:
-   - Log in as Organizer (`anwar.hod@college.edu` or demo account).
-   - Go to Organizer Dashboard → Select or Create a Closed event.
-   - Go to **👥 Allowed Participants** tab.
-   - Click **📥 Template (.xlsx)** to download the sample file.
-   - Click **📤 Upload Excel / CSV** → Drag & drop the template file.
-   - Verify that Valid, Invalid, and Duplicate counts appear correctly.
-   - Click **Confirm & Save Participants** → Check that the roster table populates with the participants.
-2. **Listed Student Registration**:
-   - Log in as a student whose email is in the uploaded roster.
-   - Open Event Discovery (`#events`) → Verify the event appears with the **🔒 Closed Roster** badge.
-   - Click **Register Now** → Verify that registration succeeds (`pending`).
-3. **Unlisted Student Blocked**:
-   - Log in as a student whose email is NOT in the roster.
-   - Open Event Discovery (`#events`) → Verify the event does not appear in the feed.
-   - If attempting to register, verify that access is blocked with a `🔒 Registration Restricted: This is a closed, invite-only event` warning.
+- **Role-Based Access Control (RBAC)**: All sensitive collections (`events`, `registrations`, `complaints`, `certificates`, `staffInvites`) are protected by server-enforced rules in `firestore.rules`.
+- **Anti-Fraud QR Passes**: QR passes contain cryptographic hashes verified by camera scanners; unauthorized modifications fail gate check.
+- **Closed Event Restrictive Access**: Only approved roster emails can view or register for private departmental hackathons.
 
 ---
 
