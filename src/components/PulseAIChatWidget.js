@@ -38,34 +38,10 @@ export function initPulseAIChatWidget(navigateTo) {
         </div>
 
         <div style="display: flex; align-items: center; gap: 0.4rem; z-index: 1;">
-          <button id="btn-toggle-ai-settings" style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); color: #ffffff; border-radius: 8px; padding: 4px 8px; font-size: 0.72rem; cursor: pointer; display: flex; align-items: center; gap: 3px;" title="Configure Google Gemini API Key">
-            ⚙️ <span style="font-weight: 700;">Settings</span>
-          </button>
-          <button id="btn-close-ai-chat" style="background: none; border: none; color: #ffffff; font-size: 1.2rem; cursor: pointer; opacity: 0.85; padding: 4px;">
+          <button id="btn-close-ai-chat" style="background: none; border: none; color: #ffffff; font-size: 1.25rem; cursor: pointer; opacity: 0.85; padding: 4px; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; transition: background 0.15s;" title="Close Chat">
             ✕
           </button>
         </div>
-      </div>
-
-      <!-- Settings Panel (Collapsible) -->
-      <div id="ai-settings-panel" style="display: none; padding: 0.85rem 1rem; background: #0f172a; border-bottom: 1px solid #1e293b; color: #e2e8f0; font-size: 0.78rem;">
-        <div style="font-weight: 700; color: #38bdf8; margin-bottom: 0.4rem; display: flex; align-items: center; justify-content: space-between;">
-          <span>🤖 AI Engine Configuration</span>
-          <span style="font-size: 0.7rem; color: #94a3b8;">Google Gemini 1.5</span>
-        </div>
-        <p style="color: #94a3b8; font-size: 0.72rem; margin-bottom: 0.5rem; line-height: 1.35;">
-          Gemini enables natural multi-lingual chat (Hinglish/Hindi/Marathi). Free API key from <a href="https://aistudio.google.com" target="_blank" style="color: #38bdf8; text-decoration: underline;">Google AI Studio</a>.
-        </p>
-        <div style="display: flex; gap: 0.4rem; align-items: center;">
-          <input type="password" id="input-gemini-key" placeholder="Paste Gemini API Key (AIzaSy...)" style="flex: 1; padding: 0.35rem 0.6rem; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: #ffffff; font-size: 0.75rem; outline: none;" />
-          <button id="btn-save-gemini-key" style="background: #7c3aed; color: #ffffff; border: none; border-radius: 6px; padding: 0.35rem 0.65rem; font-size: 0.72rem; font-weight: 700; cursor: pointer;">
-            Save
-          </button>
-          <button id="btn-clear-gemini-key" style="background: #334155; color: #e2e8f0; border: none; border-radius: 6px; padding: 0.35rem 0.5rem; font-size: 0.72rem; cursor: pointer;">
-            Clear
-          </button>
-        </div>
-        <div id="gemini-key-status" style="margin-top: 0.4rem; font-size: 0.7rem; color: #10b981; font-weight: 600;"></div>
       </div>
 
       <!-- Quick Suggestion Chips -->
@@ -104,12 +80,6 @@ export function initPulseAIChatWidget(navigateTo) {
   const form = root.querySelector('#ai-input-form');
   const input = root.querySelector('#ai-chat-input');
   const messagesList = root.querySelector('#ai-messages-list');
-  const settingsToggle = root.querySelector('#btn-toggle-ai-settings');
-  const settingsPanel = root.querySelector('#ai-settings-panel');
-  const geminiInput = root.querySelector('#input-gemini-key');
-  const saveKeyBtn = root.querySelector('#btn-save-gemini-key');
-  const clearKeyBtn = root.querySelector('#btn-clear-gemini-key');
-  const keyStatus = root.querySelector('#gemini-key-status');
   const engineText = root.querySelector('#ai-engine-text');
 
   // Update Status Display
@@ -118,43 +88,13 @@ export function initPulseAIChatWidget(navigateTo) {
     if (key) {
       engineText.textContent = 'Gemini 1.5 Flash Active ⚡';
       engineText.style.color = '#38bdf8';
-      geminiInput.value = key;
-      keyStatus.textContent = '✅ Google Gemini AI is connected and active!';
-      keyStatus.style.color = '#38bdf8';
     } else {
       engineText.textContent = 'Live Campus Grounded Engine';
       engineText.style.color = '#10b981';
-      geminiInput.value = '';
-      keyStatus.textContent = 'ℹ️ Using built-in Live Campus Grounded RAG engine.';
-      keyStatus.style.color = '#94a3b8';
     }
   };
 
   updateEngineIndicator();
-
-  // Settings Toggle
-  settingsToggle?.addEventListener('click', () => {
-    const isHidden = settingsPanel.style.display === 'none';
-    settingsPanel.style.display = isHidden ? 'block' : 'none';
-    if (isHidden) geminiInput.focus();
-  });
-
-  saveKeyBtn?.addEventListener('click', () => {
-    const val = geminiInput.value.trim();
-    if (val) {
-      setGeminiApiKey(val);
-      updateEngineIndicator();
-      keyStatus.textContent = '🎉 Gemini Key Saved! AI is now powered by Gemini 1.5 Flash.';
-      keyStatus.style.color = '#38bdf8';
-    }
-  });
-
-  clearKeyBtn?.addEventListener('click', () => {
-    setGeminiApiKey('');
-    updateEngineIndicator();
-    keyStatus.textContent = 'Reset to Live Campus Grounded Engine.';
-    keyStatus.style.color = '#94a3b8';
-  });
 
   // Toggle modal
   const toggleModal = () => {
