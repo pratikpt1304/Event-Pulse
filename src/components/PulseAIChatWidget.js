@@ -1,4 +1,4 @@
-import { askPulseAI } from '../services/ai';
+import { askPulseAI, isGeminiAIActive, getGeminiApiKey, setGeminiApiKey } from '../services/ai';
 import { getCurrentUser } from '../services/auth';
 import { openTeamFinderModal } from './TeamFinderModal';
 import { openHelpDeskModal } from './ProfileModals';
@@ -15,49 +15,80 @@ export function initPulseAIChatWidget(navigateTo) {
     <button id="pulse-ai-trigger" style="position: fixed; bottom: 24px; right: 24px; z-index: 999; background: #0f172a; color: #ffffff; border: 1.5px solid rgba(6, 182, 212, 0.4); border-radius: 50px; padding: 0.5rem 1.15rem 0.5rem 0.6rem; display: flex; align-items: center; gap: 0.65rem; font-family: var(--font-heading, sans-serif); font-size: 0.95rem; font-weight: 800; cursor: pointer; box-shadow: 0 8px 30px rgba(6, 182, 212, 0.35); transition: transform 0.2s, box-shadow 0.2s; outline: none; letter-spacing: 0.02em;">
       <img src="/nex-logo.jpg" alt="NEX" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 12px rgba(6, 182, 212, 0.8);" />
       <span>NEX</span>
-      <span style="background: linear-gradient(135deg, #7c3aed, #06b6d4); font-size: 0.65rem; padding: 0.2rem 0.55rem; border-radius: 20px; text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; color: #ffffff;">NEXT-GEN</span>
+      <span style="background: linear-gradient(135deg, #7c3aed, #06b6d4); font-size: 0.65rem; padding: 0.2rem 0.55rem; border-radius: 20px; text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; color: #ffffff;">AI</span>
     </button>
 
     <!-- Chat Modal Window -->
-    <div id="pulse-ai-modal" style="display: none; position: fixed; bottom: 85px; right: 24px; width: 380px; max-width: calc(100vw - 32px); height: 530px; max-height: calc(100vh - 120px); background: #ffffff; border: 1px solid var(--border-strong, #e2e8f0); border-radius: 20px; box-shadow: 0 24px 50px -10px rgba(15, 23, 42, 0.3); z-index: 1000; flex-direction: column; overflow: hidden; font-family: var(--font-body, system-ui, sans-serif);">
+    <div id="pulse-ai-modal" style="display: none; position: fixed; bottom: 85px; right: 24px; width: 400px; max-width: calc(100vw - 32px); height: 550px; max-height: calc(100vh - 120px); background: #ffffff; border: 1px solid var(--border-strong, #e2e8f0); border-radius: 20px; box-shadow: 0 24px 50px -10px rgba(15, 23, 42, 0.3); z-index: 1000; flex-direction: column; overflow: hidden; font-family: var(--font-body, system-ui, sans-serif);">
       
       <!-- Header with Next-Gen Gradient -->
-      <div style="padding: 0.95rem 1.25rem; background: #090d16; border-bottom: 1px solid rgba(6, 182, 212, 0.25); color: #ffffff; display: flex; justify-content: space-between; align-items: center; position: relative; overflow: hidden;">
+      <div style="padding: 0.85rem 1.15rem; background: #090d16; border-bottom: 1px solid rgba(6, 182, 212, 0.25); color: #ffffff; display: flex; justify-content: space-between; align-items: center; position: relative; overflow: hidden;">
         <div style="position: absolute; top: -20px; right: -20px; width: 80px; height: 80px; background: rgba(6, 182, 212, 0.2); border-radius: 50%; filter: blur(20px);"></div>
         
         <div style="display: flex; align-items: center; gap: 0.75rem; z-index: 1;">
-          <img src="/nex-logo.jpg" alt="NEX" style="width: 38px; height: 38px; border-radius: 12px; object-fit: cover; box-shadow: 0 0 16px rgba(6, 182, 212, 0.6); border: 1px solid rgba(6, 182, 212, 0.4);" />
+          <img src="/nex-logo.jpg" alt="NEX" style="width: 36px; height: 36px; border-radius: 10px; object-fit: cover; box-shadow: 0 0 16px rgba(6, 182, 212, 0.6); border: 1px solid rgba(6, 182, 212, 0.4);" />
           <div>
-            <div style="font-size: 1.15rem; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em; color: #ffffff; display: flex; align-items: center; gap: 0.4rem;">
+            <div style="font-size: 1.1rem; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em; color: #ffffff; display: flex; align-items: center; gap: 0.4rem;">
               NEX <span style="font-size: 0.65rem; background: linear-gradient(135deg, #7c3aed, #06b6d4); padding: 0.1rem 0.4rem; border-radius: 4px;">AI</span>
             </div>
-            <div style="font-size: 0.7rem; color: #94a3b8; font-weight: 500;">Next-Generation Event Intelligence</div>
+            <div id="ai-status-indicator" style="font-size: 0.68rem; color: #10b981; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+              ● <span id="ai-engine-text">Live Campus Grounded</span>
+            </div>
           </div>
         </div>
-        <button id="btn-close-ai-chat" style="background: none; border: none; color: #ffffff; font-size: 1.2rem; cursor: pointer; opacity: 0.85; padding: 4px; z-index: 1;">
-          ✕
-        </button>
+
+        <div style="display: flex; align-items: center; gap: 0.4rem; z-index: 1;">
+          <button id="btn-toggle-ai-settings" style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); color: #ffffff; border-radius: 8px; padding: 4px 8px; font-size: 0.72rem; cursor: pointer; display: flex; align-items: center; gap: 3px;" title="Configure Google Gemini API Key">
+            ⚙️ <span style="font-weight: 700;">Settings</span>
+          </button>
+          <button id="btn-close-ai-chat" style="background: none; border: none; color: #ffffff; font-size: 1.2rem; cursor: pointer; opacity: 0.85; padding: 4px;">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <!-- Settings Panel (Collapsible) -->
+      <div id="ai-settings-panel" style="display: none; padding: 0.85rem 1rem; background: #0f172a; border-bottom: 1px solid #1e293b; color: #e2e8f0; font-size: 0.78rem;">
+        <div style="font-weight: 700; color: #38bdf8; margin-bottom: 0.4rem; display: flex; align-items: center; justify-content: space-between;">
+          <span>🤖 AI Engine Configuration</span>
+          <span style="font-size: 0.7rem; color: #94a3b8;">Google Gemini 1.5</span>
+        </div>
+        <p style="color: #94a3b8; font-size: 0.72rem; margin-bottom: 0.5rem; line-height: 1.35;">
+          Gemini enables natural multi-lingual chat (Hinglish/Hindi/Marathi). Free API key from <a href="https://aistudio.google.com" target="_blank" style="color: #38bdf8; text-decoration: underline;">Google AI Studio</a>.
+        </p>
+        <div style="display: flex; gap: 0.4rem; align-items: center;">
+          <input type="password" id="input-gemini-key" placeholder="Paste Gemini API Key (AIzaSy...)" style="flex: 1; padding: 0.35rem 0.6rem; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: #ffffff; font-size: 0.75rem; outline: none;" />
+          <button id="btn-save-gemini-key" style="background: #7c3aed; color: #ffffff; border: none; border-radius: 6px; padding: 0.35rem 0.65rem; font-size: 0.72rem; font-weight: 700; cursor: pointer;">
+            Save
+          </button>
+          <button id="btn-clear-gemini-key" style="background: #334155; color: #e2e8f0; border: none; border-radius: 6px; padding: 0.35rem 0.5rem; font-size: 0.72rem; cursor: pointer;">
+            Clear
+          </button>
+        </div>
+        <div id="gemini-key-status" style="margin-top: 0.4rem; font-size: 0.7rem; color: #10b981; font-weight: 600;"></div>
       </div>
 
       <!-- Quick Suggestion Chips -->
-      <div style="padding: 0.55rem 0.85rem; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; gap: 0.4rem; overflow-x: auto; white-space: nowrap;" id="ai-quick-chips">
-        <button class="ai-chip" data-prompt="Events for my department">🎯 My Dept Events</button>
-        <button class="ai-chip" data-prompt="Check my pass status">🎫 Pass Status</button>
-        <button class="ai-chip" data-prompt="Find open squads for hackathons">🤝 Find Squads</button>
-        <button class="ai-chip" data-prompt="Where is the helpdesk office?">🎧 Helpdesk</button>
+      <div style="padding: 0.5rem 0.85rem; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; gap: 0.4rem; overflow-x: auto; white-space: nowrap;" id="ai-quick-chips">
+        <button class="ai-chip" data-prompt="Upcoming hackathons and fests">🚀 Live Hackathons</button>
+        <button class="ai-chip" data-prompt="Check my pass status">🎫 My Pass Status</button>
+        <button class="ai-chip" data-prompt="How does attendance OD work?">📋 Attendance (OD)</button>
+        <button class="ai-chip" data-prompt="Find teammates for hackathon">🤝 Find Squads</button>
+        <button class="ai-chip" data-prompt="Who is the HOD and Dean?">🏛️ HOD & Dean</button>
       </div>
 
       <!-- Messages Body -->
       <div id="ai-messages-list" style="flex: 1; padding: 1rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem; background: #fdfdfd;">
         <!-- Initial Welcome Message -->
-        <div style="align-self: flex-start; max-width: 88%; background: #f1f5f9; padding: 0.8rem 0.95rem; border-radius: 16px; border-top-left-radius: 4px; font-size: 0.825rem; color: #1e293b; line-height: 1.45; border: 1px solid #e2e8f0;">
-          ⚡ Hi! I'm <strong>NEX</strong>, your next-generation campus AI. Ask me anything about upcoming hackathons, sports tournaments, your digital passes, or open squads!
+        <div style="align-self: flex-start; max-width: 90%; background: #f1f5f9; padding: 0.85rem 1rem; border-radius: 16px; border-top-left-radius: 4px; font-size: 0.825rem; color: #1e293b; line-height: 1.45; border: 1px solid #e2e8f0;">
+          ⚡ <strong>Hi! I'm NEX AI.</strong><br/>
+          I'm connected to Sanjivani University's live event registry. Ask me anything about upcoming hackathons, digital QR passes, official On-Duty (OD) attendance, or open squads!
         </div>
       </div>
 
       <!-- Chat Input Area -->
       <form id="ai-input-form" style="padding: 0.65rem 0.85rem; background: #ffffff; border-top: 1px solid #e2e8f0; display: flex; gap: 0.5rem; align-items: center;">
-        <input type="text" id="ai-chat-input" placeholder="Ask NEX anything..." autocomplete="off" style="flex: 1; border: 1px solid #cbd5e1; border-radius: 20px; padding: 0.55rem 0.95rem; font-size: 0.85rem; outline: none; background: #f8fafc; transition: border-color 0.2s;" />
+        <input type="text" id="ai-chat-input" placeholder="Ask NEX in English, Hindi, or Hinglish..." autocomplete="off" style="flex: 1; border: 1px solid #cbd5e1; border-radius: 20px; padding: 0.55rem 0.95rem; font-size: 0.85rem; outline: none; background: #f8fafc; transition: border-color 0.2s;" />
         <button type="submit" style="background: linear-gradient(135deg, #7c3aed, #06b6d4); color: #ffffff; border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.9rem; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);">
           ➤
         </button>
@@ -73,6 +104,57 @@ export function initPulseAIChatWidget(navigateTo) {
   const form = root.querySelector('#ai-input-form');
   const input = root.querySelector('#ai-chat-input');
   const messagesList = root.querySelector('#ai-messages-list');
+  const settingsToggle = root.querySelector('#btn-toggle-ai-settings');
+  const settingsPanel = root.querySelector('#ai-settings-panel');
+  const geminiInput = root.querySelector('#input-gemini-key');
+  const saveKeyBtn = root.querySelector('#btn-save-gemini-key');
+  const clearKeyBtn = root.querySelector('#btn-clear-gemini-key');
+  const keyStatus = root.querySelector('#gemini-key-status');
+  const engineText = root.querySelector('#ai-engine-text');
+
+  // Update Status Display
+  const updateEngineIndicator = () => {
+    const key = getGeminiApiKey();
+    if (key) {
+      engineText.textContent = 'Gemini 1.5 Flash Active ⚡';
+      engineText.style.color = '#38bdf8';
+      geminiInput.value = key;
+      keyStatus.textContent = '✅ Google Gemini AI is connected and active!';
+      keyStatus.style.color = '#38bdf8';
+    } else {
+      engineText.textContent = 'Live Campus Grounded Engine';
+      engineText.style.color = '#10b981';
+      geminiInput.value = '';
+      keyStatus.textContent = 'ℹ️ Using built-in Live Campus Grounded RAG engine.';
+      keyStatus.style.color = '#94a3b8';
+    }
+  };
+
+  updateEngineIndicator();
+
+  // Settings Toggle
+  settingsToggle?.addEventListener('click', () => {
+    const isHidden = settingsPanel.style.display === 'none';
+    settingsPanel.style.display = isHidden ? 'block' : 'none';
+    if (isHidden) geminiInput.focus();
+  });
+
+  saveKeyBtn?.addEventListener('click', () => {
+    const val = geminiInput.value.trim();
+    if (val) {
+      setGeminiApiKey(val);
+      updateEngineIndicator();
+      keyStatus.textContent = '🎉 Gemini Key Saved! AI is now powered by Gemini 1.5 Flash.';
+      keyStatus.style.color = '#38bdf8';
+    }
+  });
+
+  clearKeyBtn?.addEventListener('click', () => {
+    setGeminiApiKey('');
+    updateEngineIndicator();
+    keyStatus.textContent = 'Reset to Live Campus Grounded Engine.';
+    keyStatus.style.color = '#94a3b8';
+  });
 
   // Toggle modal
   const toggleModal = () => {
@@ -105,10 +187,10 @@ export function initPulseAIChatWidget(navigateTo) {
     const isUser = sender === 'user';
     const msgEl = document.createElement('div');
     msgEl.style.alignSelf = isUser ? 'flex-end' : 'flex-start';
-    msgEl.style.maxWidth = '88%';
+    msgEl.style.maxWidth = '90%';
     msgEl.style.background = isUser ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : '#f8fafc';
     msgEl.style.color = isUser ? '#ffffff' : '#1e293b';
-    msgEl.style.padding = '0.75rem 0.9rem';
+    msgEl.style.padding = '0.75rem 0.95rem';
     msgEl.style.borderRadius = '14px';
     if (isUser) {
       msgEl.style.borderTopRightRadius = '4px';
@@ -117,11 +199,13 @@ export function initPulseAIChatWidget(navigateTo) {
       msgEl.style.border = '1px solid #e2e8f0';
     }
     msgEl.style.fontSize = '0.825rem';
-    msgEl.style.lineHeight = '1.45';
+    msgEl.style.lineHeight = '1.48';
 
-    // Format content with simple markdown (bold, bullet points, line breaks)
+    // Format content with simple markdown (bold, bullet points, line breaks, code)
     let formatted = content
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code style="background: rgba(0,0,0,0.06); padding: 1px 4px; border-radius: 4px; font-family: monospace;">$1</code>')
       .replace(/\n/g, '<br/>');
 
     msgEl.innerHTML = formatted;
@@ -147,6 +231,15 @@ export function initPulseAIChatWidget(navigateTo) {
         btn.style.fontSize = '0.725rem';
         btn.style.fontWeight = '700';
         btn.style.cursor = 'pointer';
+        btn.style.transition = 'all 0.15s ease';
+        btn.addEventListener('mouseenter', () => {
+          btn.style.background = '#7c3aed';
+          btn.style.color = '#ffffff';
+        });
+        btn.addEventListener('mouseleave', () => {
+          btn.style.background = '#ffffff';
+          btn.style.color = '#7c3aed';
+        });
         btn.addEventListener('click', () => handleActionRoute(act.route));
         actionsDiv.appendChild(btn);
       });
@@ -174,7 +267,7 @@ export function initPulseAIChatWidget(navigateTo) {
     typingIndicator.style.borderRadius = '14px';
     typingIndicator.style.fontSize = '0.75rem';
     typingIndicator.style.fontStyle = 'italic';
-    typingIndicator.innerHTML = '⚡ NEX is analyzing campus data...';
+    typingIndicator.innerHTML = '⚡ NEX is analyzing live campus data...';
     messagesList.appendChild(typingIndicator);
     messagesList.scrollTop = messagesList.scrollHeight;
 
