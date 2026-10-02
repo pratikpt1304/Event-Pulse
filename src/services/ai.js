@@ -1,27 +1,55 @@
-import { getApprovedEvents, getCachedEventsSync } from './events';
-import { getStudentRegistrations, getCachedRegistrationsSync } from './registrations';
-import { getCachedCertificatesSync } from './certificates';
-import { getCachedTeamsSync } from './teams';
-import { getCachedVolunteersSync } from './volunteers';
-import { getAnnouncements, getCachedAnnouncementsSync } from './announcements';
-import { getStudentComplaints } from './complaints';
+import { getApprovedEvents, getCachedEventsSync } from './events.js';
+import { getStudentRegistrations, getCachedRegistrationsSync } from './registrations.js';
+import { getCachedCertificatesSync } from './certificates.js';
+import { getCachedTeamsSync } from './teams.js';
+import { getCachedVolunteersSync } from './volunteers.js';
+import { getAnnouncements, getCachedAnnouncementsSync } from './announcements.js';
+import { getStudentComplaints } from './complaints.js';
+
+function formatDateSafe(val) {
+  if (!val) return 'Recent';
+  try {
+    if (typeof val.toDate === 'function') return val.toDate().toLocaleDateString();
+    if (val.seconds) return new Date(val.seconds * 1000).toLocaleDateString();
+    return new Date(val).toLocaleDateString();
+  } catch (e) {
+    return 'Recent';
+  }
+}
 
 /**
  * Retrieves the active Gemini API key from environment variable or localStorage
  */
 export function getGeminiApiKey() {
-  return localStorage.getItem('ep_gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY || '';
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const localKey = localStorage.getItem('ep_gemini_api_key');
+      if (localKey && localKey.trim()) return localKey.trim();
+    }
+  } catch (e) {}
+
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) {
+      return import.meta.env.VITE_GEMINI_API_KEY;
+    }
+  } catch (e) {}
+
+  return '';
 }
 
 /**
  * Saves a custom Gemini API key into localStorage
  */
 export function setGeminiApiKey(key) {
-  if (!key) {
-    localStorage.removeItem('ep_gemini_api_key');
-  } else {
-    localStorage.setItem('ep_gemini_api_key', key.trim());
-  }
+  try {
+    if (typeof localStorage !== 'undefined') {
+      if (!key) {
+        localStorage.removeItem('ep_gemini_api_key');
+      } else {
+        localStorage.setItem('ep_gemini_api_key', key.trim());
+      }
+    }
+  } catch (e) {}
 }
 
 /**
@@ -275,7 +303,7 @@ function runSmartCampusEngine(rawQuery, user, context) {
 
     const regList = registrations.slice(0, 4).map(r => {
       const statusIcon = r.status === 'approved' ? '✅ Approved' : (r.status === 'attended' ? '🎟️ Attended' : '⏳ Pending Approval');
-      return `• **${r.eventTitle}**\n  Status: ${statusIcon} | 📅 Reg: ${new Date(r.registeredAt).toLocaleDateString()}`;
+      return `• **${r.eventTitle}**\n  Status: ${statusIcon} | 📅 Reg: ${formatDateSafe(r.registeredAt)}`;
     }).join('\n\n');
 
     return {
