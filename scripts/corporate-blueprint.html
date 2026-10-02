@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EventPulse — Corporate Collaboration & Multi-University Flowchart</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap');
+
+    @page {
+      size: A4 portrait;
+      margin: 14mm 14mm 14mm 14mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      color: #0f172a;
+      background: #ffffff;
+      line-height: 1.5;
+      font-size: 11pt;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* Cover / Header Section */
+    .header-card {
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%);
+      color: #ffffff;
+      padding: 24px 28px;
+      border-radius: 14px;
+      margin-bottom: 22px;
+      box-shadow: 0 10px 25px -5px rgba(67, 56, 202, 0.3);
+      position: relative;
+    }
+
+    .brand-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 9pt;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .header-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 20pt;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+
+    .header-subtitle {
+      font-size: 11pt;
+      color: #c7d2fe;
+      line-height: 1.4;
+      max-width: 90%;
+    }
+
+    .meta-bar {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.18);
+      display: flex;
+      justify-content: space-between;
+      font-size: 8.5pt;
+      color: #e0e7ff;
+    }
+
+    /* Section Styles */
+    h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14pt;
+      font-weight: 700;
+      color: #1e1b4b;
+      margin-top: 20px;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid #e0e7ff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    p {
+      margin-bottom: 10px;
+      color: #334155;
+      font-size: 10pt;
+    }
+
+    /* Flowchart Grid Container */
+    .flow-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .flow-box {
+      border: 1.5px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 14px 16px;
+      background: #f8fafc;
+      position: relative;
+    }
+
+    .flow-box.corp { border-color: #3b82f6; background: #eff6ff; }
+    .flow-box.router { border-color: #8b5cf6; background: #f5f3ff; }
+    .flow-box.team { border-color: #f59e0b; background: #fffbeb; }
+    .flow-box.checkin { border-color: #10b981; background: #ecfdf5; }
+    .flow-box.jury { border-color: #06b6d4; background: #ecfeff; }
+    .flow-box.hiring { border-color: #6366f1; background: #eef2ff; }
+
+    .stage-badge {
+      display: inline-block;
+      font-size: 7.5pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-bottom: 6px;
+    }
+
+    .corp .stage-badge { background: #dbeafe; color: #1e40af; }
+    .router .stage-badge { background: #ede9fe; color: #5b21b6; }
+    .team .stage-badge { background: #fef3c7; color: #92400e; }
+    .checkin .stage-badge { background: #d1fae5; color: #065f46; }
+    .jury .stage-badge { background: #cffafe; color: #155e75; }
+    .hiring .stage-badge { background: #e0e7ff; color: #3730a3; }
+
+    .stage-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 11pt;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 6px;
+    }
+
+    .stage-desc {
+      font-size: 8.5pt;
+      color: #475569;
+      line-height: 1.45;
+    }
+
+    .stage-desc ul {
+      margin-left: 16px;
+      margin-top: 4px;
+    }
+
+    .stage-desc li {
+      margin-bottom: 3px;
+    }
+
+    /* Highlight Feature Box */
+    .highlight-card {
+      background: #fdf4ff;
+      border: 1.5px dashed #c084fc;
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-top: 14px;
+      margin-bottom: 18px;
+    }
+
+    .highlight-title {
+      font-size: 10pt;
+      font-weight: 800;
+      color: #86198f;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .highlight-body {
+      font-size: 9pt;
+      color: #701a75;
+      line-height: 1.4;
+    }
+
+    /* Table Styles */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9pt;
+      margin-top: 10px;
+      margin-bottom: 18px;
+    }
+
+    th {
+      background: #f1f5f9;
+      color: #1e293b;
+      font-weight: 700;
+      text-align: left;
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+    }
+
+    td {
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      color: #334155;
+    }
+
+    tr:nth-child(even) td {
+      background: #f8fafc;
+    }
+
+    /* Page Break Rules */
+    .page-break {
+      page-break-after: always;
+      break-after: page;
+    }
+
+    /* Footer */
+    .footer {
+      font-size: 8pt;
+      color: #94a3b8;
+      text-align: center;
+      margin-top: 24px;
+      padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PAGE 1 -->
+  <div class="header-card">
+    <div class="brand-pill">⚡ EventPulse Executive Blueprint</div>
+    <div class="header-title">Multi-University Corporate Hackathon & Recruitment Model</div>
+    <div class="header-subtitle">
+      Comprehensive operational workflow, cross-campus federated architecture, automated academic On-Duty (OD) clearance, and monetized talent acquisition pipeline.
+    </div>
+    <div class="meta-bar">
+      <span><strong>Document:</strong> Strategic Technical Roadmap</span>
+      <span><strong>Coverage:</strong> 3-4 Universities + Enterprise Partners</span>
+      <span><strong>Status:</strong> Approved Architecture Plan</span>
+    </div>
+  </div>
+
+  <h2>🗺️ 6-Stage Operational Flowchart</h2>
+  <p>How EventPulse connects corporate partners with verified student engineers across multiple independent university campuses without administrative friction.</p>
+
+  <div class="flow-grid">
+    <!-- STAGE 1 -->
+    <div class="flow-box corp">
+      <span class="stage-badge">Stage 1</span>
+      <div class="stage-title">🏢 Corporate Onboarding & Launch</div>
+      <div class="stage-desc">
+        Company HR or DevRel lead (e.g., Tata, TechM, Google) registers on the portal:
+        <ul>
+          <li>Sets Problem Statement & Tech Stacks.</li>
+          <li>Deposits Cash Prize Pool (e.g., ₹1,00,000) in escrow.</li>
+          <li>Selects target campuses: <code>scope: "all_partner_universities"</code>.</li>
+          <li>EventPulse Super Admin reviews & authorizes in 1-click.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- STAGE 2 -->
+    <div class="flow-box router">
+      <span class="stage-badge">Stage 2</span>
+      <div class="stage-title">📡 Multi-Campus Broadcast Engine</div>
+      <div class="stage-desc">
+        The EventPulse Router broadcasts the challenge across all connected university feeds:
+        <ul>
+          <li><strong>Campus A:</strong> Sanjivani University (5,000+ students)</li>
+          <li><strong>Campus B:</strong> Pune University / COEP (8,000+ students)</li>
+          <li><strong>Campus C:</strong> Autonomous Engg College (4,000+ students)</li>
+          <li>Students receive instant in-app & push notifications.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- STAGE 3 -->
+    <div class="flow-box team">
+      <span class="stage-badge">Stage 3</span>
+      <div class="stage-title">👥 Cross-Campus Teaming & Passes</div>
+      <div class="stage-desc">
+        Verified registration & inter-college collaboration:
+        <ul>
+          <li>Student A (Sanjivani CSE) creates team <em>"CodeTitans"</em>.</li>
+          <li>Generates join code: <code>#TITAN-92</code>.</li>
+          <li>Student B (COEP AI&DS) enters code & joins team.</li>
+          <li>System auto-verifies PRNs and issues cryptographic QR passes.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- STAGE 4 -->
+    <div class="flow-box checkin">
+      <span class="stage-badge">Stage 4</span>
+      <div class="stage-title">🛡️ Live Check-in & Auto-OD Clearance</div>
+      <div class="stage-desc">
+        Physical or virtual verification on Hackathon Day:
+        <ul>
+          <li>Organizer scans student QR at venue entrance.</li>
+          <li>Attendance is recorded live: <code>PRESENT ✅</code>.</li>
+          <li><strong>Auto-OD Signal:</strong> Respective HODs get 1-click clearance prompt.</li>
+          <li>HOD approves ➔ College attendance is 100% safeguarded!</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- STAGE 5 -->
+    <div class="flow-box jury">
+      <span class="stage-badge">Stage 5</span>
+      <div class="stage-title">📊 Evaluation & Live Leaderboards</div>
+      <div class="stage-desc">
+        Submission and evaluation process:
+        <ul>
+          <li>Teams submit GitHub repo, architecture diagram & demo video.</li>
+          <li>Corporate jury scores via standardized rubric (Code, UX, Impact).</li>
+          <li>Real-time dynamic multi-campus leaderboard updates.</li>
+          <li>Finalists pitch live in the Grand Finale round.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- STAGE 6 -->
+    <div class="flow-box hiring">
+      <span class="stage-badge">Stage 6</span>
+      <div class="stage-title">🎓 Hiring, PPOs & Co-Branded Certs</div>
+      <div class="stage-desc">
+        Outcomes and talent acquisition:
+        <ul>
+          <li>Cash prize distribution directly to winning team bank accounts.</li>
+          <li><strong>Recruiter Talent Dossier:</strong> 1-click interview invites & PPOs.</li>
+          <li>Tamper-proof digital certificates (Corporate Logo + University Seal).</li>
+          <li>Instant verification via <code>/verify/:certId</code> QR code.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="highlight-card">
+    <div class="highlight-title">💡 The Killer Differentiator: Automated Academic On-Duty (OD)</div>
+    <div class="highlight-body">
+      Traditional platforms (Unstop, Devfolio) lose 60%+ of physical attendance because students cannot get leave approval from their colleges. EventPulse directly connects the Hackathon check-in scanner to the university HOD's dashboard. When a student scans their pass, their HOD receives a verified OD request with a single "Grant OD" button. <strong>Students and colleges will choose EventPulse over any third-party portal for this feature alone.</strong>
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- PAGE 2 -->
+  <h2>💰 Business & Monetization Blueprint</h2>
+  <p>How EventPulse converts cross-campus hackathon traffic into sustainable, high-margin revenue streams:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 25%;">Revenue Stream</th>
+        <th style="width: 45%;">Deliverables to Corporate Partner</th>
+        <th style="width: 30%;">Pricing / Fee Structure</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Sponsored Hackathon Listing</strong></td>
+        <td>Company branding across 4 universities, problem statement broadcast, participant management dashboard, digital certificates.</td>
+        <td><strong>₹25,000 – ₹75,000</strong><br/><small style="color: #64748b;">per event</small></td>
+      </tr>
+      <tr>
+        <td><strong>Full-Scale Enterprise Challenge</strong></td>
+        <td>Dedicated multi-campus marketing, mentor slots, custom judging criteria, physical venue coordination at partner colleges.</td>
+        <td><strong>₹1,00,000 – ₹2,50,000</strong><br/><small style="color: #64748b;">per enterprise drive</small></td>
+      </tr>
+      <tr>
+        <td><strong>Talent Scouting & Hiring Pass</strong></td>
+        <td>Direct access to verified candidate dossiers (top 10% performers), GitHub profiles, PRNs, and 1-click interview invitations.</td>
+        <td><strong>₹5,000 – ₹10,000</strong><br/><small style="color: #64748b;">per recruited intern/FTE</small></td>
+      </tr>
+      <tr>
+        <td><strong>Web3 / Open Source Grants</strong></td>
+        <td>Hosting sponsored developer tracks for global foundations (Polygon, Solana, Ethereum India, GitHub Campus).</td>
+        <td><strong>$1,000 – $3,000</strong><br/><small style="color: #64748b;">(₹80,000 – ₹2,50,000)</small></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>🔒 Multi-Tenant Data Isolation & Privacy Matrix</h2>
+  <p>How EventPulse prevents data leaks between competing universities and corporate sponsors:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Data Category</th>
+        <th style="text-align: center;">Corporate Partner</th>
+        <th style="text-align: center;">College Students</th>
+        <th style="text-align: center;">College HOD / Dean</th>
+        <th style="text-align: center;">Super Admin</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Inter-Campus Hackathons</strong></td>
+        <td style="text-align: center; color: #16a34a; font-weight: bold;">Full Access</td>
+        <td style="text-align: center; color: #16a34a; font-weight: bold;">Browse & Register</td>
+        <td style="text-align: center; color: #16a34a; font-weight: bold;">View Participants</td>
+        <td style="text-align: center; color: #16a34a; font-weight: bold;">Full Control</td>
+      </tr>
+      <tr>
+        <td><strong>Internal College Events & Fests</strong></td>
+        <td style="text-align: center; color: #dc2626; font-weight: bold;">BLOCKED ❌</td>
+        <td style="text-align: center; color: #16a34a; font-weight: bold;">Own College Only</td>
+        <td style="text-align: center; color: #16a34a; font-weight: bold;">Own Dept Only</td>
+        <td style="text-align: center; color: #16a34a; font-weight: bold;">Full Control</td>
+      </tr>
+      <tr>
+        <td><strong>Student Grievance Dossiers</strong></td>
+        <td style="text-align: center; color: #dc2626; font-weight: bold;">BLOCKED ❌</td>
+        <td style="text-align: center; color: #16a34a; font-weight: bold;">Own Tickets</td>
+        <td style="text-align: center; color: #16a34a; font-weight: bold;">Own Dept Grievances</td>
+        <td style="text-align: center; color: #16a34a; font-weight: bold;">Full Control</td>
+      </tr>
+      <tr>
+        <td><strong>Academic On-Duty (OD) Approvals</strong></td>
+        <td style="text-align: center; color: #dc2626; font-weight: bold;">BLOCKED ❌</td>
+        <td style="text-align: center; color: #16a34a; font-weight: bold;">Status Only</td>
+        <td style="text-align: center; color: #16a34a; font-weight: bold;">Approve / Reject</td>
+        <td style="text-align: center; color: #16a34a; font-weight: bold;">Full Audit Log</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>🚀 Corporate Outreach Pitch Script (Ready-to-Use)</h2>
+  <div style="background: #f1f5f9; border-left: 4px solid #4f46e5; padding: 12px 16px; border-radius: 6px; font-size: 8.5pt; color: #1e293b; line-height: 1.5;">
+    <strong>Subject:</strong> Direct access to 15,000+ verified engineering students across 4 top universities for your upcoming tech challenge<br/><br/>
+    <em>"Hi [Recruiter / Campus Lead],<br/><br/>
+    I am the founder of <strong>EventPulse</strong>, the official campus event and academic clearance network operating across [Universities Name] with 15,000+ verified engineering students.<br/><br/>
+    We noticed that traditional hiring hackathons suffer from 60%+ ghost registrations and unverified resumes. With EventPulse, your hackathon is broadcast directly to students' official academic dashboards. Every participant is pre-verified by University PRN, and our automated On-Duty (OD) clearance engine guarantees high physical turnout with direct HOD backing.<br/><br/>
+    We would love to co-host a sponsored track for [Company Name] next month. Would you be open for a brief 10-minute discovery call this week?"</em>
+  </div>
+
+  <div class="footer">
+    EventPulse Campus Operating System • Confidential Strategic Planning Document • Generated for University Expansion & Corporate Partner Alignment
+  </div>
+
+</body>
+</html>
