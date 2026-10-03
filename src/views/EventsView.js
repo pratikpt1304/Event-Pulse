@@ -165,7 +165,7 @@ export async function renderEventsView(container, navigateTo) {
           ${n.attachment ? `
             <div style="margin-top: 1rem; padding: 0.85rem 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;">
               ${(n.attachment.type && n.attachment.type.startsWith('image/')) ? `
-                <img src="${n.attachment.dataUrl}" alt="${n.attachment.name || 'Attachment'}" style="width:100%;border-radius:8px;margin-bottom:0.75rem;max-height:300px;object-fit:contain;" />
+                <img src="${n.attachment.dataUrl}" alt="${n.attachment.name || 'Attachment'}" onerror="this.style.display='none';" style="width:100%;border-radius:8px;margin-bottom:0.75rem;max-height:300px;object-fit:contain;" />
               ` : ''}
               <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">
                 <div style="display:flex;align-items:center;gap:0.5rem;">
@@ -189,7 +189,7 @@ export async function renderEventsView(container, navigateTo) {
 
     // Close on backdrop click
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
-    modal.querySelector('#btn-close-notice-modal').addEventListener('click', () => modal.remove());
+    modal.querySelector('#btn-close-notice-modal')?.addEventListener('click', () => modal.remove());
 
     // Attachment preview inside modal
     modal.querySelectorAll('.btn-download-notice-file').forEach(btn => {

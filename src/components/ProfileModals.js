@@ -69,10 +69,10 @@ export function openEditProfileModal(user, onUpdated) {
   document.body.appendChild(overlay);
 
   const close = () => overlay.remove();
-  overlay.querySelector('#close-profile-x').addEventListener('click', close);
-  overlay.querySelector('#btn-cancel-profile').addEventListener('click', close);
+  overlay.querySelector('#close-profile-x')?.addEventListener('click', close);
+  overlay.querySelector('#btn-cancel-profile')?.addEventListener('click', close);
 
-  overlay.querySelector('#edit-profile-form').addEventListener('submit', async (e) => {
+  overlay.querySelector('#edit-profile-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = overlay.querySelector('#edit-name').value.trim();
     const department = overlay.querySelector('#edit-dept').value;
@@ -185,15 +185,15 @@ export function openHelpDeskModal() {
   document.body.appendChild(overlay);
 
   const close = () => overlay.remove();
-  overlay.querySelector('#close-help-x').addEventListener('click', close);
-  overlay.querySelector('#btn-close-help').addEventListener('click', close);
+  overlay.querySelector('#close-help-x')?.addEventListener('click', close);
+  overlay.querySelector('#btn-close-help')?.addEventListener('click', close);
 
   overlay.querySelector('#btn-open-grievance')?.addEventListener('click', () => {
     close();
     openComplaintModal();
   });
 
-  overlay.querySelector('#helpdesk-form').addEventListener('submit', async (e) => {
+  overlay.querySelector('#helpdesk-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = overlay.querySelector('#helpdesk-form button[type="submit"]');
     const msg = overlay.querySelector('#help-msg').value.trim();

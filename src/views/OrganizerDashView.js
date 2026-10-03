@@ -2186,8 +2186,8 @@ function openCreateEventModal(organizerUser, onSuccess) {
   document.body.appendChild(overlay);
 
   const close = () => overlay.remove();
-  overlay.querySelector('#close-create-x').addEventListener('click', close);
-  overlay.querySelector('#btn-cancel-create').addEventListener('click', close);
+  overlay.querySelector('#close-create-x')?.addEventListener('click', close);
+  overlay.querySelector('#btn-cancel-create')?.addEventListener('click', close);
 
   // AI Description Draft Handler
   overlay.querySelector('#btn-ai-draft-desc')?.addEventListener('click', async () => {
@@ -2201,7 +2201,7 @@ function openCreateEventModal(organizerUser, onSuccess) {
     descBox.value = draft;
   });
 
-  overlay.querySelector('#create-event-form').addEventListener('submit', async (e) => {
+  overlay.querySelector('#create-event-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const visibility = overlay.querySelector('input[name="ev-visibility"]:checked')?.value || 'open';
 

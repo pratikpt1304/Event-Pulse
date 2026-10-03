@@ -83,7 +83,7 @@ export function openDocumentPreviewModal({ title = 'Campus Document', fileName, 
           </div>
         ` : `
           <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
-            <img src="${blobUrl}" alt="${docFileName}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 12px; box-shadow: 0 15px 40px rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.1);" />
+            <img src="${blobUrl}" alt="${docFileName}" onerror="this.onerror=null;this.parentElement.innerHTML='<div style=\\'color:#94a3b8;font-size:0.9rem;padding:2rem;text-align:center;\\'>Preview not available for this image format.</div>';" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 12px; box-shadow: 0 15px 40px rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.1);" />
           </div>
         `}
       </div>

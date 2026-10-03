@@ -59,11 +59,11 @@ export async function openDigitalPassModal(registration, student) {
     const qrDataUrl = await generateQRDataUrl(qrData.token);
     const container = overlay.querySelector('#pass-qr-container');
     if (container && qrDataUrl) {
-      container.innerHTML = `<img src="${qrDataUrl}" alt="Event Pass QR Code" />`;
+      container.innerHTML = `<img src="${qrDataUrl}" alt="Event Pass QR Code" onerror="this.onerror=null;this.parentElement.innerHTML='<div class=\\'error-notice\\'>QR Unavailable</div>';" />`;
     }
   }
 
   const close = () => overlay.remove();
-  overlay.querySelector('#close-modal-x').addEventListener('click', close);
-  overlay.querySelector('#btn-close-pass').addEventListener('click', close);
+  overlay.querySelector('#close-modal-x')?.addEventListener('click', close);
+  overlay.querySelector('#btn-close-pass')?.addEventListener('click', close);
 }

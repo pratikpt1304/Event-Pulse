@@ -6,8 +6,14 @@ import { getCachedEventsSync } from './events';
 export async function getStudentNotifications(user) {
   if (!user) return [];
 
-  const readSet = new Set(JSON.parse(localStorage.getItem('ep_read_notifications_' + user.uid) || '[]'));
-  const dismissedSet = new Set(JSON.parse(localStorage.getItem('ep_dismissed_notifications_' + user.uid) || '[]'));
+  let readSet = new Set();
+  let dismissedSet = new Set();
+  try {
+    readSet = new Set(JSON.parse(localStorage.getItem('ep_read_notifications_' + user.uid) || '[]'));
+  } catch (e) {}
+  try {
+    dismissedSet = new Set(JSON.parse(localStorage.getItem('ep_dismissed_notifications_' + user.uid) || '[]'));
+  } catch (e) {}
   
   const regs = getCachedRegistrationsSync(user.uid) || [];
   const certs = getCachedCertificatesSync(user.uid) || [];

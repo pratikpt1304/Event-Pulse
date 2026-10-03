@@ -102,8 +102,8 @@ export function openQRScannerModal(scannerUser, onAttendanceSuccess) {
     console.warn('Camera scanner fallback:', err);
   }
 
-  overlay.querySelector('#btn-submit-manual-token').addEventListener('click', () => {
-    const val = overlay.querySelector('#manual-token-input').value.trim();
+  overlay.querySelector('#btn-submit-manual-token')?.addEventListener('click', () => {
+    const val = overlay.querySelector('#manual-token-input')?.value.trim();
     if (val) handleScanToken(val);
   });
 
@@ -114,6 +114,6 @@ export function openQRScannerModal(scannerUser, onAttendanceSuccess) {
     overlay.remove();
   };
 
-  overlay.querySelector('#close-scanner-x').addEventListener('click', cleanup);
-  overlay.querySelector('#btn-close-scanner').addEventListener('click', cleanup);
+  overlay.querySelector('#close-scanner-x')?.addEventListener('click', cleanup);
+  overlay.querySelector('#btn-close-scanner')?.addEventListener('click', cleanup);
 }
