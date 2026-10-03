@@ -1546,9 +1546,16 @@ export async function renderOrganizerDashView(container, navigateTo) {
         const volId = e.currentTarget.getAttribute('data-vol-id');
         btn.disabled = true;
         btn.textContent = 'Approving...';
-        await updateVolunteerStatus(volId, 'accepted');
-        volunteers = await getEventVolunteers(selectedEventId);
-        render();
+        try {
+          await updateVolunteerStatus(volId, 'accepted');
+          volunteers = await getEventVolunteers(selectedEventId);
+          render();
+        } catch (err) {
+          console.error('Approve volunteer error:', err);
+          alert('Failed to approve volunteer. Please try again.');
+          btn.disabled = false;
+          btn.textContent = '✓ Approve';
+        }
       });
     });
 
@@ -1558,9 +1565,16 @@ export async function renderOrganizerDashView(container, navigateTo) {
         if (confirm('Are you sure you want to reject / remove this volunteer application?')) {
           btn.disabled = true;
           btn.textContent = 'Updating...';
-          await updateVolunteerStatus(volId, 'rejected');
-          volunteers = await getEventVolunteers(selectedEventId);
-          render();
+          try {
+            await updateVolunteerStatus(volId, 'rejected');
+            volunteers = await getEventVolunteers(selectedEventId);
+            render();
+          } catch (err) {
+            console.error('Reject volunteer error:', err);
+            alert('Failed to update volunteer status. Please try again.');
+            btn.disabled = false;
+            btn.textContent = '✕ Reject';
+          }
         }
       });
     });
@@ -2078,7 +2092,11 @@ export async function renderOrganizerDashView(container, navigateTo) {
 }
 
 function openCreateEventModal(organizerUser, onSuccess) {
+  const existing = document.getElementById('create-event-modal-root');
+  if (existing) existing.remove();
+
   const overlay = document.createElement('div');
+  overlay.id = 'create-event-modal-root';
   overlay.className = 'modal-overlay';
   
   overlay.innerHTML = `
@@ -2197,33 +2215,53 @@ function openCreateEventModal(organizerUser, onSuccess) {
     const descBox = overlay.querySelector('#ev-desc');
     
     descBox.value = '⚡ Generating high-impact event description with NEX...';
-    const draft = await generateEventDescriptionAI(title, cat, dept);
-    descBox.value = draft;
+    try {
+      const draft = await generateEventDescriptionAI(title, cat, dept);
+      descBox.value = draft;
+    } catch (e) {
+      descBox.value = `${title} is an exciting campus event organized by the Department of ${dept}. Join us for hands-on learning, competition, and networking!`;
+    }
   });
 
   overlay.querySelector('#create-event-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const visibility = overlay.querySelector('input[name="ev-visibility"]:checked')?.value || 'open';
+    const submitBtn = overlay.querySelector('#create-event-form button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting Event...';
+    }
 
-    const eventPayload = {
-      title: overlay.querySelector('#ev-title').value.trim(),
-      description: overlay.querySelector('#ev-desc').value.trim(),
-      category: overlay.querySelector('#ev-cat').value,
-      department: overlay.querySelector('#ev-dept').value,
-      visibility,
-      venue: overlay.querySelector('#ev-venue').value.trim(),
-      externalLink: (overlay.querySelector('#ev-link')?.value || '').trim(),
-      date: overlay.querySelector('#ev-date').value,
-      time: overlay.querySelector('#ev-time').value.trim(),
-      maxParticipants: parseInt(overlay.querySelector('#ev-max').value, 10),
-      registrationDeadline: overlay.querySelector('#ev-deadline').value,
-      eligibleDepartments: ['Computer Science', 'Information Technology', 'AI & Data Science', 'Robotics'],
-      eligibleYears: ['1st Year', '2nd Year', '3rd Year', '4th Year']
-    };
+    try {
+      const visibility = overlay.querySelector('input[name="ev-visibility"]:checked')?.value || 'open';
+      const maxVal = parseInt(overlay.querySelector('#ev-max').value, 10);
 
-    await createEvent(eventPayload, organizerUser);
-    alert(`🎉 Event submitted! Status: pending_approval (${visibility.toUpperCase()}).`);
-    close();
-    if (onSuccess) onSuccess();
+      const eventPayload = {
+        title: overlay.querySelector('#ev-title').value.trim(),
+        description: overlay.querySelector('#ev-desc').value.trim(),
+        category: overlay.querySelector('#ev-cat').value,
+        department: overlay.querySelector('#ev-dept').value,
+        visibility,
+        venue: overlay.querySelector('#ev-venue').value.trim(),
+        externalLink: (overlay.querySelector('#ev-link')?.value || '').trim(),
+        date: overlay.querySelector('#ev-date').value,
+        time: overlay.querySelector('#ev-time').value.trim(),
+        maxParticipants: !isNaN(maxVal) && maxVal > 0 ? maxVal : 100,
+        registrationDeadline: overlay.querySelector('#ev-deadline').value,
+        eligibleDepartments: ['Computer Science', 'Information Technology', 'AI & Data Science', 'Robotics'],
+        eligibleYears: ['1st Year', '2nd Year', '3rd Year', '4th Year']
+      };
+
+      await createEvent(eventPayload, organizerUser);
+      alert(`🎉 Event submitted! Status: pending_approval (${visibility.toUpperCase()}).`);
+      close();
+      if (onSuccess) onSuccess();
+    } catch (err) {
+      console.error('Create event error:', err);
+      alert('Error creating event: ' + err.message);
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit for Admin Review';
+      }
+    }
   });
 }

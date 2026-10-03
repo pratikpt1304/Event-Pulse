@@ -252,17 +252,25 @@ export function openIdeaModal(onSuccess = null) {
     btn.disabled = true;
     btn.textContent = 'Publishing...';
 
-    const res = await submitIdea({ title, type, category, description, suggestedVenue, suggestedGuest, user });
+    try {
+      const res = await submitIdea({ title, type, category, description, suggestedVenue, suggestedGuest, user });
 
-    if (res.success) {
-      alert(`🎉 ${isNew ? 'Event Wish' : 'Improvement Suggestion'} Published!\nOther students can now upvote it. Most-requested ideas go to the event council!`);
-      close();
-      if (onSuccess) onSuccess();
-    } else {
+      if (res && res.success) {
+        alert(`🎉 ${isNew ? 'Event Wish' : 'Improvement Suggestion'} Published!\nOther students can now upvote it. Most-requested ideas go to the event council!`);
+        close();
+        if (onSuccess) onSuccess();
+      } else {
+        btn.disabled = false;
+        btn.textContent = '🚀 Publish to Campus Wishlist';
+        errEl.style.display = 'block';
+        errEl.textContent = res?.error || 'Failed to submit. Try again.';
+      }
+    } catch (err) {
+      console.error('Idea submit error:', err);
       btn.disabled = false;
       btn.textContent = '🚀 Publish to Campus Wishlist';
       errEl.style.display = 'block';
-      errEl.textContent = res.error || 'Failed to submit. Try again.';
+      errEl.textContent = 'Network or server error while publishing idea. Please try again.';
     }
   });
 }

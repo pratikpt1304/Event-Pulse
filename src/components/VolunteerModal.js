@@ -97,25 +97,35 @@ export function openVolunteerModal(event, onSuccess = null) {
     btn.disabled = true;
     btn.textContent = 'Submitting Application...';
 
-    const res = await applyForVolunteer({
-      eventId: event.id,
-      eventTitle: event.title,
-      user,
-      preferredRole,
-      reason,
-      phone
-    });
+    try {
+      const res = await applyForVolunteer({
+        eventId: event.id,
+        eventTitle: event.title,
+        user,
+        preferredRole,
+        reason,
+        phone
+      });
 
-    if (res.success) {
-      alert(`🎉 Application Submitted!\nThe event organizer will review your application and contact you on WhatsApp (${phone}). You can track this in your Wallet!`);
-      close();
-      if (onSuccess) onSuccess();
-    } else {
+      if (res && res.success) {
+        alert(`🎉 Application Submitted!\nThe event organizer will review your application and contact you on WhatsApp (${phone}). You can track this in your Wallet!`);
+        close();
+        if (onSuccess) onSuccess();
+      } else {
+        btn.disabled = false;
+        btn.textContent = '🚀 Submit Volunteer Application';
+        if (errEl) {
+          errEl.style.display = 'block';
+          errEl.textContent = res?.error || 'Failed to submit application.';
+        }
+      }
+    } catch (err) {
+      console.error('Volunteer application error:', err);
       btn.disabled = false;
       btn.textContent = '🚀 Submit Volunteer Application';
       if (errEl) {
         errEl.style.display = 'block';
-        errEl.textContent = res.error || 'Failed to submit application.';
+        errEl.textContent = 'Network error while submitting application. Please try again.';
       }
     }
   });

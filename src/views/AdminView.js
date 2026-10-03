@@ -1524,10 +1524,17 @@ export async function renderAdminView(container, navigateTo) {
         const id = e.target.getAttribute('data-event-id');
         btn.disabled = true;
         btn.textContent = 'Approving...';
-        await updateEventStatus(id, 'approved', user);
-        pendingEvents = await getPendingEvents();
-        approvedEvents = await getApprovedEvents();
-        render();
+        try {
+          await updateEventStatus(id, 'approved', user);
+          pendingEvents = await getPendingEvents();
+          approvedEvents = await getApprovedEvents();
+          render();
+        } catch (err) {
+          console.error('Approve event error:', err);
+          alert('Failed to approve event: ' + err.message);
+          btn.disabled = false;
+          btn.textContent = 'Approve';
+        }
       });
     });
 
@@ -1535,9 +1542,17 @@ export async function renderAdminView(container, navigateTo) {
       btn.addEventListener('click', async (e) => {
         const id = e.target.getAttribute('data-event-id');
         btn.disabled = true;
-        await updateEventStatus(id, 'rejected', user);
-        pendingEvents = await getPendingEvents();
-        render();
+        btn.textContent = 'Rejecting...';
+        try {
+          await updateEventStatus(id, 'rejected', user);
+          pendingEvents = await getPendingEvents();
+          render();
+        } catch (err) {
+          console.error('Reject event error:', err);
+          alert('Failed to reject event: ' + err.message);
+          btn.disabled = false;
+          btn.textContent = 'Reject';
+        }
       });
     });
 
@@ -1550,11 +1565,18 @@ export async function renderAdminView(container, navigateTo) {
         if (confirm(`Are you sure you want to permanently delete event "${title}"?\n\nThis will remove it completely from the database and student portal.`)) {
           btn.disabled = true;
           btn.textContent = 'Deleting...';
-          await deleteEvent(id);
-          pendingEvents = await getPendingEvents();
-          approvedEvents = await getApprovedEvents();
-          completedEvents = await getCompletedEvents();
-          render();
+          try {
+            await deleteEvent(id);
+            pendingEvents = await getPendingEvents();
+            approvedEvents = await getApprovedEvents();
+            completedEvents = await getCompletedEvents();
+            render();
+          } catch (err) {
+            console.error('Delete event error:', err);
+            alert('Failed to delete event: ' + err.message);
+            btn.disabled = false;
+            btn.textContent = 'Delete Event';
+          }
         }
       });
     });
@@ -2049,9 +2071,11 @@ export async function renderAdminView(container, navigateTo) {
         const uid = e.currentTarget.getAttribute('data-uid');
         const email = e.currentTarget.getAttribute('data-email');
         let targetStudent = usersList.find(u => u.uid === uid || u.email === email);
-        if (!targetStudent) return;
+        const existing = document.getElementById('admin-activity-modal-root');
+        if (existing) existing.remove();
 
         const modal = document.createElement('div');
+        modal.id = 'admin-activity-modal-root';
         modal.className = 'modal-overlay';
         modal.style.zIndex = '9999';
 
@@ -2331,8 +2355,15 @@ export async function renderAdminView(container, navigateTo) {
       const btn = e.currentTarget;
       btn.disabled = true;
       btn.textContent = 'Syncing...';
-      complaints = await getAllComplaints();
-      render();
+      try {
+        complaints = await getAllComplaints();
+      } catch (err) {
+        console.error('Sync grievances error:', err);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🔄 Sync Live';
+        render();
+      }
     });
 
     // Admin Header Live Sync All Data
@@ -2340,21 +2371,28 @@ export async function renderAdminView(container, navigateTo) {
       const btn = e.currentTarget;
       btn.disabled = true;
       btn.textContent = 'Syncing...';
-      const [pe, ae, an, us, cp, id] = await Promise.all([
-        getPendingEvents(),
-        getApprovedEvents(),
-        getAnnouncements(),
-        getAllUsers(),
-        getAllComplaints(),
-        getCampusIdeas()
-      ]);
-      if (pe) pendingEvents = pe;
-      if (ae) approvedEvents = ae;
-      if (an) announcements = an;
-      if (us) usersList = us;
-      if (cp) complaints = cp;
-      if (id) ideas = id;
-      render();
+      try {
+        const [pe, ae, an, us, cp, id] = await Promise.all([
+          getPendingEvents(),
+          getApprovedEvents(),
+          getAnnouncements(),
+          getAllUsers(),
+          getAllComplaints(),
+          getCampusIdeas()
+        ]);
+        if (pe) pendingEvents = pe;
+        if (ae) approvedEvents = ae;
+        if (an) announcements = an;
+        if (us) usersList = us;
+        if (cp) complaints = cp;
+        if (id) ideas = id;
+      } catch (err) {
+        console.error('Admin sync error:', err);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🔄 Sync Data';
+        render();
+      }
     });
 
     // =========================================================================

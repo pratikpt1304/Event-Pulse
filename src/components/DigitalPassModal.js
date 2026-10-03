@@ -1,7 +1,11 @@
 import { getSignedPassQRToken, generateQRDataUrl } from '../services/qr';
 
 export async function openDigitalPassModal(registration, student) {
+  const existing = document.getElementById('digital-pass-modal-root');
+  if (existing) existing.remove();
+
   const overlay = document.createElement('div');
+  overlay.id = 'digital-pass-modal-root';
   overlay.className = 'modal-overlay';
   
   overlay.innerHTML = `

@@ -139,10 +139,17 @@ export async function openReviewModal(event, onReviewAdded = null) {
         if (confirm('Are you sure you want to delete this review?')) {
           btn.disabled = true;
           btn.textContent = 'Deleting...';
-          await deleteReview(reviewId, event.id);
-          reviews = await getEventReviews(event.id);
-          renderModal();
-          if (onReviewAdded) onReviewAdded();
+          try {
+            await deleteReview(reviewId, event.id);
+            reviews = await getEventReviews(event.id);
+            renderModal();
+            if (onReviewAdded) onReviewAdded();
+          } catch (err) {
+            console.error('Delete review error:', err);
+            alert('Failed to delete review. Please check your connection.');
+            btn.disabled = false;
+            btn.textContent = '🗑️ Delete';
+          }
         }
       });
     });
@@ -170,24 +177,34 @@ export async function openReviewModal(event, onReviewAdded = null) {
       submitBtn.disabled = true;
       submitBtn.textContent = 'Posting...';
 
-      const res = await submitReview({
-        eventId: event.id,
-        eventTitle: event.title,
-        rating: selectedRating,
-        reviewText,
-        user
-      });
+      try {
+        const res = await submitReview({
+          eventId: event.id,
+          eventTitle: event.title,
+          rating: selectedRating,
+          reviewText,
+          user
+        });
 
-      if (res.success) {
-        reviews = await getEventReviews(event.id);
-        renderModal();
-        if (onReviewAdded) onReviewAdded();
-      } else {
+        if (res && res.success) {
+          reviews = await getEventReviews(event.id);
+          renderModal();
+          if (onReviewAdded) onReviewAdded();
+        } else {
+          submitBtn.disabled = false;
+          submitBtn.textContent = '⭐ Post Review';
+          if (errEl) {
+            errEl.style.display = 'block';
+            errEl.textContent = res?.error || 'Failed to post review.';
+          }
+        }
+      } catch (err) {
+        console.error('Submit review error:', err);
         submitBtn.disabled = false;
         submitBtn.textContent = '⭐ Post Review';
         if (errEl) {
           errEl.style.display = 'block';
-          errEl.textContent = res.error || 'Failed to post review.';
+          errEl.textContent = 'Network error while submitting review. Please try again.';
         }
       }
     });

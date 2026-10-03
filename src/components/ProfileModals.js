@@ -6,7 +6,11 @@ import { fileGrievance } from '../services/complaints';
  * Modal to Edit Student Profile
  */
 export function openEditProfileModal(user, onUpdated) {
+  const existing = document.getElementById('edit-profile-modal-root');
+  if (existing) existing.remove();
+
   const overlay = document.createElement('div');
+  overlay.id = 'edit-profile-modal-root';
   overlay.className = 'modal-overlay';
   
   overlay.innerHTML = `
@@ -83,12 +87,19 @@ export function openEditProfileModal(user, onUpdated) {
     saveBtn.disabled = true;
     saveBtn.textContent = 'Saving...';
 
-    const res = await updateUserProfile({ name, department, year, division });
-    if (res.success) {
-      close();
-      if (onUpdated) onUpdated();
-    } else {
-      alert('Error updating profile: ' + res.error);
+    try {
+      const res = await updateUserProfile({ name, department, year, division });
+      if (res && res.success) {
+        close();
+        if (onUpdated) onUpdated();
+      } else {
+        alert('Error updating profile: ' + (res?.error || 'Unknown error'));
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Changes';
+      }
+    } catch (err) {
+      console.error('Update profile error:', err);
+      alert('Network or server error while updating profile. Please try again.');
       saveBtn.disabled = false;
       saveBtn.textContent = 'Save Changes';
     }
@@ -99,8 +110,12 @@ export function openEditProfileModal(user, onUpdated) {
  * Modal for Helpdesk & Support
  */
 export function openHelpDeskModal() {
+  const existing = document.getElementById('helpdesk-modal-root');
+  if (existing) existing.remove();
+
   const currentUser = getCurrentUser();
   const overlay = document.createElement('div');
+  overlay.id = 'helpdesk-modal-root';
   overlay.className = 'modal-overlay';
   
   overlay.innerHTML = `
@@ -218,21 +233,28 @@ export function openHelpDeskModal() {
       };
     }
 
-    const res = await fileGrievance({
-      eventId: 'helpdesk_query',
-      eventTitle: '🎧 Helpdesk & General Campus Support',
-      category: '💬 Helpdesk & Student Support',
-      description: msg,
-      isAnonymous: false,
-      user: sender,
-      contactPhone: phone || sender?.phone || ''
-    });
+    try {
+      const res = await fileGrievance({
+        eventId: 'helpdesk_query',
+        eventTitle: '🎧 Helpdesk & General Campus Support',
+        category: '💬 Helpdesk & Student Support',
+        description: msg,
+        isAnonymous: false,
+        user: sender,
+        contactPhone: phone || sender?.phone || ''
+      });
 
-    close();
-    if (res && res.ticketId) {
-      openGrievanceSuccessModal(res.ticketId);
-    } else {
-      alert('📩 Support ticket submitted! A coordinator will review your query.');
+      close();
+      if (res && res.ticketId) {
+        openGrievanceSuccessModal(res.ticketId);
+      } else {
+        alert('📩 Support ticket submitted! A coordinator will review your query.');
+      }
+    } catch (err) {
+      console.error('Helpdesk ticket submission error:', err);
+      alert('Unable to submit support ticket. Please check your network connection.');
+      btn.disabled = false;
+      btn.textContent = '🚀 Send Support Ticket';
     }
   });
 }

@@ -119,27 +119,37 @@ export function openComplaintModal(preselectedEvent = null, onSuccess = null) {
     btn.disabled = true;
     btn.textContent = 'Submitting Confidential Report...';
 
-    const res = await fileGrievance({
-      eventId,
-      eventTitle,
-      category,
-      description,
-      isAnonymous,
-      user,
-      contactPhone
-    });
-
-    if (res.success) {
-      close();
-      openGrievanceSuccessModal(res.ticketId, () => {
-        if (onSuccess) onSuccess(res.ticketId);
+    try {
+      const res = await fileGrievance({
+        eventId,
+        eventTitle,
+        category,
+        description,
+        isAnonymous,
+        user,
+        contactPhone
       });
-    } else {
+
+      if (res && res.success) {
+        close();
+        openGrievanceSuccessModal(res.ticketId, () => {
+          if (onSuccess) onSuccess(res.ticketId);
+        });
+      } else {
+        btn.disabled = false;
+        btn.textContent = '🚨 Submit Confidential Grievance';
+        if (errEl) {
+          errEl.style.display = 'block';
+          errEl.textContent = res?.error || 'Failed to submit grievance. Please try again.';
+        }
+      }
+    } catch (err) {
+      console.error('Complaint submission error:', err);
       btn.disabled = false;
       btn.textContent = '🚨 Submit Confidential Grievance';
       if (errEl) {
         errEl.style.display = 'block';
-        errEl.textContent = 'Failed to submit grievance. Please try again.';
+        errEl.textContent = 'Network or server error while filing report. Please try again.';
       }
     }
   });

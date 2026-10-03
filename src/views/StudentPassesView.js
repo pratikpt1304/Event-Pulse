@@ -347,9 +347,16 @@ export async function renderStudentPassesView(container, navigateTo) {
         if (confirm(`Are you sure you want to cancel your pass/registration for "${title}"?`)) {
           btn.disabled = true;
           btn.textContent = 'Cancelling...';
-          await deleteStudentRegistration(regId, user.uid);
-          registrations = await getStudentRegistrations(user.uid);
-          render();
+          try {
+            await deleteStudentRegistration(regId, user.uid);
+            registrations = await getStudentRegistrations(user.uid);
+            render();
+          } catch (err) {
+            console.error('Cancel pass error:', err);
+            alert('Failed to cancel pass. Please check your network connection.');
+            btn.disabled = false;
+            btn.textContent = '❌ Cancel Pass';
+          }
         }
       });
     });

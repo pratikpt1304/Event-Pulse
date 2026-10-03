@@ -2,7 +2,11 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { submitScannedQRToken } from '../services/qr';
 
 export function openQRScannerModal(scannerUser, onAttendanceSuccess) {
+  const existing = document.getElementById('qr-scanner-modal-root');
+  if (existing) existing.remove();
+
   const overlay = document.createElement('div');
+  overlay.id = 'qr-scanner-modal-root';
   overlay.className = 'modal-overlay';
   
   overlay.innerHTML = `
@@ -42,7 +46,8 @@ export function openQRScannerModal(scannerUser, onAttendanceSuccess) {
     resultCard.style.display = 'block';
     resultCard.innerHTML = `<div class="card" style="text-align: center; color: var(--text-secondary);">Verifying HMAC signature with Cloud Function...</div>`;
 
-    const res = await submitScannedQRToken(decodedText, scannerUser);
+    try {
+      const res = await submitScannedQRToken(decodedText, scannerUser);
 
     if (res.success) {
       resultCard.innerHTML = `
@@ -84,6 +89,20 @@ export function openQRScannerModal(scannerUser, onAttendanceSuccess) {
             <div>
               <h3 style="color: #f87171; font-size: 1.1rem; margin: 0;">Verification Failed</h3>
               <p style="font-size: 0.825rem; color: var(--text-secondary); margin-top: 0.2rem;">${res.message}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  } catch (err) {
+      console.error('Scan token verification error:', err);
+      resultCard.innerHTML = `
+        <div class="card" style="border-color: var(--rose); background: var(--rose-light);">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div style="width: 40px; height: 40px; background: var(--rose); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #fff;">✕</div>
+            <div>
+              <h3 style="color: #f87171; font-size: 1.1rem; margin: 0;">Verification Error</h3>
+              <p style="font-size: 0.825rem; color: var(--text-secondary); margin-top: 0.2rem;">${err.message || 'Network error occurred while validating pass.'}</p>
             </div>
           </div>
         </div>

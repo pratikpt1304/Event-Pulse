@@ -602,15 +602,20 @@ export async function renderEventsView(container, navigateTo) {
         btn.disabled = true;
         btn.textContent = 'Registering...';
 
-        const res = await registerForEvent(targetEvent, user);
-        if (res.success) {
-          alert(`🎉 Registration Submitted Successfully!\nStatus is PENDING approval by ${targetEvent.organizerName || 'organizer'}.`);
+        try {
+          const res = await registerForEvent(targetEvent, user);
+          if (res && res.success) {
+            alert(`🎉 Registration Submitted Successfully!\nStatus is PENDING approval by ${targetEvent.organizerName || 'organizer'}.`);
+          } else {
+            alert(`Notice: ${res?.message || 'Unable to register.'}`);
+          }
           registrations = await getStudentRegistrations(user.uid);
           updateGrid();
-        } else {
-          alert(`Notice: ${res.message}`);
-          registrations = await getStudentRegistrations(user.uid);
-          updateGrid();
+        } catch (err) {
+          console.error('Registration failed:', err);
+          alert('Registration failed due to a network or server error. Please try again.');
+          btn.disabled = false;
+          btn.textContent = 'Register Now';
         }
       });
     });
